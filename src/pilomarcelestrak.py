@@ -17,7 +17,7 @@
 
 import os
 from datetime import datetime, timedelta
-from textcolor import textcolor
+from utils.textcolor import textcolor
 import json
 import requests  # To handle json response for seeing conditions from online services.
 from requests.exceptions import HTTPError  # Error handling.

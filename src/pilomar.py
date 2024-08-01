@@ -139,15 +139,15 @@ print("Loaded cv2")
 from pathlib import Path  # For navigating folder structure.
 import astroalign  # Image alignment routines.
 from datetime import datetime, timedelta, timezone
-from pilomartimer import timer, progresstimer  # Pilomar's timer classes.
-from pilomarlogfile import logfile  # Pilomar's logging class.
+from utils.timer import timer, progresstimer  # Pilomar's timer classes.
+from utils.logfile import logfile  # Pilomar's logging class.
 from pilomaroscommand import oscommand  # Pilomar's OS command executor.
-from pilomardisc import discmonitor  # Pilomar's disc storage monitor.
-from pilomarimage import (
+from utils.disk import discmonitor  # Pilomar's disc storage monitor.
+from camera.image import (
     pilomarimage,
 )  # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
 from pilomarcelestrak import celestrak  # Pilomar's CELESTRAK satellite data handler.
-from pilomarcamera import (
+from camera.camera import (
     astrosensor,
     astrolens,
     astrocamera,
@@ -176,15 +176,15 @@ import pytz  # Timezone handling.
 
 # textcolor is a homegrown simplified terminal display library.
 # There are other libraries available for groovy character displays ('colorama', 'termcolor', 'blessing', 'rich' etc).
-from textcolor import (
+from utils.textcolor import (
     textcolor,
 )  # Basic colour and cursor control codes for terminal displays.
-from textcolor import (
+from utils.textcolor import (
     colordisplay,
 )  # Basic colour character graphics for window display on terminal.
-from textcolor import keyboardscanner  # Simple non-blocking keyboard scanner.
-from textcolor import proceduremenu, optionmenu  # Basic menu handlers.
-from textcolor import listchooser  # Allow user to filter through a list of names.
+from utils.textcolor import keyboardscanner  # Simple non-blocking keyboard scanner.
+from utils.textcolor import proceduremenu, optionmenu  # Basic menu handlers.
+from utils.textcolor import listchooser  # Allow user to filter through a list of names.
 import numpy as np  # Fast array handling
 import pandas  # Dataframe handling.
 
@@ -193,18 +193,18 @@ import threading  # Run the image capture in a separate thread so that motor mov
 from queue import (
     Queue,
 )  # Use queue mechanism to communicate between ObservationRun and Camera threads because they run in parallel.
-import pilomargpio  # GPIO wrappers to support different GPIO libraries.
+from utils import gpio  # GPIO wrappers to support different GPIO libraries.
 
-if pilomargpio.GPIO_DRIVER == "GPIO":  # Original GPIO handlers needed for IO.
+if gpio.GPIO_DRIVER == "GPIO":  # Original GPIO handlers needed for IO.
     # Select the GPIO specific drivers for IO functions.
-    inputpin = pilomargpio.inputpin_gpio
-    outputpin = pilomargpio.outputpin_gpio
-    GPIOCleanup = pilomargpio.cleanup_gpio
-elif pilomargpio.GPIO_DRIVER == "GPIOD":  # Bookworm GPIOD handlers needed for IO.
+    inputpin = gpio.inputpin_gpio
+    outputpin = gpio.outputpin_gpio
+    GPIOCleanup = gpio.cleanup_gpio
+elif gpio.GPIO_DRIVER == "GPIOD":  # Bookworm GPIOD handlers needed for IO.
     # Select the GPIOD specific drivers for IO functions.
-    inputpin = pilomargpio.inputpin_gpiod
-    outputpin = pilomargpio.outputpin_gpiod
-    GPIOCleanup = pilomargpio.cleanup_gpiod
+    inputpin = gpio.inputpin_gpiod
+    outputpin = gpio.outputpin_gpiod
+    GPIOCleanup = gpio.cleanup_gpiod
 else:
     raise ImportError(
         "Could not identify a suitable GPIO driver for this installation."
@@ -1054,7 +1054,7 @@ else:
 MainLog.Log(
     OS_name, "O/S found, assuming camera driver is", CameraDriver, terminal=False
 )
-MainLog.Log("GPIO driver chosen:", pilomargpio.GPIO_DRIVER, terminal=False)
+MainLog.Log("GPIO driver chosen:", gpio.GPIO_DRIVER, terminal=False)
 if OS_systemkey in SUPPORTED_SYSTEMS:
     MainLog.Log(ProgramTitle, "OK to run under", OS_systemkey, terminal=False)
 else:  # Cannot proceed, wrong O/S & hardware combination.

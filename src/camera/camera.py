@@ -22,13 +22,13 @@ import math  # Math and trig functions.
 import random  # random number generator.
 import cv2  # openCV for image file handling.
 from datetime import datetime, timedelta, timezone
-from pilomartimer import timer, progresstimer  # Pilomar's timer classes.
+from utils.timer import timer, progresstimer  # Pilomar's timer classes.
 from pilomaroscommand import oscommand  # Pilomar's OS command executor.
-from pilomarimage import (
+from camera.image import (
     pilomarimage,
     pilomarkeogram,
 )  # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
-from textcolor import (
+from utils.textcolor import (
     textcolor,
 )  # Basic colour and cursor control codes for terminal displays.
 

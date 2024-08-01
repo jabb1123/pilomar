@@ -14,8 +14,8 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from pilomaroscommand import oscommand  # OS Command execution.
-from pilomartimer import timer  # Pilomar's timer class.
-from textcolor import textcolor  # Text interface color utility.
+from utils.timer import timer  # Pilomar's timer class.
+from utils.textcolor import textcolor  # Text interface color utility.
 import os
 
 
