@@ -14,30 +14,44 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from pilomaroscommand import oscommand  # OS Command execution.
-from utils.timer import timer  # Pilomar's timer class.
+from utils.timer import Timer  # Pilomar's timer class.
 from utils.textcolor import textcolor  # Text interface color utility.
 import os
 
 
-class discmonitor:  # 2 references.
+class DiskType(Enum):
+    BOOT = 1
+    USB = 2
+
+
+class DiskMonitor:  # 2 references.
     """Class to monitor the storage capacity of the RPi.
     Basic operation monitors the 'root' disc of the system (memory card).
     But can also monitor other mounted disks, such as usb memory sticks.
     - Will attempt to mount them using the default Raspbian desktop auto-mounting behaviour if needed.
+
+    Arguments:
+      name:str -- A label to refer to this instance.
+
     """
 
     def __init__(
-        self, name="root", devname="/dev/root", path="/", disctype="boot", logger=None
+        self,
+        name: str = "root",
+        devname: str = "/dev/root",
+        path: str = "/",
+        disk_type: DiskType = DiskType.BOOT,
+        logger=None,
     ):
         # If devname = None, create a null entry.
-        self.Log = logger  # Which logger to use?
-        self.oscommand = oscommand(logger=logger)
-        self.osCmd = self.oscommand.Execute
-        self.osCmdCode = self.oscommand.ExecuteCode
-        self.Name = name  # A label to refer to this instance.
-        self.DevName = devname  # The storage mapping device name as seen by the operating system. /dev/root for example.
-        self.DiscType = disctype  # 'boot' or 'usb'. 'usb' triggers some extra processing to check it is mounted and available.
-        self.Timer = timer(60)  # Set timer for 60 seconds.
+        self.log = logger  # Which logger to use?
+        self.os_command = oscommand(logger=logger)
+        self.os_cmd = self.os_command.Execute
+        self.os_cmd_code = self.os_command.ExecuteCode
+        self.name = name  # A label to refer to this instance.
+        self.dev_name = devname  # The storage mapping device name as seen by the operating system. /dev/root for example.
+        self.disk_type = disk_type  # 'boot' or 'usb'. 'usb' triggers some extra processing to check it is mounted and available.
+        self.timer = Timer(60)  # Set timer for 60 seconds.
         self.DiscFree = 0  # Bytes free.
         self.LowDiscMB = 500  # Megabytes min disc free.
         self.Path = (
@@ -60,20 +74,20 @@ class discmonitor:  # 2 references.
             self.DriveAvailable = (
                 True  # True if available (eg root or USB is mounted), else False.
             )
-            if self.DiscType in [
-                "usb"
-            ]:  # USB devices may need mounting. Check 'em out!
+            if (
+                self.disk_type is DiskType.USB
+            ):  # USB devices may need mounting. Check 'em out!
                 self.FindUSB(
-                    devname=self.DevName
+                    devname=self.dev_name
                 )  # Check if USB memory stick is available.
         else:
             self.DriveAvailable = False  # There is no drive.
         self.Poll(force=True)  # Kickstart the values.
-        if self.Log != None:
-            self.Log(
+        if self.log != None:
+            self.log(
                 "discmonitor: Available storage on:",
-                self.Name,
-                self.DevName,
+                self.name,
+                self.dev_name,
                 self.Path,
                 self.DiscFree,
                 "bytes",
@@ -103,7 +117,7 @@ class discmonitor:  # 2 references.
             ["%", 1],
         ]  # Conversions from 'human readable' forms back to float/integers.
         cCmd = "df -h"  # Use the df command in human readable format.
-        lines = self.osCmd(cCmd)  # Execute command and gather result.
+        lines = self.os_cmd(cCmd)  # Execute command and gather result.
         fieldnames = None  # This will be a list of the column headers from the first line of the 'df' command output.
         for i, line in enumerate(lines):  # Read the output lines one at a time.
             lineitems = line.strip().split()  # Split into individual fields.
@@ -196,8 +210,8 @@ class discmonitor:  # 2 references.
         # /dev/usb1 might mount automatically if desktop is running, but it doesn't happen when running headlessly.
         # This method tries to mount the USB storage if found while running headlessly.
         result = False  # Assume there's no USB memory available at first.
-        if self.Log != None:
-            self.Log(
+        if self.log != None:
+            self.log(
                 "discmonitor.FindUSB: Checking if",
                 devname,
                 "is recognised",
@@ -207,7 +221,7 @@ class discmonitor:  # 2 references.
             devname in self.USBScanList
         ):  # Safety check. Don't run commands with values we don't trust.
             cCmd = "sudo blkid " + devname
-            lines = self.osCmd(cCmd)  # Run the command and gather the results.
+            lines = self.os_cmd(cCmd)  # Run the command and gather the results.
             # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
             #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
             # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
@@ -233,8 +247,8 @@ class discmonitor:  # 2 references.
                     self.USBPartUUID = (
                         items[4].split("=")[1].replace('"', "")
                     )  # Universal identifier.
-                    if self.Log != None:
-                        self.Log(
+                    if self.log != None:
+                        self.log(
                             "discmonitor.FindUSB: Device:",
                             devname,
                             "Label:",
@@ -255,12 +269,12 @@ class discmonitor:  # 2 references.
                 + "' is invalid. Must be in "
                 + str(validdevnames)
             )
-            if self.Log != None:
-                self.Log(textline, level="error", terminal=True)
+            if self.log != None:
+                self.log(textline, level="error", terminal=True)
             textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
         if result:  # Previous steps succeeded.
-            if self.Log != None:
-                self.Log(
+            if self.log != None:
+                self.log(
                     "discmonitor.FindUSB:",
                     devname,
                     "is recognised as",
@@ -276,8 +290,8 @@ class discmonitor:  # 2 references.
                     + self.USBLabel
                     + "' contains spaces, will not mount. Please rename the media."
                 )
-                if self.Log != None:
-                    self.Log(textline, level="error", terminal=True)
+                if self.log != None:
+                    self.log(textline, level="error", terminal=True)
                 textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
                 result = False
         else:  # Previous steps failed.
@@ -286,16 +300,16 @@ class discmonitor:  # 2 references.
                 + devname
                 + " is NOT recognised. USB storage will not be available."
             )
-            if self.Log != None:
-                self.Log(textline, terminal=False)
+            if self.log != None:
+                self.log(textline, terminal=False)
             # textcolor.TextBox(textline,fg=textcolor.RED,bg=textcolor.BLACK)
 
         if result:  # OK so far.
             self.DfPath = (
                 self.Path + "/" + self.USBLabel
             )  # The path to the mapped drive as it will appear in 'df' command output and in directory structures later on.
-            if self.Log != None:
-                self.Log(
+            if self.log != None:
+                self.log(
                     "discmonitor.FindUSB: Checking if",
                     devname,
                     "is mounted as",
@@ -305,13 +319,13 @@ class discmonitor:  # 2 references.
             if os.path.exists(
                 self.DfPath
             ):  # The directory exists. (Risk that this is a real directory on the SD card! See error warning later!)
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB:", self.DfPath, "exists.", terminal=False
                     )
             else:  # The directory does not exist. The drive is recognised by the system, but not mounted. Try to mount it now.
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB:",
                         self.DfPath,
                         "does not exist. Will attempt to mount.",
@@ -329,11 +343,11 @@ class discmonitor:  # 2 references.
                 print(
                     textcolor.yellow("Executing: " + cCmd)
                 )  # Show the user exactly what's being executed.
-                temp = self.osCmdCode(cCmd)  # Check return code.
+                temp = self.os_cmd_code(cCmd)  # Check return code.
                 if temp == 0:  # Return code '0' means success.
                     print("Thank you.")
-                    if self.Log != None:
-                        self.Log(
+                    if self.log != None:
+                        self.log(
                             "discmonitor.FindUSB: Mount",
                             devname,
                             "as",
@@ -343,8 +357,8 @@ class discmonitor:  # 2 references.
                         )
                 else:  # Any other return code value means a problem.
                     result = False  # Failed.
-                    if self.Log != None:
-                        self.Log(
+                    if self.log != None:
+                        self.log(
                             "discmonitor.FindUSB: Mount",
                             devname,
                             "as",
@@ -362,8 +376,8 @@ class discmonitor:  # 2 references.
             if (
                 self.DfPath in dictionary
             ):  # We found it now in the list of mount points.
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB: Check",
                         devname,
                         "as",
@@ -372,8 +386,8 @@ class discmonitor:  # 2 references.
                         terminal=False,
                     )
             else:  # We still can't find it. Something failed.
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB: Check",
                         devname,
                         "as",
@@ -382,7 +396,7 @@ class discmonitor:  # 2 references.
                         level="error",
                         terminal=True,
                     )
-                    self.Log(
+                    self.log(
                         "discmonitor.FindUSB: Troubleshooting: Check for rogue "
                         + self.DfPath
                         + " folder on SD card.",
@@ -408,8 +422,8 @@ class discmonitor:  # 2 references.
                 # I've seen this happen after an O/S hang.
                 result = False  # Failed.
         self.DriveAvailable = result
-        if self.Log != None:
-            self.Log(
+        if self.log != None:
+            self.log(
                 "discmonitor.FindUSB: DriveAvailable",
                 self.DriveAvailable,
                 terminal=False,
@@ -429,19 +443,19 @@ class discmonitor:  # 2 references.
 
         """
         result = None
-        lines = self.osCmd("sudo blkid")  # List all connected devices.
+        lines = self.os_cmd("sudo blkid")  # List all connected devices.
         for line in lines:
             items = self.SplitSpaces(
                 line
             )  # Separate by spaces, but ignore spaces in quotes.
-            if self.Log != None:
-                self.Log(
+            if self.log != None:
+                self.log(
                     "discmonitor.SelectUSBdevname: Considering", line, terminal=False
                 )
             dev = items[0].split(":")[0]  # Remove the trailing ':' from the device.
             if dev in self.USBScanList:  # This is a potential device...
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.SelectUSBdevname: Potential USB device",
                         line,
                         terminal=False,
@@ -453,8 +467,8 @@ class discmonitor:  # 2 references.
                             '"', ""
                         )  # Get the device label.
                 if label in self.USBAlarmLabels:  # Reject this type of device.
-                    if self.Log != None:
-                        self.Log(
+                    if self.log != None:
+                        self.log(
                             "discmonitor.SelectUSBdevname: Found a banned USB device connected. (",
                             label,
                             ")",
@@ -468,8 +482,8 @@ class discmonitor:  # 2 references.
                 else:  # Try this device!
                     result = dev
                     break
-        if self.Log != None:
-            self.Log("discmonitor.SelectUSBdevname: Selected", result, terminal=False)
+        if self.log != None:
+            self.log("discmonitor.SelectUSBdevname: Selected", result, terminal=False)
         return result
 
     def ListUSBdevices(self):
@@ -482,12 +496,12 @@ class discmonitor:  # 2 references.
 
         """
         result = []
-        lines = self.osCmd("sudo blkid")  # List all connected devices.
+        lines = self.os_cmd("sudo blkid")  # List all connected devices.
         for line in lines:
             if len(line) < 1:
                 continue  # Ignore blank lines.
-            if self.Log != None:
-                self.Log(
+            if self.log != None:
+                self.log(
                     "discmonitor.ListUSBDevices: Considering", line, terminal=False
                 )
             else:
@@ -497,8 +511,8 @@ class discmonitor:  # 2 references.
             )  # Separate by spaces, but ignore spaces in quotes.
             dev = items[0].split(":")[0]  # Remove the trailing ':' from the device.
             if dev in self.USBScanList:  # This is a potential device...
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.ListUSBDevices: Including", line, terminal=False
                     )
                 else:
@@ -511,14 +525,14 @@ class discmonitor:  # 2 references.
                         )  # Get the device label.
                 result.append([dev, label])
             else:
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.ListUSBDevices: Excluding", line, terminal=False
                     )
                 else:
                     print("discmonitor.ListUSBDevices: Excluding", line)
-        if self.Log != None:
-            self.Log("discmonitor.ListUSBDevices: listed:", result, terminal=False)
+        if self.log != None:
+            self.log("discmonitor.ListUSBDevices: listed:", result, terminal=False)
         return result
 
     def FindUSBNew(self, devname="/dev/sda1", retries=2):
@@ -528,8 +542,8 @@ class discmonitor:  # 2 references.
         # /dev/usb1 should mount automatically if 'boot to desktop' is enabled.
         # This method tries to mount the USB storage if found while running headlessly.
         result = False  # Assume there's no USB memory available at first.
-        if self.Log != None:
-            self.Log(
+        if self.log != None:
+            self.log(
                 "discmonitor.FindUSB: Checking if",
                 devname,
                 "is recognised",
@@ -540,7 +554,7 @@ class discmonitor:  # 2 references.
             devname in self.USBScanList
         ):  # Safety check. Don't run commands with values we don't trust.
             cCmd = "sudo blkid " + devname
-            lines = self.osCmd(cCmd)  # Run the command and gather the results.
+            lines = self.os_cmd(cCmd)  # Run the command and gather the results.
             # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
             #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
             # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
@@ -566,8 +580,8 @@ class discmonitor:  # 2 references.
                     self.USBPartUUID = (
                         items[4].split("=")[1].replace('"', "")
                     )  # Universal identifier.
-                    if self.Log != None:
-                        self.Log(
+                    if self.log != None:
+                        self.log(
                             "discmonitor.FindUSB: Device:",
                             devname,
                             "Label:",
@@ -588,12 +602,12 @@ class discmonitor:  # 2 references.
                 + "' is invalid. Must be in "
                 + str(validdevnames)
             )
-            if self.Log != None:
-                self.Log(textline, level="error", terminal=True)
+            if self.log != None:
+                self.log(textline, level="error", terminal=True)
             textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
         if result:  # Previous steps succeeded.
-            if self.Log != None:
-                self.Log(
+            if self.log != None:
+                self.log(
                     "discmonitor.FindUSB:",
                     devname,
                     "is recognised as",
@@ -609,22 +623,22 @@ class discmonitor:  # 2 references.
                     + self.USBLabel
                     + "' contains spaces, will not mount. Please rename the media."
                 )
-                if self.Log != None:
-                    self.Log(textline, level="error", terminal=True)
+                if self.log != None:
+                    self.log(textline, level="error", terminal=True)
                 textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
                 result = False
         else:  # Previous steps failed.
             textline = "discmonitor.FindUSB: " + devname + " is NOT recognised."
-            if self.Log != None:
-                self.Log(textline, level="error", terminal=True)
+            if self.log != None:
+                self.log(textline, level="error", terminal=True)
             textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
 
         if result:  # OK so far.
             self.DfPath = (
                 self.Path + "/" + self.USBLabel
             )  # The path to the mapped drive as it will appear in 'df' command output and in directory structures later on.
-            if self.Log != None:
-                self.Log(
+            if self.log != None:
+                self.log(
                     "discmonitor.FindUSB: Checking if",
                     devname,
                     "is mounted as",
@@ -634,13 +648,13 @@ class discmonitor:  # 2 references.
             if os.path.exists(
                 self.DfPath
             ):  # The directory exists. (Risk that this is a real directory on the SD card! See error warning later!)
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB:", self.DfPath, "exists.", terminal=False
                     )
             else:  # The directory does not exist. The drive is recognised by the system, but not mounted. Try to mount it now.
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB:",
                         self.DfPath,
                         "does not exist. Will attempt to mount.",
@@ -661,11 +675,11 @@ class discmonitor:  # 2 references.
                 while (
                     retries >= 0
                 ):  # Try this command a few times in case password is wrong.
-                    temp = self.osCmdCode(cCmd)  # Check return code.
+                    temp = self.os_cmd_code(cCmd)  # Check return code.
                     if temp == 0:  # Return code '0' means success.
                         print("Thank you.")
-                        if self.Log != None:
-                            self.Log(
+                        if self.log != None:
+                            self.log(
                                 "discmonitor.FindUSB: Mount",
                                 devname,
                                 "as",
@@ -675,8 +689,8 @@ class discmonitor:  # 2 references.
                             )
                     else:  # Any other return code value means a problem.
                         result = False  # Failed.
-                        if self.Log != None:
-                            self.Log(
+                        if self.log != None:
+                            self.log(
                                 "discmonitor.FindUSB: Mount",
                                 devname,
                                 "as",
@@ -697,8 +711,8 @@ class discmonitor:  # 2 references.
             if (
                 self.DfPath in dictionary
             ):  # We found it now in the list of mount points.
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB: Check",
                         devname,
                         "as",
@@ -707,8 +721,8 @@ class discmonitor:  # 2 references.
                         terminal=False,
                     )
             else:  # We still can't find it. Something failed.
-                if self.Log != None:
-                    self.Log(
+                if self.log != None:
+                    self.log(
                         "discmonitor.FindUSB: Check",
                         devname,
                         "as",
@@ -717,7 +731,7 @@ class discmonitor:  # 2 references.
                         level="error",
                         terminal=True,
                     )
-                    self.Log(
+                    self.log(
                         "discmonitor.FindUSB: Troubleshooting: Check for rogue "
                         + self.DfPath
                         + " folder on SD card.",
@@ -744,8 +758,8 @@ class discmonitor:  # 2 references.
                 # I've seen this happen after an O/S hang.
                 result = False  # Failed.
         self.DriveAvailable = result
-        if self.Log != None:
-            self.Log(
+        if self.log != None:
+            self.log(
                 "discmonitor.FindUSB: DriveAvailable",
                 self.DriveAvailable,
                 terminal=False,

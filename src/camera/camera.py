@@ -22,7 +22,7 @@ import math  # Math and trig functions.
 import random  # random number generator.
 import cv2  # openCV for image file handling.
 from datetime import datetime, timedelta, timezone
-from utils.timer import timer, progresstimer  # Pilomar's timer classes.
+from utils.timer import Timer, ProgressTimer  # Pilomar's timer classes.
 from pilomaroscommand import oscommand  # Pilomar's OS command executor.
 from camera.image import (
     pilomarimage,
@@ -1249,7 +1249,7 @@ class astrocamera:
             self.TimelapseTimer = None
             self.TimelapseSeconds = None
         else:
-            self.TimelapseTimer = timer(period=seconds)
+            self.TimelapseTimer = Timer(period=seconds)
             self.TimelapseSeconds = seconds
 
     def TimelapseDue(self):
@@ -1780,7 +1780,7 @@ class astrocamera:
                     "astrocamera.FakeDelay : ", round(delay, 1), "s ...", terminal=False
                 )
                 break
-        delaytimer = timer(period=delay)  # Create timer.
+        delaytimer = Timer(period=delay)  # Create timer.
         return delaytimer
 
     def CaptureSet(
@@ -2378,7 +2378,7 @@ class astrocamera:
             keogramfile = self.FolderHandler.PrepFile(
                 "light", "keogram.jpg"
             )  # Target filename.
-            prgt = progresstimer(
+            prgt = ProgressTimer(
                 "keogram", target=filecount
             )  # Report progress and ETA.
             self.Log(

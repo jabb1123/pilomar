@@ -139,10 +139,10 @@ print("Loaded cv2")
 from pathlib import Path  # For navigating folder structure.
 import astroalign  # Image alignment routines.
 from datetime import datetime, timedelta, timezone
-from utils.timer import timer, progresstimer  # Pilomar's timer classes.
+from utils.timer import Timer, ProgressTimer  # Pilomar's timer classes.
 from utils.logfile import logfile  # Pilomar's logging class.
 from pilomaroscommand import oscommand  # Pilomar's OS command executor.
-from utils.disk import discmonitor  # Pilomar's disc storage monitor.
+from utils.disk import DiskMonitor  # Pilomar's disc storage monitor.
 from camera.image import (
     pilomarimage,
 )  # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
@@ -2112,7 +2112,7 @@ if Parameters.OptimiseMoves:  # If allowed to optimise moves, warn the user.
     textcolor.TextBox(lines, fg=textcolor.WHITE, bg=textcolor.ORANGERED1, justify="c")
 
 # Create global timers.
-PreviewTimer = timer(
+PreviewTimer = Timer(
     period=Parameters.MarkupInterval
 )  # ObservationRun will generate a Preview image every nnn seconds.
 
@@ -2134,7 +2134,7 @@ OSW_BORDER_BG = Parameters.BorderBG
 # ------------------------------------------------------------------------------------------------------
 
 # Create a timer for the keyboard scanner.
-KeyboardTimer = timer(
+KeyboardTimer = Timer(
     period=Parameters.KeyboardScanDelay
 )  # This says how frequently the keyboard is checked for input during observations.
 
@@ -2460,7 +2460,7 @@ def GetTerminalSize():
 # ------------------------------------------------------------------------------------------------------
 
 # SDCardMonitor = discmonitor(name='root',devname='/dev/root',path='/',disctype='boot',logger=MainLog.Log) # Create new disc space monitor for the SD card.
-SDCardMonitor = discmonitor(
+SDCardMonitor = DiskMonitor(
     name="root",
     devname="/dev/root",
     path=Parameters.SDPath,
@@ -2502,7 +2502,7 @@ def ChooseUSBMemory():
 # Try to create a disc monitor for any attached USB memory.
 try:
     usbdev = ChooseUSBMemory()
-    USBDiscMonitor = discmonitor(
+    USBDiscMonitor = DiskMonitor(
         name="usb",
         devname=usbdev,
         path=Parameters.USBPath,
@@ -2549,11 +2549,11 @@ def RecheckDisc():
     global SDCardMonitor
     global USBDiscMonitor
     global ImageStorageMonitor
-    SDCardMonitor = discmonitor(
+    SDCardMonitor = DiskMonitor(
         name="root", devname="/dev/root", path="/", disctype="boot", logger=MainLog.Log
     )  # Create new disc space monitor for the SD card.
     usbdev = ChooseUSBMemory()
-    USBDiscMonitor = discmonitor(
+    USBDiscMonitor = DiskMonitor(
         name="usb", devname=usbdev, path="/media/pi", disctype="usb", logger=MainLog.Log
     )  # Create USB memory card monitor (if it exists).
     # Decide which of the two above monitors will be the one that images are stored in. Create a pointer to that one for the status monitoring later on.
@@ -5280,7 +5280,7 @@ class motorcontrol(attributemaster):
                     terminal=False,
                 )
             # In each attempt, first check that the motor is configured. This should happen automatically, but check in case of an unexpected remote reset.
-            rt = timer(
+            rt = Timer(
                 60
             )  # Allow 60 seconds, if no response, reset the microcontroller.
             if self.MotorConfigured:
@@ -6485,7 +6485,7 @@ class sessionstatus(attributemaster):
         the microcontroller, it does not directly handle the UART transfer of data.
         To see the UART Channel handling look in microcontroller.CommsLoop method."""
         self.Log("sessionstatus.MctlHandler(): Started.", terminal=True)
-        heartbeat = timer(
+        heartbeat = Timer(
             30, skip=True
         )  # Send a heartbeat signal to the microcontroller every 30 seconds.
         Mctl.Write(
@@ -8088,9 +8088,9 @@ def hipex_load_dataframe(fobj):
         terminal=True,
     )
     # Populate the ralabel and declabel columns, so we don't keep recalculating the values later in the program.
-    updatetimer = timer(10)  # Every few seconds update the progress.
+    updatetimer = Timer(10)  # Every few seconds update the progress.
     updatetimer.Trigger()  # Force the timer to trigger immediately to show processing has begun.
-    prgt = progresstimer("test", target=total)  # Report progress and ETA.
+    prgt = ProgressTimer("test", target=total)  # Report progress and ETA.
     print("")
     for i in range(total):  # Go through all the rows in the dataframe in sequence.
         dfrec = df.iloc[i]  # Point to each row in turn.
@@ -14493,7 +14493,7 @@ def CameraHandler(outboundqueue, inboundqueue):
     TimeAllocation = (
         {}
     )  # Measure how much time is spent on each task. Helps get scheduling and priorities right.
-    AllocationTimer = timer(600)  # Report time allocation figures every 10 minutes.
+    AllocationTimer = Timer(600)  # Report time allocation figures every 10 minutes.
     LoopCounter = 0  # Count the number of loops.
     CameraInUse.CurrentTask = None  # No task currently active.
     # Flush any outstanding commands in the command queue.
@@ -15213,7 +15213,7 @@ def ShutdownCamera():
     # This waits for confirmation and warn to powercycle the RPi if the STOP command is unsuccessful after xxx seconds.
     # We'll give the CameraHandler some time to shut down.
     # - Some tasks are quite slow, for example long exposures, or complex tracking operations.
-    CameraShutdownTimer = timer(max(200, CameraInUse.ExposureSeconds * 4))
+    CameraShutdownTimer = Timer(max(200, CameraInUse.ExposureSeconds * 4))
     while True:  # Loop until CameraShutdownTimer expires.
         if CameraThread.is_alive() == False:
             break  # Camera thread is completely stopped so OK to proceed.
@@ -15312,7 +15312,7 @@ def ShutdownMessage():
     # This waits for confirmation and warn to powercycle the RPi if the STOP command is unsuccessful after xxx seconds.
     # We'll give the MessageHandler some time to shut down.
     # - Some tasks are quite slow, for example long exposures, or complex tracking operations.
-    MessageShutdownTimer = timer(200)
+    MessageShutdownTimer = Timer(200)
     while True:  # Loop until MessageShutdownTimer expires.
         if MessageThread.is_alive() == False:
             break  # Message thread is completely stopped so OK to proceed.
@@ -16059,7 +16059,7 @@ def ObservationRun():
     # Wait for acknowledgement
     MainLog.Log("ObservationRun: Resetting camera PhotoCount.", terminal=False)
     ack = False  # No acknowledgement from the camera yet.
-    AckTimer = timer(
+    AckTimer = Timer(
         600
     )  # Set a timer for an acknowledgement. Camera is considered 'hung' or 'dead' after that.
     MainLog.Log(
@@ -16254,7 +16254,7 @@ def ObservationRun():
             )
         )
     SessionWindow.Clear(immediate=False)  # Clear old messages from the session window.
-    DebugTimer = timer(120)  # In debug mode, update summary status every 2 minutes.
+    DebugTimer = Timer(120)  # In debug mode, update summary status every 2 minutes.
     _ = ImageStorageMonitor.FreeBytes(force=True)  # Force disc space refresh.
     # After this point all messages to the terminal should respect WINDOW and DEBUG MODE selections, otherwise they get overwritten/corrupted.
     if Session.DebugMode:
