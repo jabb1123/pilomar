@@ -5320,7 +5320,7 @@ class motorcontrol(attributemaster):
                     )
                     break  # All motors configured. OK to proceed.
                 time.sleep(5)  # Pause a moment.
-                if rt.Due():  # It's time to try resetting the microcontroller.
+                if rt.due():  # It's time to try resetting the microcontroller.
                     self.Log(
                         "motorcontrol.GoToAngle(",
                         self.MotorName,
@@ -6565,7 +6565,7 @@ class sessionstatus(attributemaster):
                     )  #  Nothing received this round, so pause to release the pressure on the CPU!
                 # Send occassional heartbeat signal to keep line alive.
                 if (
-                    heartbeat.Due()
+                    heartbeat.due()
                 ):  # Microcontroller will panic and flush trajectories if comms goes silent for too long.
                     Mctl.Write("# heartbeat")  # Prove we're still alive.
                     self.Log("sessionstatus.MctlHandler(): Heartbeat", terminal=False)
@@ -8089,7 +8089,7 @@ def hipex_load_dataframe(fobj):
     )
     # Populate the ralabel and declabel columns, so we don't keep recalculating the values later in the program.
     updatetimer = Timer(10)  # Every few seconds update the progress.
-    updatetimer.Trigger()  # Force the timer to trigger immediately to show processing has begun.
+    updatetimer.trigger()  # Force the timer to trigger immediately to show processing has begun.
     prgt = ProgressTimer("test", target=total)  # Report progress and ETA.
     print("")
     for i in range(total):  # Go through all the rows in the dataframe in sequence.
@@ -8154,20 +8154,20 @@ def hipex_load_dataframe(fobj):
         df.iat[i, col_color_g] = DimChannel(g, TempStarDimmer)
         df.iat[i, col_color_r] = DimChannel(r, TempStarDimmer)
         # Show progress...
-        if updatetimer.Due():
+        if updatetimer.due():
             prgt.UpdateCount(
                 i
             )  # How far have we got so far? prgt will then produce ETA and % complete for us.
             print(
                 textcolor.cursorup() + NowHMS(),
-                textcolor.white(str(round(prgt.GetPercent(), 1))),
+                textcolor.white(str(round(prgt.get_percent(), 1))),
                 "%. Record",
                 i,
                 "of",
                 total,
                 "( HIP" + str(hip),
                 "). ETA",
-                str(prgt.GetETA()).split(".")[0],
+                str(prgt.get_eta()).split(".")[0],
                 "UTC",
                 textcolor.clearlineforward(),
             )
@@ -15065,7 +15065,7 @@ def CameraHandler(outboundqueue, inboundqueue):
             # Generate a labelled copy of the image periodically. For monitoring.
             if LoopTask == "preview":  # Time to consider making a preview markup.
                 if (
-                    PreviewTimer.Due() and CameraInUse.Image.ImageExists()
+                    PreviewTimer.due() and CameraInUse.Image.ImageExists()
                 ):  # Periodically prepare a new preview image. This is slow, so don't do it very frequently.
                     CamLog.Log(
                         "CameraHandler: Begin preview image markup", terminal=False
@@ -15127,7 +15127,7 @@ def CameraHandler(outboundqueue, inboundqueue):
                 terminal=False,
             )
         if (
-            AllocationTimer.Due()
+            AllocationTimer.due()
         ):  # Report how much time has been spent on each type of task.
             CamLog.Log("CameraHandler: Completed loop", LoopCounter, terminal=False)
             totaltime = 0
@@ -15229,7 +15229,7 @@ def ShutdownCamera():
                     CameraThread.join()  # Wait for it to complete.
                 print(textcolor.yellow("CameraThread successfully stopped."))
                 break  # OK to proceed.
-        if CameraShutdownTimer.Due():  # Timeout has expired, something's wrong.
+        if CameraShutdownTimer.due():  # Timeout has expired, something's wrong.
             CamLog.Log(
                 "The CameraHandler did not stop in a reasonable time.",
                 terminal=False,
@@ -15252,7 +15252,7 @@ def ShutdownCamera():
                 success = False  # A terminal error occurred.
             break  # OK to proceed.
         else:
-            temp = int(CameraShutdownTimer.Remaining())  # How many seconds left?
+            temp = int(CameraShutdownTimer.remaining())  # How many seconds left?
             if temp < 60:
                 print(
                     "Timeout in "
@@ -15316,7 +15316,7 @@ def ShutdownMessage():
     while True:  # Loop until MessageShutdownTimer expires.
         if MessageThread.is_alive() == False:
             break  # Message thread is completely stopped so OK to proceed.
-        if MessageShutdownTimer.Due():  # Timeout has expired, something's wrong.
+        if MessageShutdownTimer.due():  # Timeout has expired, something's wrong.
             MainLog.Log(
                 "The MessageHandler did not stop in a reasonable time.",
                 terminal=False,
@@ -15325,7 +15325,7 @@ def ShutdownMessage():
             success = False  # A terminal error occurred.
             break  # OK to proceed.
         else:
-            temp = int(MessageShutdownTimer.Remaining())  # How many seconds left?
+            temp = int(MessageShutdownTimer.remaining())  # How many seconds left?
             if temp < 60:
                 print(
                     "Timeout in "
@@ -15715,7 +15715,7 @@ def UpdateCameraStatus():
     if CameraInUse.TimelapseSeconds != None and CameraInUse.TimelapseSeconds > 0.0:
         ObservationStatusWindow.FieldValue(
             "TLAPSE",
-            HRSeconds(CameraInUse.TimelapseTimer.Remaining()),
+            HRSeconds(CameraInUse.TimelapseTimer.remaining()),
             fg=OSW_TEXT_GOOD,
         )  # Exposure duration.
     else:
@@ -16096,7 +16096,7 @@ def ObservationRun():
                     terminal=False,
                 )
         # If the camera has not acknowledged in a reasonable time, assume something is wrong and quit.
-        if AckTimer.Due():  # Timeout on the acknowledgement.
+        if AckTimer.due():  # Timeout on the acknowledgement.
             MainLog.Log(
                 "Reset camera Photocount. Acknowledgement timed out. Camera considered unresponsive.",
                 level="error",
@@ -16119,7 +16119,7 @@ def ObservationRun():
             time.sleep(0.5)  # Pause half a second before checking again.
             print(
                 "Waiting for camera acknowledgement.",
-                int(AckTimer.Remaining()),
+                int(AckTimer.remaining()),
                 "seconds left.",
                 textcolor.cursorup(),
             )
@@ -16283,7 +16283,7 @@ def ObservationRun():
         # Check for keyboard commands...
         # MainLog.Log("ObservationRun: Check for keyboard input...",terminal=False)
         # *Q* The following keyboard scan uses the curses library. It can cause the terminal display to blink sometimes. Not cured yet.
-        if KeyboardTimer.Due():  # It's time to scan the keyboard.
+        if KeyboardTimer.due():  # It's time to scan the keyboard.
             keypress = Keyboard.Check().lower()  # Non-blocking scan for keyboard input.
         else:
             keypress = ""  # Don't check keyboard this time round.
@@ -16333,7 +16333,7 @@ def ObservationRun():
                 "Keyboard interrupt: User requested immediate PREVIEW image.",
                 terminal=False,
             )
-            PreviewTimer.Trigger()  # Mark the 'preview' timer as Due already.
+            PreviewTimer.trigger()  # Mark the 'preview' timer as Due already.
             DevWindow.Print(NowHMS() + " Immediate PREVIEW requested.")
         elif keypress == "d":  # Toggle debug mode.
             MainLog.Log("Keyboard interrupt: Toggle debug mode.", terminal=False)
@@ -16816,7 +16816,7 @@ def ObservationRun():
                 ImageStatusWindow.FieldValue("LALT", line, fg=OSW_TEXT_GOOD)
 
         if Session.DebugMode:  # We're in debug mode, just summary status update.
-            if DebugTimer.Due():  # It's time to publish a summary status.
+            if DebugTimer.due():  # It's time to publish a summary status.
                 print(
                     NowHMS()
                     + " Target "

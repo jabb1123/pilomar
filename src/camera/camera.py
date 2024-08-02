@@ -1259,7 +1259,7 @@ class astrocamera:
         if self.TimelapseTimer is None:
             return True  # No timer, so always due.
         else:
-            return self.TimelapseTimer.Due()  # Use the real timer.
+            return self.TimelapseTimer.due()  # Use the real timer.
 
     def Reset(self):
         """Reset camera settings at the beginning of a new session."""
@@ -1933,7 +1933,7 @@ class astrocamera:
                         level="error",
                     )
                 else:  # Fake the expected exposure time if a real image was being captured.
-                    DelayTimer.Wait()  # Wait until the fake delay timer expires. Thread pauses here.
+                    DelayTimer.wait()  # Wait until the fake delay timer expires. Thread pauses here.
                 self.Log(
                     "astrocamera.CaptureSetFull(): Returned from FakePhoto.",
                     terminal=False,
@@ -2226,7 +2226,7 @@ class astrocamera:
                         level="error",
                     )
                 else:  # Fake the expected exposure time if a real image was being captured.
-                    DelayTimer.Wait()  # Wait until the fake delay timer expires. Thread pauses here.
+                    DelayTimer.wait()  # Wait until the fake delay timer expires. Thread pauses here.
                 self.Log(
                     "astrocamera.CaptureSetFast(): Returned from FakePhoto.",
                     terminal=False,
@@ -2401,13 +2401,13 @@ class astrocamera:
                 self.Log("astrocamera.BuildKeogram(): Processing", file, terminal=False)
                 print(
                     textcolor.cursorup() + self.NowHMS(),
-                    textcolor.white(str(round(prgt.GetPercent(), 1))),
+                    textcolor.white(str(round(prgt.get_percent(), 1))),
                     "%",
                     (i + 1),
                     "of",
                     filecount,
                     "ETA",
-                    str(prgt.GetETA()).split(".")[0],
+                    str(prgt.get_eta()).split(".")[0],
                     "UTC",
                     textcolor.clearlineforward(),
                 )

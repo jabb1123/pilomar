@@ -38,133 +38,177 @@ class ProgressTimer:
   def __init__(self, name, target, start=0, initial=None):
     """Constructor method
     """
-    self.Name = name
-    self.Start = start  # Value representing 0%
+    self.name = name
+    self.start = start  # Value representing 0%
     if initial is not None:
-      self.Current = initial  # Current value.
+      self.current = initial  # Current value.
     else:
-      self.Current = start  # Current value.
-    self.Target = target  # Value representing 100%
-    self.StartTime = datetime.now(timezone.utc)
+      self.current = start  # Current value.
+    self.target = target  # Value representing 100%
+    self.start_time = datetime.now(timezone.utc)
 
-  def update_count(self, count):
-    self.Current = count
+  def update_count(self, count:int):
+    """Update the current count.
 
-  def getTotalSeconds(self):
-    """How many seconds will the entire run take?"""
-    temp = self.Current - self.Start
+    :param count: The new count value.
+    :type count: int
+    """
+    self.current = count
+
+  def get_total_seconds(self) -> float:
+    """How many seconds will the entire run take?
+    
+    :return: Total seconds to complete the process.
+    :rtype: float
+    """
+    temp = self.current - self.start
     if temp != 0:  # Progress has begun.
       totalseconds = (
-        (datetime.now(timezone.utc) - self.StartTime).total_seconds()
+        (datetime.now(timezone.utc) - self.start_time).total_seconds()
         * 100
-        / self.GetPercent()
+        / self.get_percent()
       )
     else:
       totalseconds = 0
     return totalseconds
 
-  def GetETA(self):
-    """Return UTC timestamp when process will be completed."""
-    temp = self.GetTotalSeconds()
+  def get_eta(self)->datetime:
+    """Return UTC timestamp when process will be completed.
+    
+    :return: UTC timestamp when process will be completed.
+    :rtype: datetime
+    """
+    temp = self.get_total_seconds()
     if temp != 0:  # Progress has begun.
-      ETA = self.StartTime + timedelta(seconds=temp)
+      eta = self.start_time + timedelta(seconds=temp)
     else:
-      ETA = self.StartTime
-    return ETA
+      eta = self.start_time
+    return eta
 
-  def GetPercent(self):
-    """How many % complete is the process?"""
-    return 100 * (self.Current - self.Start) / (self.Target - self.Start)
+  def get_percent(self)->float:
+    """How many % complete is the process?
+    
+    :return: % complete.
+    :rtype: float
+    """
+    return 100 * (self.current - self.start) / (self.target - self.start)
 
 
 class Timer:  # 14 references.
   """Clock driven timer class.
   This can be polled periodically to see if a timer is due.
+
+  Arguments:
+  :param period: Number of seconds that the timer should run for. (It will repeat!)
+  :type period: int
+  
+  :param offset: An initial additional delay before the timer starts.
+  :type offset: int
+  
+  :param skip: If the timer expires multiple times before being checked the extra events are ignored
+  :type skip: bool
+  
+  Example:
     mytimer = timer(20) # Create a timer for 20 seconds.
     ...
     if mytimer.due(): # 20 seconds has elapsed.
       ...
-
-  parameters:
-    - period = Number of seconds that the timer should run for. (It will repeat!)
-    - offset = An initial additional delay before the timer starts.
-    - skip = True : If the timer expires multiple times before being checked the extra events are ignored.
-    - skip = False: If the timer expires multiple times before being checked, the extra events are queued up and will still trigger separately.
   """
 
   def __init__(self, period: int, offset: int = 0, skip: bool = True):
-    """Create the object, set the timer parameters.
-    period = number of seconds between events.
-    offset = number of seconds earlier/later than first due time.
-    skip = If timer is late, just trigger once then reset for next future due time.
+    """Constructor method
     """
     if period < 1:
-      self.Period = 1
+      self.period = 1
     else:
-      self.Period = period
+      self.period = period
     if offset == 0:
-      self.NextTrigger = self.NowUTC() + timedelta(seconds=self.Period)
+      self.next_trigger = self.now_utc() + timedelta(seconds=self.period)
     else:
-      self.NextTrigger = self.NowUTC() + timedelta(seconds=offset)
-    self.SkipEvents = skip  # If the timer falls behind, do we skip missed events?
-    self.ForceTrigger = False  # When set to True, the .Due() method returns True regardless of timing. Used to force an event.
+      self.next_trigger = self.now_utc() + timedelta(seconds=offset)
+    self.skip_events = skip  # If the timer falls behind, do we skip missed events?
+    self.force_trigger = False  # When set to True, the .Due() method returns True regardless of timing.
+    # Used to force an event.
 
-  def NowUTC(self) -> datetime:  # Many references.
+  def now_utc(self) -> datetime:  # Many references.
     """Get system clock as UTC (timezone aware)
     Microcontroller and Skyfield are operated in UTC vales.
     All clock-times used in this program use the UTC timestamped clock.
     This should be the only reference to datetime.now() method in the entire
     module. All other uses should refer to this NowUTC() function.
+    
+    :return: UTC timestamp.
+    :rtype: datetime
     """
     # Not adapted to support ClockOffset because timer clock is entirely internal.
     return datetime.now(timezone.utc)
 
-  def _SetNextTrigger(self):
+  def set_next_trigger(self):
     """Update the trigger due time to the next occurrence.
     The next due time depends upon the skip parameter too!"""
-    if self.SkipEvents:  # Skip any missed events.
-      while self.NextTrigger <= self.NowUTC():
-        self.NextTrigger = self.NextTrigger + timedelta(seconds=self.Period)
+    if self.skip_events:  # Skip any missed events.
+      while self.next_trigger <= self.now_utc():
+        self.next_trigger = self.next_trigger + timedelta(seconds=self.period)
     else:  # Don't skip missed events, process every one!
-      self.NextTrigger = self.NextTrigger + timedelta(seconds=self.Period)
-    self.ForceTrigger = (
+      self.next_trigger = self.next_trigger + timedelta(seconds=self.period)
+    self.force_trigger = (
       False  # If the previous trigger was forced, reset that status now.
     )
 
-  def Elapsed(self) -> bool:
-    """Return number of seconds that have elapsed since the timer was set."""
-    starttime = self.NextTrigger - timedelta(seconds=self.Period)
-    elapsed = (self.NowUTC() - starttime).total_seconds()
+  def elapsed(self) -> bool:
+    """Return number of seconds that have elapsed since the timer was set.
+    
+    :return: Number of seconds that have elapsed since the timer was set.
+    :rtype: float
+    """
+    starttime = self.next_trigger - timedelta(seconds=self.period)
+    elapsed = (self.now_utc() - starttime).total_seconds()
     return elapsed
 
-  def ElapsedPc(self) -> float:
-    """Return % of time elapsed."""
-    result = round(100 * self.Elapsed() / self.Period, 0)
+  def elapsed_pc(self) -> float:
+    """Return % of time elapsed.
+    
+    :return: % of time elapsed.
+    :rtype: float
+    """
+    result = round(100 * self.elapsed() / self.period, 0)
     return result
 
-  def Remaining(self) -> float:
-    """Return number of seconds remaining on a timer."""
-    result = (self.NextTrigger - self.NowUTC()).total_seconds()
+  def remaining(self) -> float:
+    """Return number of seconds remaining on a timer.
+    
+    :return: Number of seconds remaining on a timer.
+    :rtype: float
+    """
+    result = (self.next_trigger - self.now_utc()).total_seconds()
     if result < 0.0:
       result = 0.0  # Timer expired.
     return result
 
-  def Due(self) -> bool:
+  def due(self) -> bool:
     """If timed event is due, this returns TRUE. Otherwise returns FALSE.
-    It automatically sets the next due timestamp."""
-    if self.NextTrigger < self.NowUTC() or self.ForceTrigger:
+    It automatically sets the next due timestamp.
+    
+    :return: If timed event is due, this returns TRUE. Otherwise returns FALSE.
+    :rtype: bool
+    """
+    if self.next_trigger < self.now_utc() or self.force_trigger:
       result = True
-      self._SetNextTrigger()
+      self.set_next_trigger()
     else:
       result = False
     return result
 
-  def Wait(self) -> bool:
+  def wait(self) -> bool:
     """Wait for timer to expire.
-    The thread cannot do anything else while waiting for this."""
+    The thread cannot do anything else while waiting for this.
+    
+    :return: True if the timer has expired.
+    :rtype: bool
+    """
     # NOTE: If you're expecting the clock to change out of DST, this may last longer than you think!
-    while self.Due() == False:
-      t = self.Remaining()
+    while self.due() is False:
+      t = self.remaining()
       if t > 0:
         # RPi5B - Non-blocking wait function.
         event = threading.Event()
@@ -181,23 +225,28 @@ class Timer:  # 14 references.
   #            time.sleep(t)
   #    return True
 
-  def Restart(self) -> bool:
+  def restart(self) -> bool:
     """Use this to reset the timer clock.
     This will abandon the current countdown and
     restart it from the current moment.
-    If multiple events are overdue for this trigger they are dropped."""
-    self.NextTrigger = self.NowUTC() + timedelta(seconds=self.Period)
-    self.ForceTrigger = (
+    If multiple events are overdue for this trigger they are dropped.
+    
+    :return: True if the timer has been reset.
+    :rtype: bool
+    """
+    self.next_trigger = self.now_utc() + timedelta(seconds=self.period)
+    self.force_trigger = (
       False  # If the previous trigger was forced, reset that status now.
     )
     return True
 
-  def Trigger(self) -> bool:
+  def trigger(self) -> bool:
     """Use this to trigger the timer.
     This will force the next .Due() call to return TRUE and then reset the timer.
-    This is for cases where you want to override the timer."""
-    self.ForceTrigger = True
+    This is for cases where you want to override the timer.
+    
+    :return: True if the timer has been triggered.
+    :rtype: bool
+    """
+    self.force_trigger = True
     return True
-
-
-#
