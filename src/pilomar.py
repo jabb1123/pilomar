@@ -142,7 +142,7 @@ from datetime import datetime, timedelta, timezone
 from utils.timer import Timer, ProgressTimer  # Pilomar's timer classes.
 from utils.logfile import logfile  # Pilomar's logging class.
 from pilomaroscommand import oscommand  # Pilomar's OS command executor.
-from utils.disk import DiskMonitor  # Pilomar's disc storage monitor.
+from utils.disk import DiskMonitor, DiskType  # Pilomar's disc storage monitor.
 from camera.image import (
     pilomarimage,
 )  # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
@@ -2464,7 +2464,6 @@ SDCardMonitor = DiskMonitor(
     name="root",
     devname="/dev/root",
     path=Parameters.SDPath,
-    disctype="boot",
     logger=MainLog.Log,
 )  # Create new disc space monitor for the SD card.
 MainLog.Log(
@@ -2506,7 +2505,7 @@ try:
         name="usb",
         devname=usbdev,
         path=Parameters.USBPath,
-        disctype="usb",
+        disk_type=DiskType.USB,
         logger=MainLog.Log,
     )  # Create USB memory card monitor (if it exists).
     # Decide which of the two above monitors will be the one that images are stored in. Create a pointer to that one for the status monitoring later on.

@@ -16,6 +16,7 @@
 from pilomaroscommand import oscommand  # OS Command execution.
 from utils.timer import Timer  # Pilomar's timer class.
 from utils.textcolor import textcolor  # Text interface color utility.
+from enum import Enum
 import os
 
 
@@ -150,7 +151,7 @@ class DiskMonitor:  # 2 references.
 
     def Poll(self, force=False):
         """Decide if it is time to update the storage statistics."""
-        if force or self.Timer.Due():
+        if force or self.timer.Due():
             dfdict = self.GetDfDictionary()
             if self.DriveAvailable:  # Drive is available, so report the space left.
                 self.DiscFree = dfdict[self.DfPath]["Avail"]
