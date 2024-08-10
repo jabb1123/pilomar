@@ -197,8 +197,8 @@ from utils import gpio  # GPIO wrappers to support different GPIO libraries.
 
 if gpio.GPIO_DRIVER == "GPIO":  # Original GPIO handlers needed for IO.
   # Select the GPIO specific drivers for IO functions.
-  inputpin = gpio.inputpin_gpio
-  outputpin = gpio.outputpin_gpio
+  inputpin = gpio.InputPinGPIO
+  outputpin = gpio.OutputPinGPIO
   GPIOCleanup = gpio.cleanup_gpio
 elif gpio.GPIO_DRIVER == "GPIOD":  # Bookworm GPIOD handlers needed for IO.
   # Select the GPIOD specific drivers for IO functions.
@@ -2461,18 +2461,11 @@ def GetTerminalSize():
 
 # SDCardMonitor = discmonitor(name='root',devname='/dev/root',path='/',disctype='boot',logger=MainLog.Log) # Create new disc space monitor for the SD card.
 SDCardMonitor = DiskMonitor(
-<<<<<<< HEAD
-    name="root",
-    devname="/dev/root",
-    path=Parameters.SDPath,
-    logger=MainLog.Log,
-=======
   name="root",
   devname="/dev/root",
   path=Parameters.SDPath,
-  disctype="boot",
+  disk_type="boot",
   logger=MainLog.Log,
->>>>>>> f078712fbb8866d688643a5a9b5375308c97720d
 )  # Create new disc space monitor for the SD card.
 MainLog.Log(
   "Defaulting to SD card for images.", SDCardMonitor.DfPath, terminal=False

@@ -21,7 +21,7 @@ import os  # OS Command execution
 import traceback  # Used to record the stacktrace if recording an error.
 
 
-class logfile:  # 2 references.
+class LogFile:  # 2 references.
   """An object to maintain a log file recording the activities and events in the program.
   This writes to a disc file and flushes the write buffers as quickly as it can.
   It can also copy ERROR messages to any nominated error window object (which must support a 'Print()' method. )
@@ -29,68 +29,68 @@ class logfile:  # 2 references.
 
   __version__ = "0.1.1"
 
-  def __init__(self, filename: str, clockoffset=None, flush=False, append=True):
+  def __init__(self, filename: str, clockoffset=None, flush:bool=False, append:bool=True):
     """filename is the destination log file.
-    clockoffset (seconds) is used by NowUTC() method to create offset timestamps.
+    clockoffset (seconds) is used by now_utc() method to create offset timestamps.
     flush : False. Log file writes are flushed to disc efficiently and more slowly by the OS.
              But there's a risk that you lose the last few messages in a catastrophic failure.
         True. Log file writes are immediately flushed to disc. Hits the SD card hard!
             But there's less risk of losing the last few messages if something bad happens.
     append: True.  Existing log file is appended to.
         False. Fresh log file is started."""
-    self.FileName = filename
-    self.ClockOffset = clockoffset  # Can establish a clock offset when replicating/simulating specific situations.
-    self.PrevLogTime = self.NowUTC()
-    self.ErrorWindow = None  # Reference to window object for displaying errors. Must offer a 'Print()' method.
-    self.ErrorList = (
+    self.filename = filename
+    self.clock_offset = clockoffset  # Can establish a clock offset when replicating/simulating specific situations.
+    self.prev_log_time = self.now_utc()
+    self.error_window = None  # Reference to window object for displaying errors. Must offer a 'Print()' method.
+    self.error_list = (
       []
     )  # Maintain list of any errors raised. These can then be summarised and reported if needed.
     # The following filters specify which types of messages are logged.
     # - If you change these lists, some messages may be ignored from file and displays.
-    self.DetailFilter = [
+    self.detail_filter = [
       "u",
       "f",
       "d",
     ]  # Specify the detail levels that are recorded (user choices, flow, detail).
-    self.LevelFilter = [
+    self.level_filter = [
       "i",
       "w",
       "e",
     ]  # Specify which message types are recorded (info, warning, error).
-    self.FastFlush = False  # If TRUE all writes to the log file are immediately flushed. Hits the SD card hard!
+    self.fast_flush = False  # If TRUE all writes to the log file are immediately flushed. Hits the SD card hard!
     if os.path.exists(filename):
-      if append == True:
-        self.Log("logfile: Appending to existing", filename, terminal=False)
+      if append:
+        self.log("LogFile: Appending to existing", filename, terminal=False)
       else:
         os.remove(filename)  # Remove previous filename.
-        self.Log("logfile: Overwriting previous", filename, terminal=False)
+        self.log("LogFile: Overwriting previous", filename, terminal=False)
     else:
-      self.Log("logfile: Starting new", filename, terminal=False)
+      self.log("LogFile: Starting new", filename, terminal=False)
 
-  # def NowUTC(self) -> datetime: # Many references.
+  # def now_utc(self) -> datetime: # Many references.
   #    """ Get system clock as UTC (timezone aware)
   #        Microcontroller and Skyfield are operated in UTC vales.
   #        All clock-times used in this program use the UTC timestamped clock.
   #        This should be the only reference to datetime.now() method in the entire
-  #        module. All other uses should refer to this NowUTC() function.
+  #        module. All other uses should refer to this now_utc() function.
   #        """
   #    return datetime.now(timezone.utc)
 
-  def NowUTC(self, real=False) -> datetime:  # Many references.
+  def now_utc(self, real=False) -> datetime:  # Many references.
     """Get system clock as UTC (timezone aware)
     Microcontroller and Skyfield are operated in UTC vales.
     All clock-times used in this program use the UTC timestamped clock.
     This should be the only reference to datetime.now() method in the entire
-    program. All other uses should refer to this NowUTC() function.
+    program. All other uses should refer to this now_utc() function.
     real=True means that no time offset is applied, you get the true realtime clock value.
     real=False means that any time offset is applied, making the clock run at some other point in time.
     """
     dt = datetime.now(timezone.utc)  # Offset supported.
-    if real == False and self.ClockOffset != None:  # Can apply time offset.
-      dt = dt + timedelta(seconds=self.ClockOffset)
+    if real is False and self.clock_offset is not None:  # Can apply time offset.
+      dt = dt + timedelta(seconds=self.clock_offset)
     return dt
 
-  def Log(self, *args, **kwargs) -> bool:
+  def log(self, *args, **kwargs) -> bool:
     """Record a log message.
     All unnamed arguments are converted to str type and appended to the line logged.
     Some named arguments are supported.
@@ -137,9 +137,9 @@ class logfile:  # 2 references.
         True  # User must see message if they are supposed to acknowledge it.
       )
     # Write the message to the log file.
-    dtNow = self.NowUTC()
+    dtNow = self.now_utc()
     Elapsed = (
-      dtNow - self.PrevLogTime
+      dtNow - self.prev_log_time
     ).total_seconds()  # The log message includes the elapsed time since the previous message.
     ES = "{:.6f}".format(
       Elapsed
@@ -152,25 +152,25 @@ class logfile:  # 2 references.
     )  # Add current system timestamp to message.
     # Check if any LEVEL OR DETAIL filters are specified in the received parameters.
     if (
-      level[0] in self.LevelFilter and detail[0] in self.DetailFilter
+      level[0] in self.level_filter and detail[0] in self.detail_filter
     ):  # The filters pass the criteria for writing to disc.
-      with open(self.FileName, "a") as f:
+      with open(self.filename, "a") as f:
         f.write(saveline + "\n")
-        if self.FastFlush:  # Update the disc immediately.
+        if self.fast_flush:  # Update the disc immediately.
           f.flush()  # Immediately flush to disc.
           os.fsync(f)  # Flush in the OS too!
     # Handle the display and user response.
     if level[0] == "e":  # Error
       if terminal:  # We're allowed to display on the terminal.
-        self.ErrorList.append(
+        self.error_list.append(
           printline
         )  # Record the error for later summary or reporting.
         print(textcolor.red("** ERROR ** reported in LogFile: ") + printline)
         if errorprompt:  # User has to acknowledge the error.
           # temp = input(textcolor.cyan("Press [ENTER] to continue: "))
           input(textcolor.cyan("Press [ENTER] to continue: "))
-      if self.ErrorWindow != None:
-        self.ErrorWindow.Print(
+      if self.error_window is not None:
+        self.error_window.Print(
           printline, fg=textcolor.RED, bg=textcolor.BLACK
         )  # Error color.
     elif level[0] == "w":
@@ -179,30 +179,30 @@ class logfile:  # 2 references.
         if errorprompt:  # User has to acknowledge the warning.
           # temp = input(textcolor.cyan("Press [ENTER] to continue: "))
           input(textcolor.cyan("Press [ENTER] to continue: "))
-      if self.ErrorWindow != None and copytowindow:
-        self.ErrorWindow.Print(
+      if self.error_window is not None and copytowindow:
+        self.error_window.Print(
           printline, fg=textcolor.YELLOW, bg=textcolor.BLACK
         )  # Warning color.
     elif terminal:  # Display to the terminal.
       print(printline)
-      if self.ErrorWindow != None and copytowindow:
-        self.ErrorWindow.Print(
+      if self.error_window is not None and copytowindow:
+        self.error_window.Print(
           printline
         )  # Info lines just keep default color scheme.
-    self.PrevLogTime = (
-      self.NowUTC()
-    )  # Note the last time a message was logged. This is used to report the elapsed time between messages in the log file.
+    self.prev_log_time = (
+      self.now_utc()
+    )  # Note the last time a message was logged. This is used to report the elapsed time between messages in log file.
     return True
 
-  def ReportSlowEvents(self, limit=4.0):  ### DEVELOPMENT ###
+  def report_slow_events(self, limit=4.0):  ### DEVELOPMENT ###
     """Analyses the log file and reports any events which have taken too long."""
     print("Analysing log file for slow events")
-    with open(self.FileName, "r") as f:
+    with open(self.filename, "r") as f:
       prevline = ""
       for line in f:
         thisline = line.strip()
         lineitems = thisline.split("\t")
-        if len(lineitems) > 2 and IsFloat(lineitems[1]):
+        if len(lineitems) > 2 and isinstance(lineitems[1], float):
           delay = float(lineitems[1])
           if delay >= limit:  # Delay found.
             print("Delay", delay, ":-")
@@ -211,28 +211,28 @@ class logfile:  # 2 references.
         prevline = thisline
     print("Analysis complete")
 
-  def ReportException(self, e, level="error", comment=None):
+  def report_exception(self, e, level="error", comment=None):
     """Record any exception class in the log file.
     This does not terminate, it just reports/logs the
     exception then allows the program to continue."""
-    self.Log("logfile.ReportException(): Error", str(e), level="error")
+    self.log("LogFile.report_exception(): Error", str(e), level="error")
     self.RecordTraceback(e)
     if hasattr(
       e, "__dict__"
     ):  # The exception object has a dictionary that can be reported.
       for key, value in e.__dict__.items():
-        self.Log("logfile.ReportException():", key, ":", value, level=level)
+        self.log("LogFile.report_exception():", key, ":", value, level=level)
     else:
-      self.Log(
-        "logfile.ReportException(): No __dict__ object to report. (",
+      self.log(
+        "LogFile.report_exception(): No __dict__ object to report. (",
         type(e),
         ")",
         level="error",
       )
-    if comment != None:
-      self.Log("logfile.ReportException(): Comment:", str(comment), level=level)
+    if comment is not None:
+      self.log("LogFile.report_exception(): Comment:", str(comment), level=level)
 
-  def RaiseException(self, e, level="error", comment=None):
+  def raise_exception(self, e, level="error", comment=None):
     """Record any exception class in the log file.
     Then terminate via regular exception handler."""
     self.RecordTraceback(e)
@@ -240,16 +240,16 @@ class logfile:  # 2 references.
       e, "__dict__"
     ):  # The exception object has a dictionary that can be reported.
       for key, value in e.__dict__.items():
-        self.Log("logfile.RaiseException():", key, ":", value, level=level)
+        self.log("LogFile.raise_exception():", key, ":", value, level=level)
     else:
-      self.Log(
-        "logfile.RaiseException(): No __dict__ object to report. (",
+      self.log(
+        "LogFile.raise_exception(): No __dict__ object to report. (",
         type(e),
         ")",
         level="error",
       )
     if comment != None:
-      self.Log("logfile.RaiseException(): Comment:", str(comment), level=level)
+      self.log("LogFile.raise_exception(): Comment:", str(comment), level=level)
     raise Exception(
       "Program exception raised"
     ) from e  # Terminate through regular exception stack.
@@ -257,11 +257,11 @@ class logfile:  # 2 references.
   def RecordTraceback(self, e, terminal=True):
     """Use Traceback module to report the execution stack to the log file.
     Setting terminal=False prevents the error being displayed on the screen."""
-    self.Log("logfile.RecordTraceback(): ErrorMessage", str(e), terminal=terminal)
+    self.log("LogFile.RecordTraceback(): ErrorMessage", str(e), terminal=terminal)
     a = traceback.format_exc()  # String representation of stack report.
     b = a.split("\n")
     for c in b:
-      self.Log("logfile.RecordTraceback():", c, terminal=terminal)
+      self.log("LogFile.RecordTraceback():", c, terminal=terminal)
 
   def UniqueFilename(self, filename):
     """Given a filename, create a unique version of it.
@@ -276,8 +276,8 @@ class logfile:  # 2 references.
     while True:
       counter += 1  # Try next available filename.
       if counter > 100:
-        self.Log(
-          "logfile.UniqueFilename(",
+        self.log(
+          "LogFile.UniqueFilename(",
           filename,
           "). Exhausted allowed range of names.",
           level="error",
@@ -295,24 +295,24 @@ class logfile:  # 2 references.
   #        searchterms = the selection phrase for grep.
   #            Examples: "RPi received|RPi queueing" - Lists lines containing either phrase.
   #        Returns a ZIP filename. """
-  #    path = os.path.dirname(self.FileName)
-  #    timestamp = str(self.NowUTC())
+  #    path = os.path.dirname(self.filename)
+  #    timestamp = str(self.now_utc())
   #    for c in ['-',':','.',' ']:
   #        timestamp = timestamp.replace(c,'')
   #    timestamp = timestamp.split('+')[0]
   #    resultfile = os.path.join(path,'result_' + timestamp + '.log')
   #    zipfile = os.path.join(path,'result_' + timestamp + '.zip')
-  #    self.Log("logfile.PackageSearchResult(",searchterms,") Begin.",terminal=False)
+  #    self.log("LogFile.PackageSearchResult(",searchterms,") Begin.",terminal=False)
   #    if ignorecase:
   #        # -a : Treat file as text.
   #        # -i : ignore case.
-  #        cmd = 'egrep -a -i "' + searchterms + '" ' + self.FileName + '>' + resultfile
+  #        cmd = 'egrep -a -i "' + searchterms + '" ' + self.filename + '>' + resultfile
   #    else:
-  #        cmd = 'egrep -a "' + searchterms + '" ' + self.FileName + '>' + resultfile
-  #    self.Log("logfile.PackageSearchResult:",cmd,terminal=False)
+  #        cmd = 'egrep -a "' + searchterms + '" ' + self.filename + '>' + resultfile
+  #    self.log("LogFile.PackageSearchResult:",cmd,terminal=False)
   #    os.system(cmd)
   #    cmd = 'zip ' + zipfile + ' ' + resultfile
-  #    self.Log("logfile.PackageSearchResult:",cmd,terminal=False)
+  #    self.log("LogFile.PackageSearchResult:",cmd,terminal=False)
   #    os.system(cmd)
   #    return zipfile
 
@@ -321,23 +321,23 @@ class logfile:  # 2 references.
     searchterms = the selection phrase for grep.
       Examples: "RPi received|RPi queueing" - Lists lines containing either phrase.
     Returns a ZIP filename."""
-    resultfile = self.UniqueFilename(self.FileName)
+    resultfile = self.UniqueFilename(self.filename)
     zipfile = resultfile.split(".")[0] + ".zip"
-    self.Log(
-      "logfile.PackageSearchResult(", searchterms, ") Begin.", terminal=False
+    self.log(
+      "LogFile.PackageSearchResult(", searchterms, ") Begin.", terminal=False
     )
     if ignorecase:
       # -a : Treat file as text.
       # -i : ignore case.
       cmd = (
-        'egrep -a -i "' + searchterms + '" ' + self.FileName + ">" + resultfile
+        'egrep -a -i "' + searchterms + '" ' + self.filename + ">" + resultfile
       )
     else:
-      cmd = 'egrep -a "' + searchterms + '" ' + self.FileName + ">" + resultfile
-    self.Log("logfile.PackageSearchResult:", cmd, terminal=False)
+      cmd = 'egrep -a "' + searchterms + '" ' + self.filename + ">" + resultfile
+    self.log("LogFile.PackageSearchResult:", cmd, terminal=False)
     os.system(cmd)
     cmd = "zip " + zipfile + " " + resultfile
-    self.Log("logfile.PackageSearchResult:", cmd, terminal=False)
+    self.log("LogFile.PackageSearchResult:", cmd, terminal=False)
     os.system(cmd)
     return zipfile
 

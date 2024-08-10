@@ -65,12 +65,12 @@ import sys
 import json
 
 
-def NowUTC():
+def now_utc():
   """Return system UTC timestamp as a datetime object."""
   return datetime.now(timezone.utc)
 
 
-StartupTime = NowUTC()  # When did program start?
+StartupTime = now_utc()  # When did program start?
 
 RunArgs = sys.argv[1:]  # Ignore 1st argument which is this program name.
 ArgumentDict = {}  # Convert the runtime arguments into a dictionary.
@@ -139,19 +139,19 @@ for argument, elementdict in ArgumentDict.items():
 ControlsToApply["NoiseReductionMode"] = (
   libcamera.controls.draft.NoiseReductionModeEnum.Off
 )  # Turn off on-chip noise reduction routines.
-if not "--shutter" in ArgumentDict:  # Shutter speed not given, so go for AE auto.
+if "--shutter" not in ArgumentDict:  # Shutter speed not given, so go for AE auto.
   ControlsToApply["AeEnable"] = True  # Turn on Automatic Exposure mode.
 else:
   # For raw data we need to disable the auto-exposure and gains. This will speed up image capture significantly for long exposures.
   ControlsToApply["HdrMode"] = 0  # Turn off HDR processing.
   ControlsToApply["AeEnable"] = False  # Turn off Automatic Exposure mode.
   ControlsToApply["AwbEnable"] = False  # Turn off auto white balance.
-  if not "ColourGains" in ControlsToApply:
+  if "ColourGains" not in ControlsToApply:
     ControlsToApply["ColourGains"] = (
       1,
       1,
     )  # No colour gains. # Will be applied later if specified.
-  if not "AnalogueGain" in ControlsToApply:
+  if "AnalogueGain" not in ControlsToApply:
     ControlsToApply["AnalogueGain"] = 1  # No analogue gain.
 
 if "--tuning-file" in ArgumentDict:
@@ -196,7 +196,7 @@ if "--awbgains" in ArgumentDict:
   bluegain = float(csl[1])  # blue channel
 
 
-def ColorGain(array, red=1.0, green=1.0, blue=1.0):
+def color_gain(array, red=1.0, green=1.0, blue=1.0):
   """Given a BGR image array, boost just the RED, GREEN and BLUE channels by different factors."""
   array[:, :, 2] = array[:, :, 2] * red  # red channel
   array[:, :, 1] = array[:, :, 1] * green  # green channel
@@ -214,11 +214,11 @@ picam2.start()
 # Allow the camera time to start up and accept config and control settings. It takes time!
 time.sleep(2)  # Wait for control propogation.
 # Extract bayer data from the sensor.
-CaptureStartTime = NowUTC()  # When did capture begin?
+CaptureStartTime = now_utc()  # When did capture begin?
 CameraRequest = picam2.capture_request()
 rawarray12 = CameraRequest.make_array("raw")
 RequestMetadata = CameraRequest.get_metadata()
-CaptureEndTime = NowUTC()  # When did capture complete?
+CaptureEndTime = now_utc()  # When did capture complete?
 data32 = rawarray12.view(np.uint16).astype(
   np.float32
 )  # Unpack from 12bit to 16bit. Result is left shifted 4 bits.
@@ -226,33 +226,33 @@ CameraRequest.release()  # Release the camera buffers, otherwise we may run out 
 data32 = data32 / (2**4)  # Scale back down to 12 bit.
 
 # Create FITS image file.
-RawSaveStartTime = NowUTC()  # When did FITS file generation start?
+RawSaveStartTime = now_utc()  # When did FITS file generation start?
 if "--raw" in ArgumentDict:
   hdulist = fits.HDUList()
   hdulist.append(
     fits.ImageHDU(data=cv2.flip(data32, 0), name="SCI")
   )  # Flip vertically.
   hdulist.writeto(fitsfilename, overwrite=True)  # Save fits.
-RawSaveEndTime = NowUTC()  # When did FITS file generation finish?
+RawSaveEndTime = now_utc()  # When did FITS file generation finish?
 
 # Now convert to colour. Debayer the matrix.
-BayerStartTime = NowUTC()  # When did debayer start?
+BayerStartTime = now_utc()  # When did debayer start?
 bayer = data32.clip(0, (2**16 - 1)).astype(np.uint16)
 colour = cv2.cvtColor(bayer, cv2.COLOR_BAYER_BGGR2BGR)  # Demosaic.
 if redgain != 1.0 or bluegain != 1.0:
-  colour = ColorGain(
+  colour = color_gain(
     colour, red=redgain, blue=bluegain
   )  # Boost channels to get more realistic colours.
 colour = colour.clip(0, (2**16 - 1)) / (2**4)  # Convert from 12bit values to 8 bit.
-BayerEndTime = NowUTC()  # When did debayer end?
+BayerEndTime = now_utc()  # When did debayer end?
 
 # Always save the .jpg file.
-JpgStartTime = NowUTC()  # When did jpg save start?
+JpgStartTime = now_utc()  # When did jpg save start?
 cv2.imwrite(jpgfilename, colour, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
-JpgEndTime = NowUTC()  # When did jpg save end?
+JpgEndTime = now_utc()  # When did jpg save end?
 
 # Finally write metadata if needed.
-MetaStartTime = NowUTC()  # When did metadata save start?
+MetaStartTime = now_utc()  # When did metadata save start?
 if "--metadata" in ArgumentDict:  # Extract and save metadata.
   metadata = RequestMetadata
   metadata["program"] = sys.argv[0]  # Program name.
@@ -276,12 +276,12 @@ if "--metadata" in ArgumentDict:  # Extract and save metadata.
   metadata["JpgDuration"] = (
     JpgEndTime - JpgStartTime
   ).total_seconds()  # How long did jpg save take?
-  temp = NowUTC()
+  temp = now_utc()
   metadata["ProcessDuration"] = (
     temp - StartupTime
   ).total_seconds()  # How long did the entire process take up to here?
   metadata["CompletionTime"] = temp  # When did generation end?
-  with open(jsonfilename, "w") as f:  # Dump as json to disc.
+  with open(jsonfilename, "w", encoding="UTF-8") as f:  # Dump as json to disc.
     json.dump(
       metadata, f, indent=4, default=str
     )  # Save the updated dictionary back to disc.

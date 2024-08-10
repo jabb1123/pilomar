@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Class to handle satellite TLE data from Celestrak online source.
+# Class to handle satellite TLE data from Celestrack online source.
 
 # This software is published under the GNU General Public License v3.0.
 # Also respect any pre-existing terms of any components that this incorporates.
@@ -23,22 +23,22 @@ import requests  # To handle json response for seeing conditions from online ser
 from requests.exceptions import HTTPError  # Error handling.
 
 
-class celestrak:
-  """Download celestrak TLE data.
+class Celestrack:
+  """Download Celestrack TLE data.
   Data is cached on disc and only updated once the disc cache is > 30 days old."""
 
   def __init__(self, url, logger=None, projectroot=None):
     self.SetLogger(logger)  # Define which logging stream to use.
-    self.URL = url  # "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle" # Where to find the latest TLE data
+    self.url = url  # "https://Celestrack.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle" # Where to find the latest TLE data
     self.TLEDict = {}  # TLE data converted into a dictionary for easy searching.
-    if projectroot == None:
-      self.CelestrakCacheFileName = "/home/pi/pilomar/data/celestrakcache.json"  # The disc cache filename used to store the data locally.
+    if projectroot is None:
+      self.CelestrackCacheFileName = "/home/pi/pilomar/data/Celestrackcache.json"  # The disc cache filename used to store the data locally.
     else:  # ProjectRoot = '/home/pi/pilomar'
-      self.CelestrakCacheFileName = (
-        projectroot + "/data/celestrakcache.json"
+      self.CelestrackCacheFileName = (
+        projectroot + "/data/Celestrackcache.json"
       )  # The disc cache filename used to store the data locally.
     self.SatelliteList = []  # List of satellite names, use for selecting objects.
-    self.Refresh()  # Refresh the data, load from CelesTrak if needed else use the disc cache.
+    self.Refresh()  # Refresh the data, load from Celestrack if needed else use the disc cache.
 
   def SetLogger(self, logger):
     """Set up link to logging class and shortcuts to common methods."""
@@ -48,7 +48,7 @@ class celestrak:
       logger.ReportException
     )  # Report exception details to logfile.
     self.RaiseException = logger.RaiseException  # Report and raise exception.
-    self.Log("celestrak.SetLogger: Linked to this log file.", terminal=False)
+    self.Log("Celestrack.SetLogger: Linked to this log file.", terminal=False)
 
   def HRSeconds(self, seconds: int) -> str:  # 15 references.
     """Turn a number of seconds into days:hours:minutes:seconds"""
@@ -81,7 +81,7 @@ class celestrak:
     if line1 == None:
       if self.Log != None:
         self.Log(
-          "celestrak.TleAgeWarning:",
+          "Celestrack.TleAgeWarning:",
           name,
           "is not recognised.",
           level="error",
@@ -107,46 +107,46 @@ class celestrak:
       )
       print(
         textcolor.YELLOW(
-          "Check the source of data from the celestrak.org website."
+          "Check the source of data from the Celestrack.org website."
         )
       )
     else:
       print(textcolor.GREEN(name + " TLE data is " + str(daysold) + " days old."))
 
   def Refresh(self):
-    """Load data from cache if recent enough, else from celestrak.org website."""
+    """Load data from cache if recent enough, else from Celestrack.org website."""
     if self.Log != None:
-      self.Log("celestrak.Refresh: Begin", terminal=False)
-      self.Log("celestrak.Refresh: Try disc cache", terminal=False)
+      self.Log("Celestrack.Refresh: Begin", terminal=False)
+      self.Log("Celestrack.Refresh: Try disc cache", terminal=False)
     self.TLEDict = {}  # No data until refreshed.
     self.LoadCache(
-      self.CelestrakCacheFileName
+      self.CelestrackCacheFileName
     )  # Try to load from disc if recent enough.
     if self.TLEDict == {}:  # Empty, get a fresh copy.
       if self.Log != None:
         self.Log(
-          "celestrak.Refresh: Download fresh from internet.", terminal=False
+          "Celestrack.Refresh: Download fresh from internet.", terminal=False
         )
       if self.DownloadData():
         if self.Log != None:
-          self.Log("celestrak.Refresh: Successful.", terminal=False)
+          self.Log("Celestrack.Refresh: Successful.", terminal=False)
       else:
         if self.Log != None:
           self.Log(
-            "celestrak.Refresh: Failed to download from internet, using cache anyway.",
+            "Celestrack.Refresh: Failed to download from internet, using cache anyway.",
             terminal=False,
           )
         else:
           print(
-            "celestrak.Refresh: Failed to download from internet. Using cache anyway."
+            "Celestrack.Refresh: Failed to download from internet. Using cache anyway."
           )
         self.LoadCache(
-          self.CelestrakCacheFileName, force=True
+          self.CelestrackCacheFileName, force=True
         )  # Load the cache regardless of age.
     else:
       if self.Log != None:
         self.Log(
-          "celestrak.Refresh: Used cached data instead of downloading from internet.",
+          "Celestrack.Refresh: Used cached data instead of downloading from internet.",
           terminal=False,
         )
     self.SatelliteList = []  # Make new list of satellite names.
@@ -155,25 +155,25 @@ class celestrak:
     if len(self.SatelliteList) < 1:  # The list is empty, something went wrong.
       if self.Log != None:
         self.Log(
-          "celestrak.Refresh: Failed to identify any satellies.",
+          "Celestrack.Refresh: Failed to identify any satellies.",
           level="error",
         )
       else:
-        print("celestrak.Refresh: Failed to identify any satellies.")
+        print("Celestrack.Refresh: Failed to identify any satellies.")
     if self.Log != None:
       self.Log(
-        "celestrak.Refresh: Satellites:", self.SatelliteList, terminal=False
+        "Celestrack.Refresh: Satellites:", self.SatelliteList, terminal=False
       )
-      self.Log("celestrak.Refresh: done", terminal=False)
+      self.Log("Celestrack.Refresh: done", terminal=False)
 
   def DownloadData(self):
-    """Download fresh data from CelesTrak directly."""
+    """Download fresh data from Celestrack directly."""
     if self.Log != None:
-      self.Log("celestrak.DownloadData: begin", terminal=False)
+      self.Log("Celestrack.DownloadData: begin", terminal=False)
     WSOK = True
     try:  # Trap and report errors, but don't allow the entire program to abort.
       response = requests.get(
-        self.URL
+        self.url
       )  # Try to retrieve the response from the remote server.
       response.raise_for_status()  # Check for errors in the request.
       TLEText = response.text  # Convert the response into a text object.
@@ -181,7 +181,7 @@ class celestrak:
     except HTTPError as e:  # There was an HTTP error.
       if self.Log != None:
         self.Log(
-          "celestrak.DownloadData: HTTPError: " + str(e),
+          "Celestrack.DownloadData: HTTPError: " + str(e),
           level="warning",
           terminal=False,
         )
@@ -189,12 +189,12 @@ class celestrak:
     except Exception as e:  # There was some other sort of error.
       if self.Log != None:
         self.Log(
-          "celestrak.DownloadData: Error: " + str(e),
+          "Celestrack.DownloadData: Error: " + str(e),
           level="warning",
           terminal=True,
         )
       WSOK = False
-    self.Log("celestrak.DownloadData: end", WSOK, terminal=False)
+    self.Log("Celestrack.DownloadData: end", WSOK, terminal=False)
     return WSOK
 
   def FileAge(self, filename):  # 2 references.
@@ -216,7 +216,7 @@ class celestrak:
     if os.path.exists(filename):
       fa = self.FileAge(filename)
       self.Log(
-        "celestrak.LoadCache:",
+        "Celestrack.LoadCache:",
         filename,
         "is",
         self.HRSeconds(fa),
@@ -228,7 +228,7 @@ class celestrak:
       ):  # Only use the cache if less than 5 days old.
         with open(filename, "r") as f:
           self.Log(
-            "celestrak.LoadCache: Loading Cache:",
+            "Celestrack.LoadCache: Loading Cache:",
             filename,
             "force",
             force,
@@ -238,7 +238,7 @@ class celestrak:
     else:
       if self.Log != None:
         self.Log(
-          "celestrak.LoadCache:",
+          "Celestrack.LoadCache:",
           filename,
           "cache does not exist.",
           terminal=False,
@@ -249,7 +249,7 @@ class celestrak:
     Save the dictionary as a json file so it can be reused without more web calls.
     """
     if self.Log != None:
-      self.Log("celestrak.ExtractData: Begin", terminal=False)
+      self.Log("Celestrack.ExtractData: Begin", terminal=False)
     itemdict = {}
     itemname = ""
     for line in TLEText.split("\n"):  # Split the text by newline characters.
@@ -264,7 +264,7 @@ class celestrak:
         itemdict = {}  # clear for building next entry.
       else:  # 1st line of tle data.
         itemname = line  # Set the name of the satellite.
-    with open(self.CelestrakCacheFileName, "w") as f:  # Dump as json to disc.
+    with open(self.CelestrackCacheFileName, "w") as f:  # Dump as json to disc.
       json.dump(
         self.TLEDict, f, indent=4, default=str
       )  # Save the updated dictionary back to disc.
@@ -280,7 +280,7 @@ class celestrak:
     else:
       if self.Log != None:
         self.Log(
-          "celestrak.GetTleLines: '" + str(name) + "' not found.",
+          "Celestrack.GetTleLines: '" + str(name) + "' not found.",
           terminal=False,
         )
     return line1, line2

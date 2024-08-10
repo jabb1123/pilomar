@@ -23,7 +23,7 @@ import random  # random number generator.
 import cv2  # openCV for image file handling.
 from datetime import datetime, timedelta, timezone
 from utils.timer import Timer, ProgressTimer  # Pilomar's timer classes.
-from pilomaroscommand import oscommand  # Pilomar's OS command executor.
+from pilomaroscommand import OSCommand  # Pilomar's OS command executor.
 from camera.image import (
   pilomarimage,
   pilomarkeogram,
@@ -38,7 +38,7 @@ import numpy as np  # Fast array handling
 # ------------------------------------------------------------------------------------------------------
 
 
-class astrolens:
+class AstroLens:
   """Object representing the LENS being used by the telescope.
   Contains some attributes which are used to convert between FIELD OF VIEW and PHOTO DIMENSIONS for example.
   """
@@ -54,10 +54,10 @@ class astrolens:
     logger=None,
     parameters=None,
   ):
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # CamLog # Handle to the class that handles logging and error tracing.
-    self.oscommand = oscommand(logger=logger.Log)  # Create OS command executor.
+    self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
     self.osCmd = self.oscommand.Execute
     self.CameraWindow = None
     self.ErrorWindow = None
@@ -99,11 +99,11 @@ class astrolens:
       "deg",
       terminal=False,
     )
-    astrolens.LensList.append(
+    AstroLens.LensList.append(
       self
     )  # Add this instance to the global list of all defined lenses.
 
-  def SetLogger(self, logger):
+  def set_logger(self, logger):
     """Set up link to logging class and shortcuts to common methods."""
     # The logging methods default to 'consumers' which will just silently eat any parameters passed.
     self.Logger = logger  # Logger instance.
@@ -120,7 +120,7 @@ class astrolens:
       )  # Report exception details to logfile.
     if hasattr(logger, "RaiseException"):
       self.RaiseException = logger.RaiseException  # Report and raise exception.
-    self.Log("astrolens.SetLogger: Linked to this log file.", terminal=False)
+    self.Log("AstroLens.set_logger: Linked to this log file.", terminal=False)
 
   def _NullLogger(self, *args, **kwargs):
     """Null logger. Absorbs parameters and .log call but does nothing.
@@ -200,7 +200,7 @@ class astrolens:
         self.FovVertical = prop * ver_range + lower_entry[2]
 
     self.Log(
-      "astrolens.EstimateFoV():",
+      "AstroLens.EstimateFoV():",
       self.EquivLength,
       self.FovHorizontal,
       self.FovVertical,
@@ -211,7 +211,7 @@ class astrolens:
 # ------------------------------------------------------------------------------------------------------
 
 
-class astrosensor:
+class AstroSensor:
   """Object representing the IMAGE SENSOR being used by the telescope.
   Default values are for the V1 RPi High Quality Camera (Sony sensor)?
   Individual characteristics can be specified, or a specific sensor type can be given.
@@ -310,7 +310,7 @@ class astrosensor:
           break  # Look no further.
     except:
       self.Log(
-        "astrosensor.DenoiseStatus(): Command template is incomplete.",
+        "AstroSensor.DenoiseStatus(): Command template is incomplete.",
         terminal=False,
       )
     return result
@@ -326,7 +326,7 @@ class astrosensor:
     parameters=None,
     channel=None,
   ):
-    """Create new instance of astrosensor.
+    """Create new instance of AstroSensor.
 
     sensor_type: Optional sensor type, can set some parameters automatically if recognised. eg imx477
     pixel_width: Image format - width.
@@ -339,7 +339,7 @@ class astrosensor:
     channel: Optional channel number if RPi5 with multiple cameras supported.
 
     """
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # CamLog # Handle to the class that handles logging and error tracing.
     self.oscommand = oscommand(logger=logger.Log)  # Create OS command executor.
@@ -375,23 +375,23 @@ class astrosensor:
     self.OnChipCleanup = (
       self.DenoiseStatus()
     )  # Records whether we've got the on-chip cleanup enabled or not. Raspistill feature. Libcamera does it through the command line.
-    if self.Type in astrosensor.SensorDict:
-      self.ModeDict = astrosensor.SensorDict[
+    if self.Type in AstroSensor.SensorDict:
+      self.ModeDict = AstroSensor.SensorDict[
         self.Type
       ]  # Select mode information for the chosen sensor.
     else:
-      self.ModeDict = astrosensor.SensorDict[
+      self.ModeDict = AstroSensor.SensorDict[
         "imx477"
       ]  # Default sensor for the telescope design.
     self.Log(
       "AstroSensor: Size, " + str(self.PixelWidth) + "*" + str(self.PixelHeight),
       terminal=False,
     )
-    astrosensor.SensorList.append(
+    AstroSensor.SensorList.append(
       self
     )  # Add this instance to the global list of all defined sensors.
 
-  def SetLogger(self, logger):
+  def set_logger(self, logger):
     """Set up link to logging class and shortcuts to common methods."""
     # The logging methods default to 'consumers' which will just silently eat any parameters passed.
     self.Logger = logger  # Logger instance.
@@ -408,7 +408,7 @@ class astrosensor:
       )  # Report exception details to logfile.
     if hasattr(logger, "RaiseException"):
       self.RaiseException = logger.RaiseException  # Report and raise exception.
-    self.Log("astrosensor.SetLogger: Linked to this log file.", terminal=False)
+    self.Log("AstroSensor.set_logger: Linked to this log file.", terminal=False)
 
   def _NullLogger(self, *args, **kwargs):
     """Null logger. Absorbs parameters and .log call but does nothing.
@@ -551,7 +551,7 @@ class astrosensor:
         self.CameraWindow.Print(self.NowHMS() + " On Chip Cleanup - OFF")
     else:  # libcamera has a command line option to disable cleanup.
       self.Log(
-        "astrosensor.DisableCleanup: Please check the '--denoise off ' option in the command templates in the parameter file.",
+        "AstroSensor.DisableCleanup: Please check the '--denoise off ' option in the command templates in the parameter file.",
         terminal=False,
       )
     return True
@@ -594,7 +594,7 @@ class astrosensor:
         self.CameraWindow.Print(self.NowHMS() + " On Chip Cleanup - ON")
     else:  # libcamera has a command line option to disable cleanup.
       self.Log(
-        "astrosensor.EnableCleanup(): Please check the '--denoise off ' option is removed in the command templates in the parameter file.",
+        "AstroSensor.EnableCleanup(): Please check the '--denoise off ' option is removed in the command templates in the parameter file.",
         terminal=False,
       )
     return True
@@ -644,7 +644,7 @@ class astrocamera:
     parameters=None,
     imagesimulator=None,
   ):
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # CamLog # Handle to the class that handles logging and error tracing.
     self.oscommand = oscommand(logger=logger.Log)  # Create OS command executor.
@@ -816,7 +816,7 @@ class astrocamera:
       ) from e  # Continue with regular exception stack.
     return line
 
-  def SetLogger(self, logger):
+  def set_logger(self, logger):
     """Set up link to logging class and shortcuts to common methods."""
     # The logging methods default to 'consumers' which will just silently eat any parameters passed.
     self.Logger = logger  # Logger instance.
@@ -833,7 +833,7 @@ class astrocamera:
       )  # Report exception details to logfile.
     if hasattr(logger, "RaiseException"):
       self.RaiseException = logger.RaiseException  # Report and raise exception.
-    # self.Log("astrocamera.SetLogger: Linked to this log file.",terminal=False)
+    # self.Log("astrocamera.set_logger: Linked to this log file.",terminal=False)
 
   def _NullLogger(self, *args, **kwargs):
     """Null logger. Absorbs parameters and .log call but does nothing.

@@ -17,7 +17,7 @@
 import subprocess  # Threadsafe os command execution with access to command output.
 
 
-class oscommand:
+class OSCommand:
   """object to execute OS commands."""
 
   def __init__(self, logger=None):
@@ -48,29 +48,29 @@ class oscommand:
       returncode = e.returncode
       if self.Log != None:
         self.Log(
-          "oscommand.execute(" + cmd + ") returned " + str(e), terminal=False
+          "OSCommand:.execute(" + cmd + ") returned " + str(e), terminal=False
         )
         self.Log(
-          "oscommand.execute("
+          "OSCommand:.execute("
           + cmd
           + ") returned returncode "
           + str(e.returncode),
           terminal=False,
         )
         self.Log(
-          "oscommand.execute(" + cmd + ") returned output " + str(e.output),
+          "OSCommand:.execute(" + cmd + ") returned output " + str(e.output),
           terminal=False,
         )
         self.Log(
-          "oscommand.execute(" + cmd + ") returned cmd " + str(e.cmd),
+          "OSCommand:.execute(" + cmd + ") returned cmd " + str(e.cmd),
           terminal=False,
         )
         self.Log(
-          "oscommand.execute(" + cmd + ") returned stdout " + str(e.stdout),
+          "OSCommand:.execute(" + cmd + ") returned stdout " + str(e.stdout),
           terminal=False,
         )
         self.Log(
-          "oscommand.execute(" + cmd + ") returned stderr " + str(e.stderr),
+          "OSCommand:.execute(" + cmd + ") returned stderr " + str(e.stderr),
           terminal=False,
         )
       result = ""  # We lose result output, even if some was generated before the error was reached.
@@ -110,36 +110,36 @@ class oscommand:
       self.LastError = e
       if self.Log != None:
         self.Log(
-          "oscommand.ExecuteCode(" + cmd + ") returned " + str(e),
+          "OSCommand:.ExecuteCode(" + cmd + ") returned " + str(e),
           terminal=False,
         )
         self.Log(
-          "oscommand.ExecuteCode("
+          "OSCommand:.ExecuteCode("
           + cmd
           + ") returned returncode "
           + str(e.returncode),
           terminal=False,
         )
         self.Log(
-          "oscommand.ExecuteCode("
+          "OSCommand:.ExecuteCode("
           + cmd
           + ") returned output "
           + str(e.output),
           terminal=False,
         )
         self.Log(
-          "oscommand.ExecuteCode(" + cmd + ") returned cmd " + str(e.cmd),
+          "OSCommand:.ExecuteCode(" + cmd + ") returned cmd " + str(e.cmd),
           terminal=False,
         )
         self.Log(
-          "oscommand.ExecuteCode("
+          "OSCommand:.ExecuteCode("
           + cmd
           + ") returned stdout "
           + str(e.stdout),
           terminal=False,
         )
         self.Log(
-          "oscommand.ExecuteCode("
+          "OSCommand:.ExecuteCode("
           + cmd
           + ") returned stderr "
           + str(e.stderr),
