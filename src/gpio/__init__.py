@@ -12,16 +12,17 @@ the module will not be imported.
 """
 from enum import Enum
 GPIO_DRIVER = None
+from gpio.micro import microcontroller
 
 try:
-  import RPi.GPIO as GPIO  # Handling IO signals. If available.
+  import RPi.GPIO as gpio_driver  # Handling IO signals. If available.
   from gpio_module import *
   GPIO_DRIVER = "GPIO"
 except ModuleNotFoundError:
   pass
 
 try:
-  import gpio.gpiod as gpiod  # Handling IO signals. If available.
+  import gpio.gpiod as gpio_driver  # Handling IO signals. If available.
   from gpiod_module import *
   GPIO_DRIVER = "GPIOD"
 except ModuleNotFoundError:

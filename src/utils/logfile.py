@@ -16,7 +16,7 @@
 # 09.Dec.2023 Added PackageSearchResult() function to help with analysing functionality.
 
 from datetime import datetime, timedelta, timezone
-from utils.textcolor import textcolor
+from utils.textcolor import TextColor
 import os  # OS Command execution
 import traceback  # Used to record the stacktrace if recording an error.
 
@@ -154,7 +154,7 @@ class LogFile:  # 2 references.
     if (
       level[0] in self.level_filter and detail[0] in self.detail_filter
     ):  # The filters pass the criteria for writing to disc.
-      with open(self.filename, "a") as f:
+      with open(self.filename, "a", encoding="utf-8") as f:
         f.write(saveline + "\n")
         if self.fast_flush:  # Update the disc immediately.
           f.flush()  # Immediately flush to disc.
@@ -165,23 +165,23 @@ class LogFile:  # 2 references.
         self.error_list.append(
           printline
         )  # Record the error for later summary or reporting.
-        print(textcolor.red("** ERROR ** reported in LogFile: ") + printline)
+        print(TextColor.red("** ERROR ** reported in LogFile: ") + printline)
         if errorprompt:  # User has to acknowledge the error.
           # temp = input(textcolor.cyan("Press [ENTER] to continue: "))
-          input(textcolor.cyan("Press [ENTER] to continue: "))
+          input(TextColor.cyan("Press [ENTER] to continue: "))
       if self.error_window is not None:
         self.error_window.Print(
-          printline, fg=textcolor.RED, bg=textcolor.BLACK
+          printline, fg=TextColor.RED, bg=TextColor.BLACK
         )  # Error color.
     elif level[0] == "w":
       if terminal:  # We're allowed to display on the terminal.
-        print(textcolor.yellow("WARNING: reported in LogFile: ") + printline)
+        print(TextColor.yellow("WARNING: reported in LogFile: ") + printline)
         if errorprompt:  # User has to acknowledge the warning.
           # temp = input(textcolor.cyan("Press [ENTER] to continue: "))
-          input(textcolor.cyan("Press [ENTER] to continue: "))
+          input(TextColor.cyan("Press [ENTER] to continue: "))
       if self.error_window is not None and copytowindow:
         self.error_window.Print(
-          printline, fg=textcolor.YELLOW, bg=textcolor.BLACK
+          printline, fg=TextColor.YELLOW, bg=TextColor.BLACK
         )  # Warning color.
     elif terminal:  # Display to the terminal.
       print(printline)
@@ -197,7 +197,7 @@ class LogFile:  # 2 references.
   def report_slow_events(self, limit=4.0):  ### DEVELOPMENT ###
     """Analyses the log file and reports any events which have taken too long."""
     print("Analysing log file for slow events")
-    with open(self.filename, "r") as f:
+    with open(self.filename, "r", encoding="UTF-8") as f:
       prevline = ""
       for line in f:
         thisline = line.strip()
@@ -216,7 +216,7 @@ class LogFile:  # 2 references.
     This does not terminate, it just reports/logs the
     exception then allows the program to continue."""
     self.log("LogFile.report_exception(): Error", str(e), level="error")
-    self.RecordTraceback(e)
+    self.record_traceback(e)
     if hasattr(
       e, "__dict__"
     ):  # The exception object has a dictionary that can be reported.
@@ -235,7 +235,7 @@ class LogFile:  # 2 references.
   def raise_exception(self, e, level="error", comment=None):
     """Record any exception class in the log file.
     Then terminate via regular exception handler."""
-    self.RecordTraceback(e)
+    self.record_traceback(e)
     if hasattr(
       e, "__dict__"
     ):  # The exception object has a dictionary that can be reported.
@@ -248,22 +248,22 @@ class LogFile:  # 2 references.
         ")",
         level="error",
       )
-    if comment != None:
+    if comment is not None:
       self.log("LogFile.raise_exception(): Comment:", str(comment), level=level)
     raise Exception(
       "Program exception raised"
     ) from e  # Terminate through regular exception stack.
 
-  def RecordTraceback(self, e, terminal=True):
+  def record_traceback(self, e, terminal=True):
     """Use Traceback module to report the execution stack to the log file.
     Setting terminal=False prevents the error being displayed on the screen."""
-    self.log("LogFile.RecordTraceback(): ErrorMessage", str(e), terminal=terminal)
+    self.log("LogFile.record_traceback(): ErrorMessage", str(e), terminal=terminal)
     a = traceback.format_exc()  # String representation of stack report.
     b = a.split("\n")
     for c in b:
-      self.log("LogFile.RecordTraceback():", c, terminal=terminal)
+      self.log("LogFile.record_traceback():", c, terminal=terminal)
 
-  def UniqueFilename(self, filename):
+  def unique_filename(self, filename):
     """Given a filename, create a unique version of it.
     This appends '.1', '.2', '.3' etc to the filename until it finds
     an unused name."""
@@ -277,7 +277,7 @@ class LogFile:  # 2 references.
       counter += 1  # Try next available filename.
       if counter > 100:
         self.log(
-          "LogFile.UniqueFilename(",
+          "LogFile.unique_filename(",
           filename,
           "). Exhausted allowed range of names.",
           level="error",
@@ -286,7 +286,7 @@ class LogFile:  # 2 references.
       uniquefilename = (
         fileelements[0] + "_" + str(counter) + "." + fileelements[1]
       )  # bla/bla/bla/bla/filename_{count}.filetype
-      if os.path.exists(uniquefilename) == False:  # The name is unused.
+      if not os.path.exists(uniquefilename):  # The name is unused.
         break
     return uniquefilename
 
@@ -321,7 +321,7 @@ class LogFile:  # 2 references.
     searchterms = the selection phrase for grep.
       Examples: "RPi received|RPi queueing" - Lists lines containing either phrase.
     Returns a ZIP filename."""
-    resultfile = self.UniqueFilename(self.filename)
+    resultfile = self.unique_filename(self.filename)
     zipfile = resultfile.split(".")[0] + ".zip"
     self.log(
       "LogFile.PackageSearchResult(", searchterms, ") Begin.", terminal=False

@@ -23,13 +23,13 @@ import random  # random number generator.
 import cv2  # openCV for image file handling.
 from datetime import datetime, timedelta, timezone
 from utils.timer import Timer, ProgressTimer  # Pilomar's timer classes.
-from pilomaroscommand import OSCommand  # Pilomar's OS command executor.
+from oscommand import OSCommand  # Pilomar's OS command executor.
 from camera.image import (
   pilomarimage,
   pilomarkeogram,
 )  # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
 from utils.textcolor import (
-  textcolor,
+  TextColor,
 )  # Basic colour and cursor control codes for terminal displays.
 
 # from pidng.core import RPICAM2DNG # DNG data extraction from RPi camera RAW images. From https://github.com/schoolpost/pidng Needs to be 3.4.6 version. Later versions are not compatible.
@@ -37,573 +37,7 @@ import numpy as np  # Fast array handling
 
 # ------------------------------------------------------------------------------------------------------
 
-
-class AstroLens:
-  """Object representing the LENS being used by the telescope.
-  Contains some attributes which are used to convert between FIELD OF VIEW and PHOTO DIMENSIONS for example.
-  """
-
-  LensList = []  # List of declared lenses.
-
-  def __init__(
-    self,
-    length,
-    horizontal_fov,
-    vertical_fov,
-    aperture=2.8,
-    logger=None,
-    parameters=None,
-  ):
-    self.set_logger(
-      logger
-    )  # CamLog # Handle to the class that handles logging and error tracing.
-    self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
-    self.osCmd = self.oscommand.Execute
-    self.CameraWindow = None
-    self.ErrorWindow = None
-    self.Parameters = (
-      parameters  # Must define parameter file before using instance.
-    )
-    self.BaseLength = (
-      length  # The length of the lense WITHOUT any multiplier effect.
-    )
-    self.Length = length  # 'focal length' of the lens.
-    self.EquivLength = (
-      self.Length * 5.6
-    )  # From https://www.seeedstudio.com/blog/2020/06/18/a-complete-guide-to-help-you-choose-lenses-for-your-raspberry-pi-high-quality-camera-m/ 35mm equivalent focal length (?) (AKA the Crop Factor for the sensor?
-    self.FovHorizontal = horizontal_fov
-    self.FovVertical = vertical_fov
-    self.Fov = min(
-      self.FovHorizontal, self.FovVertical
-    )  # When calculating the FOV for a survey, use the smaller value.
-    self.Aperture = (
-      aperture  # FStop of the lens. *Q* Multiplier will impact this too. Hmm...
-    )
-    self.ID = (
-      str(self.Length)
-      + "|"
-      + str(self.FovHorizontal)
-      + "|"
-      + str(self.FovVertical)
-    )  # Unique ID of lens features.
-    self.Log(
-      "AstroLens: Length:",
-      str(self.Length),
-      "mm (equiv.",
-      str(self.EquivLength),
-      "mm) FoV:",
-      str(self.FovHorizontal),
-      "deg",
-      "*",
-      str(self.FovVertical),
-      "deg",
-      terminal=False,
-    )
-    AstroLens.LensList.append(
-      self
-    )  # Add this instance to the global list of all defined lenses.
-
-  def set_logger(self, logger):
-    """Set up link to logging class and shortcuts to common methods."""
-    # The logging methods default to 'consumers' which will just silently eat any parameters passed.
-    self.Logger = logger  # Logger instance.
-    self.Log = self._NullLogger  # No log method.
-    self.ReportException = (
-      self._NullLogger
-    )  # Cannot report exception details to logfile.
-    self.RaiseException = self._NullLogger  # Cannor report and raise exception.
-    if hasattr(logger, "Log"):
-      self.Log = logger.Log  # Log method.
-    if hasattr(logger, "ReportException"):
-      self.ReportException = (
-        logger.ReportException
-      )  # Report exception details to logfile.
-    if hasattr(logger, "RaiseException"):
-      self.RaiseException = logger.RaiseException  # Report and raise exception.
-    self.Log("AstroLens.set_logger: Linked to this log file.", terminal=False)
-
-  def _NullLogger(self, *args, **kwargs):
-    """Null logger. Absorbs parameters and .log call but does nothing.
-    Use this when there is no logger defined."""
-    return
-
-  def EstimateFoV(self, length):
-    """Given 35mm equivalent focal length, this estimates the FoV for the lens on the Raspberry Pi Hi Quality sensor.
-    This is just an estimation to get you started.
-    The FoV can be finetuned by comparing the diameter of the moon's disc using astrocamera.CalibrateFoV function.
-    """
-
-    # Table entries.
-    # [ 35mm focal length, horizontal FoV, vertical FoV ]
-    # Table was found online on a couple of forums, there are online calculators too.
-    FXFoVTable = [
-      [10, 121.9, 100.4],
-      [11, 117.1, 95.0],
-      [12, 112.6, 90.0],
-      [14, 104.3, 81.2],
-      [15, 100.4, 77.3],
-      [17, 93.3, 70.4],
-      [18, 90.0, 67.4],
-      [19, 86.9, 64.6],
-      [20, 84.0, 61.9],
-      [24, 73.7, 53.1],
-      [28, 65.5, 46.4],
-      [30, 61.9, 43.6],
-      [35, 54.4, 37.8],
-      [45, 43.6, 29.9],
-      [50, 39.6, 27.0],
-      [55, 36.2, 24.6],
-      [60, 33.4, 22.6],
-      [70, 28.8, 19.5],
-      [75, 27.0, 18.2],
-      [80, 25.3, 17.1],
-      [85, 23.9, 16.1],
-      [90, 22.6, 15.2],
-      [100, 20.4, 13.7],
-      [105, 19.5, 13.0],
-      [120, 17.1, 11.4],
-      [125, 16.4, 11.0],
-      [135, 15.2, 10.2],
-      [150, 13.7, 9.1],
-      [170, 12.1, 8.1],
-      [180, 11.4, 7.6],
-      [200, 10.3, 6.9],
-      [210, 9.8, 6.5],
-      [300, 6.9, 4.6],
-      [400, 5.2, 3.4],
-      [500, 4.1, 2.7],
-      [600, 3.4, 2.3],
-      [800, 2.6, 1.7],
-    ]
-
-    # Search the table for surrounding entries.
-    lower_entry = None
-    upper_entry = None
-    for entry in FXFoVTable:
-      if entry[0] <= self.EquivLength:
-        lower_entry = entry
-      else:
-        upper_entry = entry
-        break
-
-    if lower_entry != None:  # We found a reasonable match.
-      self.FovHorizontal = lower_entry[1]  # Start with this near match.
-      self.FovVertical = lower_entry[2]
-      # See if we can improve it.
-      if upper_entry != None and self.EquivLength != lower_entry[0]:
-        # Need to estimate a value between the two known entries.
-        len_range = upper_entry[0] - lower_entry[0]
-        hor_range = upper_entry[1] - lower_entry[1]
-        ver_range = upper_entry[2] - lower_entry[2]
-        prop = (self.EquivLength - lower_entry[0]) / len_range
-        self.FovHorizontal = prop * hor_range + lower_entry[1]
-        self.FovVertical = prop * ver_range + lower_entry[2]
-
-    self.Log(
-      "AstroLens.EstimateFoV():",
-      self.EquivLength,
-      self.FovHorizontal,
-      self.FovVertical,
-      terminal=False,
-    )
-
-
-# ------------------------------------------------------------------------------------------------------
-
-
-class AstroSensor:
-  """Object representing the IMAGE SENSOR being used by the telescope.
-  Default values are for the V1 RPi High Quality Camera (Sony sensor)?
-  Individual characteristics can be specified, or a specific sensor type can be given.
-  Contains some attributes which are used to convert between FIELD OF VIEW and PHOTO DIMENSIONS for example.
-  """
-
-  # Can create a dictionary of sensor types and capabilities here.
-  # width = image width in pixels.
-  # height = image height in pixels.
-  # video = Can take video in this mode.
-  # image = Can take photo in this mode.
-  # fov = full or partial field of view. partial means only the centre of the sensor is used. full means the whole sensor is used.
-  # maxseconds = Longest exposure time supported.
-  # raw = Can capture raw bayer data.
-  # (*Q* This may not be needed in the future if libcamera can recognise the capabilities automatically.)
-  SensorDict = {
-    "imx477": {
-      1: {
-        "width": 2028,
-        "height": 1080,
-        "video": True,
-        "image": False,
-        "aspect": "169:90",
-        "framerate": {"min": 0.1, "max": 50},
-        "fov": "partial",
-        "binning": True,
-        "scaled": False,
-        "maxseconds": 10.2,
-        "raw": False,
-      },
-      2: {
-        "width": 2028,
-        "height": 1520,
-        "video": True,
-        "image": False,
-        "aspect": "4:3",
-        "framerate": {"min": 0.1, "max": 50},
-        "fov": "full",
-        "binning": True,
-        "scaled": False,
-        "maxseconds": 10.2,
-        "raw": True,
-      },
-      3: {
-        "width": 4056,
-        "height": 3040,
-        "video": True,
-        "image": True,
-        "aspect": "4:3",
-        "framerate": {"min": 0.005, "max": 10},
-        "fov": "full",
-        "binning": False,
-        "scaled": False,
-        "maxseconds": 200.0,
-        "raw": False,
-      },
-      4: {
-        "width": 1012,
-        "height": 760,
-        "video": True,
-        "image": True,
-        "aspect": "4:3",
-        "framerate": {"min": 50.1, "max": 120},
-        "fov": "full",
-        "binning": False,
-        "scaled": True,
-        "maxseconds": 10.2,
-        "raw": False,
-      },
-    }
-  }
-  SensorList = []  # List of declared sensors.
-
-  def DenoiseStatus(self):
-    """With libcamera the denoise / onchip cleanup is set via the command template rather than the parameter file."""
-    if (
-      self.Parameters.CameraDriver == "raspistill"
-    ):  # These are the default commands for raspistill captures.
-      result = (
-        not self.Parameters.DisableCleanup
-      )  # Onchip cleanup is ENABLED unless we can prove otherwise.
-    else:
-      result = True  # Denoise is ON unless explicitly turned off in the command line (checked next).
-    try:
-      elements = self.Parameters._CameraLightCommand.split(
-        " "
-      )  # Check all the options.
-      for i, element in enumerate(elements):
-        if (
-          element == "--denoise"
-        ):  # We've found a denoise instruction in the camera command template.
-          if elements[i + 1] == "off":  # Onchip cleanup is disabled.
-            result = False
-          else:
-            result = True
-          break  # Look no further.
-    except:
-      self.Log(
-        "AstroSensor.DenoiseStatus(): Command template is incomplete.",
-        terminal=False,
-      )
-    return result
-
-  def __init__(
-    self,
-    sensor_type="",
-    pixel_width=4056,
-    pixel_height=3040,
-    max_seconds=200,
-    min_seconds=0.0000001,
-    logger=None,
-    parameters=None,
-    channel=None,
-  ):
-    """Create new instance of AstroSensor.
-
-    sensor_type: Optional sensor type, can set some parameters automatically if recognised. eg imx477
-    pixel_width: Image format - width.
-    pixel_height: Image format - height.
-    max_seconds: Longest exposure time supported by the sensor (seconds).
-    min_seconds: Shortest exposure time supported by the sensor (seconds).
-    logger: Point to logfile instance. eg MainLog or CamLog
-    parameters: Point to parameter instance. eg Parameters
-    driver: Use raspistill or libcamera support on the RPi?
-    channel: Optional channel number if RPi5 with multiple cameras supported.
-
-    """
-    self.set_logger(
-      logger
-    )  # CamLog # Handle to the class that handles logging and error tracing.
-    self.oscommand = oscommand(logger=logger.Log)  # Create OS command executor.
-    self.osCmd = self.oscommand.Execute
-    self.CameraWindow = None
-    self.ErrorWindow = None
-    self.Parameters = parameters  # Must declare the parameter file before you can use the instance.
-    self.PixelWidth = pixel_width
-    self.PixelHeight = pixel_height
-    self.MaxExposureSeconds = max_seconds
-    self.MinExposureSeconds = min_seconds
-    self.Type = sensor_type
-    if (
-      self.Type == "imx477"
-    ):  # If the sensor type is recognised then set the value automatically.
-      self.Log(
-        "AstroSensor: Recognised "
-        + self.Type
-        + " setting other characteristics automatically.",
-        terminal=False,
-      )
-      self.PixelWidth = 4056
-      self.PixelHeight = 3040
-      self.MaxExposureSeconds = 200  # 200 seconds is the longest exposure time that raspistill can deliver.
-      self.MinExposureSeconds = 1e-6  # 1 microsecond is the fastest exposure time that raspistill can deliver.
-    self.ID = (
-      str(self.PixelWidth) + "|" + str(self.PixelHeight)
-    )  # Unique ID of lens features.
-    self.Mode = 3
-    self.Channel = (
-      channel  # If RPi has multiple camera channels, indicate the channel here.
-    )
-    self.OnChipCleanup = (
-      self.DenoiseStatus()
-    )  # Records whether we've got the on-chip cleanup enabled or not. Raspistill feature. Libcamera does it through the command line.
-    if self.Type in AstroSensor.SensorDict:
-      self.ModeDict = AstroSensor.SensorDict[
-        self.Type
-      ]  # Select mode information for the chosen sensor.
-    else:
-      self.ModeDict = AstroSensor.SensorDict[
-        "imx477"
-      ]  # Default sensor for the telescope design.
-    self.Log(
-      "AstroSensor: Size, " + str(self.PixelWidth) + "*" + str(self.PixelHeight),
-      terminal=False,
-    )
-    AstroSensor.SensorList.append(
-      self
-    )  # Add this instance to the global list of all defined sensors.
-
-  def set_logger(self, logger):
-    """Set up link to logging class and shortcuts to common methods."""
-    # The logging methods default to 'consumers' which will just silently eat any parameters passed.
-    self.Logger = logger  # Logger instance.
-    self.Log = self._NullLogger  # No log method.
-    self.ReportException = (
-      self._NullLogger
-    )  # Cannot report exception details to logfile.
-    self.RaiseException = self._NullLogger  # Cannor report and raise exception.
-    if hasattr(logger, "Log"):
-      self.Log = logger.Log  # Log method.
-    if hasattr(logger, "ReportException"):
-      self.ReportException = (
-        logger.ReportException
-      )  # Report exception details to logfile.
-    if hasattr(logger, "RaiseException"):
-      self.RaiseException = logger.RaiseException  # Report and raise exception.
-    self.Log("AstroSensor.set_logger: Linked to this log file.", terminal=False)
-
-  def _NullLogger(self, *args, **kwargs):
-    """Null logger. Absorbs parameters and .log call but does nothing.
-    Use this when there is no logger defined."""
-    return
-
-  def HmsFromStamp(self, timestamp, dateaware=False):
-    """Return the HH:MM:SS part of a timestamp as a string.
-    Works with datetime input.
-    dateaware = True. If the date is not today, then it shows 'DD HH:MM' instead."""
-    result = None
-    try:
-      if timestamp is None:  # Protect from null values.
-        result = ""
-      else:
-        result = str(timestamp)
-        if (
-          dateaware and timestamp.date() != self.NowUTC().date()
-        ):  # The date is not today.
-          result = result[8:16]  # Extract "DD HH:MM"
-        else:  # The date is today. Extract "HH:MM:SS"
-          result = result.split(" ")[1]
-          result = result.split(".")[0]
-    except Exception as e:
-      print(e)  # Trap all the exception information in the main log file.
-      raise Exception(
-        "HmsFromStamp() failed."
-      ) from e  # Continue with regular exception stack.
-    return result
-
-  def NowHMS(self):
-    """Return current time as formatted string.
-    Returns HH:MM:SS string for the current time (UTC)"""
-    return self.HmsFromStamp(self.NowUTC())
-
-  def NowUTC(self):
-    """Return system UTC timestamp as a datetime object."""
-    return datetime.now(timezone.utc)
-
-  def GetCentre(self):
-    """Return the X and Y co-ordinates of the centre of the image."""
-    return int(round(self.PixelWidth / 2, 0)), int(round(self.PixelHeight / 2, 0))
-
-  def _SetMode(self, mode: int):
-    """Given a new mode, validate it and then update the dependent values in the sensor.
-    There are dependencies in AstroCamera that should be updated afterwards, so this
-    should be called via astrocamera.SetMode(mode)."""
-    if mode in self.ModeDict:
-      self.PixelWidth = self.ModeDict[mode][
-        "width"
-      ]  # Update maximum image pixel width
-      self.PixelHeight = self.ModeDict[mode][
-        "height"
-      ]  # Update maximum image pixel height
-      self.Mode = mode
-      self.MaxExposureSeconds = self.ModeDict[mode][
-        "maxseconds"
-      ]  # Update maximum exposure time.
-      if self.ModeDict[mode]["image"] == False:
-        self.Log(
-          "AstroSensor._SetMode: Mode "
-          + str(self.Mode)
-          + ") is not recommended for still images.",
-          level="warning",
-        )
-      if self.ModeDict[mode]["binning"] == True:
-        self.Log(
-          "AstroSensor._SetMode: Mode "
-          + str(self.Mode)
-          + ") activates binning for increased sensitivity.",
-          level="info",
-          terminal=False,
-        )
-      if self.ModeDict[mode]["raw"] == False:
-        self.Log(
-          "AstroSensor._SetMode: Mode "
-          + str(self.Mode)
-          + ") does not support RAW data correctly. Processing may fail.",
-          level="error",
-        )
-    else:
-      self.Log(
-        "AstroSensor._SetMode: Mode "
-        + str(mode)
-        + " is not recognised, ignored.",
-        level="warning",
-      )
-    self.Log(
-      "AstroSensor._SetMode: Mode " + str(mode) + " selected.", terminal=False
-    )
-    if self.CameraWindow != None:
-      self.CameraWindow.Print("Sensor mode: " + str(mode))
-    self.Log(
-      "AstroSensor: Pixel dimensions now: "
-      + str(self.PixelWidth)
-      + "x"
-      + str(self.PixelHeight),
-      terminal=False,
-    )
-
-  def DisableCleanup(self):
-    """Disable the on-chip image cleanup for the sensor.
-    Even in RAW capture mode, the sensor will perform some image cleanup by default.
-    This cleanup degrades the raw data that astro photo stacking software will work with.
-    Therefore it is advisable to disable this cleanup before taking photos for stacking.
-    """
-    if self.Parameters.CameraDriver == "raspistill":  # if OS_name in ['buster']:
-      print(
-        textcolor.yellow(
-          "Disabling sensor cleanup to improve purity of sensor raw data."
-        )
-      )
-      if not self.Type in [
-        "imx477"
-      ]:  # Check that the sensor cleanup function actually can be disabled.
-        self.Log(
-          "AstroSensor.DisableCleanup is not supported for "
-          + self.Type
-          + " sensors. Ignored.",
-          level="warning",
-        )
-        return False
-      cmd = (
-        "sudo vcdbg set imx477.dpc 0"  # Turn off on-chip cleaning of the image.
-      )
-      # This raises some error messages like this...
-      #    debug_sym: vc_mem_copy: Unable to open '/dev/fb0': No such file or directory.
-      # According to raspberry pi forum, these can be ignored. The output is not displayed, however pilomar logs it in case other errors occur in the future.
-      self.Log(cmd, terminal=False)
-      self.osCmd(cmd)
-      self.OnChipCleanup = (
-        False  # raspistill feature. Libcamera does it through the command line.
-      )
-      self.Parameters.DisableCleanup = True  # Cleanup is disabled.
-      self.Log(
-        "Raspberry Pi High Quality Camera, on chip image cleanup DISABLED.",
-        terminal=False,
-      )
-      if self.CameraWindow != None:
-        self.CameraWindow.Print(self.NowHMS() + " On Chip Cleanup - OFF")
-    else:  # libcamera has a command line option to disable cleanup.
-      self.Log(
-        "AstroSensor.DisableCleanup: Please check the '--denoise off ' option in the command templates in the parameter file.",
-        terminal=False,
-      )
-    return True
-
-  def EnableCleanup(self):
-    """Enable the on-chip image cleanup for the sensor.
-    This returns the on-chip image cleanup back to the default state (ON)
-    It is recommended to have it disabled for image stacking of raw images."""
-    if self.Parameters.CameraDriver == "raspistill":  # if OS_name in ['buster']:
-      print(
-        textcolor.yellow(
-          "Enabling sensor cleanup to restore factory functionality."
-        )
-      )
-      if not self.Type in ["imx477"]:
-        self.Log(
-          "AstroSensor.EnableCleanup is not supported for "
-          + self.Type
-          + " sensors. Ignored.",
-          level="warning",
-        )
-        return False
-      cmd = (
-        "sudo vcdbg set imx477.dpc 3"  # Turn on on-chip cleaning of the image.
-      )
-      # This raises some error messages like this...
-      #    debug_sym: vc_mem_copy: Unable to open '/dev/fb0': No such file or directory.
-      # According to raspberry pi forum, these can be ignored. The output is logged but not displayed in case other errors occur in the future.
-      self.Log(cmd, terminal=False)
-      self.osCmd(cmd)
-      self.OnChipCleanup = (
-        True  # Raspistill feature, libcamera does it through the command line.
-      )
-      self.Parameters.DisableCleanup = False
-      self.Log(
-        "Raspberry Pi High Quality Camera, on chip image cleanup ENABLED.",
-        terminal=False,
-      )
-      if self.CameraWindow != None:
-        self.CameraWindow.Print(self.NowHMS() + " On Chip Cleanup - ON")
-    else:  # libcamera has a command line option to disable cleanup.
-      self.Log(
-        "AstroSensor.EnableCleanup(): Please check the '--denoise off ' option is removed in the command templates in the parameter file.",
-        terminal=False,
-      )
-    return True
-
-
-# ------------------------------------------------------------------------------------------------------
-
-
-class astrocamera:
+class AstroCamera:
 
   CameraList = []  # List of cameras declared.
 
@@ -616,19 +50,19 @@ class astrocamera:
   @staticmethod
   def SetGlobalFolderHandler(folderhandler):
     """Update FolderHAndler in all declared cameras."""
-    for camera in astrocamera.CameraList:
+    for camera in AstroCamera.CameraList:
       camera.FolderHandler = folderhandler
 
   @staticmethod
   def SetGlobalMctl(mctl):
     """Update Microcontroller handler in all declared cameras."""
-    for camera in astrocamera.CameraList:
+    for camera in AstroCamera.CameraList:
       camera.Mctl = mctl
 
   @staticmethod
   def SetGlobalKeyboard(keyboard):
     """Update Keyboard scanner handle in all declared cameras."""
-    for camera in astrocamera.CameraList:
+    for camera in AstroCamera.CameraList:
       camera.Keyboard = keyboard
 
   """ Object representing the camera assembly being used.
@@ -647,7 +81,7 @@ class astrocamera:
     self.set_logger(
       logger
     )  # CamLog # Handle to the class that handles logging and error tracing.
-    self.oscommand = oscommand(logger=logger.Log)  # Create OS command executor.
+    self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
     self.osCmd = self.oscommand.Execute
     # Helper functions and attributes, should be set in calling program.
     self.ImageSimulator = None  # Can be handle to image simulation procedure. Must match CreateTargetImage() signature.
@@ -725,7 +159,7 @@ class astrocamera:
       )  # RPICAM2DNG() needed for Buster O/S raspistill operation.
     else:
       self.PiDNG = None  # RPICAM2DNG() not needed for libcamera operation.
-    astrocamera.CameraList.append(
+    AstroCamera.CameraList.append(
       self
     )  # Add this instance to the global list of all defined cameras.
 
@@ -1040,7 +474,7 @@ class astrocamera:
     Use this to estimate the FieldOfView of the camera and adjust parameters accordingly.
     """
     self.Log("astrocamera.CalibrateFov: Begin", terminal=False)
-    print(textcolor.yellow("Calibrate lens"))
+    print(TextColor.yellow("Calibrate lens"))
     MoonMeanDiaDeg = 0.5286
     ExpectedDiaPix = int(
       self.PixelsPerFovDegreeWidth * MoonMeanDiaDeg
@@ -1061,7 +495,7 @@ class astrocamera:
       + str(ExpectedDiaPix)
       + " pixels.",
     ]
-    textcolor.TextBox(listlines)
+    TextColor.text_box(listlines)
     result = AskYesNo(
       "Do you want to calibrate the field of view of the lens? [y/N]", False
     )
@@ -1080,7 +514,7 @@ class astrocamera:
         "Measure the pixel diameter of the moon's full disc on that image.",
         "Using that pixel size we can estimate the field of view of the lens.",
       ]
-      textcolor.TextBox(listlines)
+      TextColor.text_box(listlines)
       return  # Do nothing.
 
     self.Log("astrocamera.CalibrateFov: Moon image is available", terminal=False)
@@ -1131,7 +565,7 @@ class astrocamera:
     rawtext = None
     while rawtext is None:
       rawtext = input(
-        textcolor.cyan(
+        TextColor.cyan(
           "How many pixels is the diameter of the Moon's full disc? ('x' to quit): "
         )
       )
@@ -1142,7 +576,7 @@ class astrocamera:
       if IsInt(rawtext):
         break  # We have a value to use.
 
-      print(textcolor.red("Please try again. Integer values only."))
+      print(TextColor.red("Please try again. Integer values only."))
       rawtext = None  # Try again.
 
     if rawtext is None:
@@ -1196,7 +630,7 @@ class astrocamera:
       + str(ExpectedDiaPix)
       + " pixels.",
     ]
-    textcolor.TextBox(listlines)
+    TextColor.text_box(listlines)
     result = AskYesNo("Do you want to make these changes permanent? [y/N]", False)
     if (
       result
@@ -1207,16 +641,16 @@ class astrocamera:
     else:  # Don't touch the parameter settings, so the system will reset when restarted.
       self.Log("astrocamera.CalibrateFov: Making FoV temporary.", terminal=False)
       print(
-        textcolor.yellow(
+        TextColor.yellow(
           "These values are temporary. They will reset when you restart the software."
         )
       )
       print(
-        textcolor.red(
+        TextColor.red(
           "To make these values permanent please edit LensHorizontalFov and LensVerticalFov values in the parameters file."
         )
       )
-      print(textcolor.red("(" + ParameterFileName + ")"))
+      print(TextColor.red("(" + ParameterFileName + ")"))
 
   def SetImageType(self, imagetype):
     """Validate and set the ImageType attribute.
@@ -1901,12 +1335,12 @@ class astrocamera:
           if self.CameraWindow != None:
             self.CameraWindow.Print(
               self.NowHMS() + " Return code " + str(retc),
-              fg=textcolor.YELLOW,
+              fg=TextColor.YELLOW,
             )
           if self.ErrorWindow != None:
             self.ErrorWindow.Print(
               self.NowHMS() + " capture returned code " + str(retc),
-              fg=textcolor.YELLOW,
+              fg=TextColor.YELLOW,
             )
       else:  # Camera is not in use. Generate fake photo.
         self.Log(
@@ -2107,7 +1541,7 @@ class astrocamera:
           i < batch_size - 1
         ):  # If we have more photographs to process, keep the cursor on the same line so that the status line updates neatly.
           print(
-            textcolor.cursorup() + textcolor.cursorup()
+            TextColor.cursorup() + TextColor.cursorup()
           )  # Stay on the same line for the CaptureSet message to the terminal.
       if (
         self.StorageMonitor != None and self.StorageMonitor.DiscOK() != True
@@ -2194,12 +1628,12 @@ class astrocamera:
           if self.CameraWindow != None:
             self.CameraWindow.Print(
               self.NowHMS() + " Return code " + str(retc),
-              fg=textcolor.YELLOW,
+              fg=TextColor.YELLOW,
             )
           if self.ErrorWindow != None:
             self.ErrorWindow.Print(
               self.NowHMS() + " capture returned code " + str(retc),
-              fg=textcolor.YELLOW,
+              fg=TextColor.YELLOW,
             )
       else:  # Camera is not in use. Generate fake photo.
         self.Log(
@@ -2330,7 +1764,7 @@ class astrocamera:
           i < batch_size - 1
         ):  # If we have more photographs to process, keep the cursor on the same line so that the status line updates neatly.
           print(
-            textcolor.cursorup() + textcolor.cursorup()
+            TextColor.cursorup() + TextColor.cursorup()
           )  # Stay on the same line for the CaptureSet message to the terminal.
       if (
         self.StorageMonitor != None and self.StorageMonitor.DiscOK() != True
@@ -2400,8 +1834,8 @@ class astrocamera:
         )  # How far have we got so far? prgt will then produce ETA and % complete for us.
         self.Log("astrocamera.BuildKeogram(): Processing", file, terminal=False)
         print(
-          textcolor.cursorup() + self.NowHMS(),
-          textcolor.white(str(round(prgt.get_percent(), 1))),
+          TextColor.cursorup() + self.NowHMS(),
+          TextColor.white(str(round(prgt.get_percent(), 1))),
           "%",
           (i + 1),
           "of",
@@ -2409,7 +1843,7 @@ class astrocamera:
           "ETA",
           str(prgt.get_eta()).split(".")[0],
           "UTC",
-          textcolor.clearlineforward(),
+          TextColor.clearlineforward(),
         )
         dt = self.DatetimeFromFilename(
           file
@@ -2664,7 +2098,7 @@ class astrocamera:
             cmd = "rm " + file
             self.osCmd(cmd, output="log")
     else:
-      print(textcolor.yellow("No suitable unprocessed files were found."))
+      print(TextColor.yellow("No suitable unprocessed files were found."))
       print(
         "- There is no RAW data in simulated images (Is the camera disabled?)"
       )
@@ -2797,7 +2231,7 @@ class astrocamera:
       "PromptPhotoSettings: [ENTER] to accept default settings or create your own."
     )
     print("raspistill " + CameraOptions)
-    newopt = input(textcolor.cyan("raspistill "))
+    newopt = input(TextColor.cyan("raspistill "))
     if len(newopt) > 0:  # User chose to overwrite the default settings.
       CameraOptions = newopt
       self.Log("astrocamera.PromptPhotoSettings:", CameraOptions, terminal=True)
@@ -2872,7 +2306,7 @@ class astrocamera:
           print("** Quit **")
           break
         print(
-          textcolor.cursorup() + textcolor.clearforward() + self.NowHMS(),
+          TextColor.cursorup() + TextColor.clearforward() + self.NowHMS(),
           "Scanning",
           (i + 1),
           "of",
@@ -2902,7 +2336,7 @@ class astrocamera:
               file
             )  # Add to list of files containing potential meteor trails. (Could be aircraft or satellites too).
     else:  # Filecount == 0
-      print(textcolor.yellow("No suitable image files were found."))
+      print(TextColor.yellow("No suitable image files were found."))
     self.Log(
       "Found potential meteor trails in",
       len(MeteorFiles),
@@ -2945,7 +2379,7 @@ class astrocamera:
 
   def DarkSet(self, batch_size):
     """Take a DARK set of images for photo stacking."""
-    print(textcolor.yellow("DarkSet"))
+    print(TextColor.yellow("DarkSet"))
     ExposureMicroseconds = int(self.ExposureSeconds * 1000000)
     self.SetImageType("dark")  # Tell the camera we are taking dark photos.
     FileRoot = self.FolderHandler.PrepFile("dark", "dark_")
@@ -2956,7 +2390,7 @@ class astrocamera:
     self.Log("These are used to remove electrical noise from the images.")
     self.Log("Lens cap must be ON.")
     self.Log("Images will be stored in", FileRoot)
-    input(textcolor.cyan("[RETURN] to begin: "))  # Python3
+    input(TextColor.cyan("[RETURN] to begin: "))  # Python3
     print("Capturing Dark image set...")
     CameraCommand = self.Parameters._CameraDarkCommand
     # CaptureSet will automatically set mode,width and height parameters if they are in the command line.
@@ -2988,7 +2422,7 @@ class astrocamera:
 
   def DarkFlatSet(self, batch_size):
     """Take a DARK-FLAT set of images for photo stacking."""
-    print(textcolor.yellow("DarkFlatSet"))
+    print(TextColor.yellow("DarkFlatSet"))
     ExposureMicroseconds = int(0.001 * 1000000)  # 1/1000th of a second.
     self.SetImageType("darkflat")  # Tell the camera we are taking darkflat photos.
     FileRoot = self.FolderHandler.PrepFile("darkflat", "darkflat_")
@@ -3003,7 +2437,7 @@ class astrocamera:
     )
     self.Log("Lens cap must be ON.")
     self.Log("Images will be stored in", FileRoot)
-    input(textcolor.cyan("[RETURN] to begin: "))  # Python3
+    input(TextColor.cyan("[RETURN] to begin: "))  # Python3
     print("Capturing Dark-Flat image set...")
     CameraCommand = self.Parameters._CameraDarkFlatCommand
     # CaptureSet will automatically set mode,width and height parameters if they are in the command line.
@@ -3023,7 +2457,7 @@ class astrocamera:
 
   def FlatSet(self, batch_size):
     """Take a FLAT set of images for photo stacking."""
-    print(textcolor.yellow("FlatSet"))
+    print(TextColor.yellow("FlatSet"))
     self.SetImageType("flat")  # Tell the camera we are taking flat photos.
     FileRoot = self.FolderHandler.PrepFile("flat", "flat_")
     self.Log("Generating FLAT image set.")
@@ -3040,7 +2474,7 @@ class astrocamera:
     )
     self.Log("You can re-use the flat image set across multiple campaigns.")
     self.Log("Images will be stored in", FileRoot)
-    input(textcolor.cyan("[RETURN] to begin: "))  # Python3
+    input(TextColor.cyan("[RETURN] to begin: "))  # Python3
     print("Capturing Flat image set...")
     CameraCommand = self.Parameters._CameraFlatCommand
     # CaptureSet will automatically set mode,width and height parameters if they are in the command line.
@@ -3057,7 +2491,7 @@ class astrocamera:
 
   def BiasSet(self, batch_size):
     """Take a BIAS/OFFSET set of images for photo stacking."""
-    print(textcolor.yellow("BiasSet"))
+    print(TextColor.yellow("BiasSet"))
     ExposureMicroseconds = int(0.001 * 1000000)  # 1/1000th of a second.
     self.SetImageType("bias")  # Tell the camera we are taking bias photos.
     FileRoot = self.FolderHandler.PrepFile("bias", "bias_")
@@ -3074,7 +2508,7 @@ class astrocamera:
       "These are used to remove manufacturing defects from the images that the sensor captures."
     )
     self.Log("Lens cap must be ON.")
-    input(textcolor.cyan("[RETURN] to begin: "))  # Python3
+    input(TextColor.cyan("[RETURN] to begin: "))  # Python3
     print("Capturing Bias image set...")
     CameraCommand = self.Parameters._CameraBiasCommand
     # CaptureSet will automatically set mode,width and height parameters if they are in the command line.
@@ -3093,7 +2527,7 @@ class astrocamera:
     return result
 
   def AutoPhoto(self):
-    print(textcolor.yellow("AutoPhoto"))
+    print(TextColor.yellow("AutoPhoto"))
     if self.Parameters.CameraEnabled == False:
       self.Log(
         "astrocamera.AutoPhoto(): Camera is disabled. No photo attempted.",

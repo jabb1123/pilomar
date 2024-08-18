@@ -17,7 +17,7 @@
 
 import os
 from datetime import datetime, timedelta
-from utils.textcolor import textcolor
+from utils.textcolor import TextColor
 import json
 import requests  # To handle json response for seeing conditions from online services.
 from requests.exceptions import HTTPError  # Error handling.
@@ -97,7 +97,7 @@ class Celestrack:
       self.Log(name, "TLE data was updated", epochdate, terminal=False)
     if daysold > 30:
       print(
-        textcolor.YELLOW(
+        TextColor.YELLOW(
           "WARNING: "
           + name
           + " TLE data is "
@@ -106,12 +106,12 @@ class Celestrack:
         )
       )
       print(
-        textcolor.YELLOW(
+        TextColor.YELLOW(
           "Check the source of data from the Celestrack.org website."
         )
       )
     else:
-      print(textcolor.GREEN(name + " TLE data is " + str(daysold) + " days old."))
+      print(TextColor.GREEN(name + " TLE data is " + str(daysold) + " days old."))
 
   def Refresh(self):
     """Load data from cache if recent enough, else from Celestrack.org website."""

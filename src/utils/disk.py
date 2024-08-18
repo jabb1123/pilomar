@@ -15,9 +15,9 @@
 
 from enum import Enum
 from typing import Union
-from pilomaroscommand import oscommand  # OS Command execution.
+from oscommand import OSCommand  # OS Command execution.
 from utils.timer import Timer  # Pilomar's timer class.
-from utils.textcolor import textcolor  # Text interface color utility.
+from utils.textcolor import TextColor  # Text interface color utility.
 import os
 
 
@@ -47,7 +47,7 @@ class DiskMonitor:  # 2 references.
   ):
     # If devname = None, create a null entry.
     self.log = logger  # Which logger to use?
-    self.os_command = oscommand(logger=logger)
+    self.os_command = OSCommand(logger=logger)
     self.os_cmd = self.os_command.Execute
     self.os_cmd_code = self.os_command.ExecuteCode
     self.name = name  # A label to refer to this instance.
@@ -79,7 +79,7 @@ class DiskMonitor:  # 2 references.
       if (
         self.disk_type is DiskType.USB
       ):  # USB devices may need mounting. Check 'em out!
-        self.FindUSB(
+        self.find_usb(
           devname=self.dev_name
         )  # Check if USB memory stick is available.
     else:
@@ -152,7 +152,7 @@ class DiskMonitor:  # 2 references.
 
   def Poll(self, force=False):
     """Decide if it is time to update the storage statistics."""
-    if force or self.Timer.Due():
+    if force or self.timer.due():
       dfdict = self.GetDfDictionary()
       if self.DriveAvailable:  # Drive is available, so report the space left.
         self.disk_free = dfdict[self.DfPath]["Avail"]
@@ -187,16 +187,14 @@ class DiskMonitor:  # 2 references.
     returnlist = []
     newentry = ""
     insidequotes = False
-    for i in range(len(origline)):
-      character = origline[i]  # Check each character in turn.
+    for (i, l) in enumerate(origline):
+      character = l  # Check each character in turn.
       if character == '"':
         insidequotes = (
           not insidequotes
         )  # Quote mark, so start/stop quoted string.
       newentry += character  # Add this character to the current list entry.
-      if (
-        character == sep and insidequotes == False
-      ):  # Separator only acts as separator if we are outside a quoted string.
+      if character == sep and not insidequotes:  # Separator only acts as separator if we are outside a quoted string.
         newentry = newentry.strip(sep)  # Clean up the entry.
         if (
           newentry != ""
@@ -207,7 +205,7 @@ class DiskMonitor:  # 2 references.
       returnlist.append(newentry)  # Append any remaining entry.
     return returnlist
 
-  def FindUSB(self, devname="/dev/sda1"):
+  def find_usb(self, devname="/dev/sda1"):
     """Return True if a USB memory stick exists."""
     # /dev/usb1 might mount automatically if desktop is running, but it doesn't happen when running headlessly.
     # This method tries to mount the USB storage if found while running headlessly.
@@ -273,7 +271,7 @@ class DiskMonitor:  # 2 references.
       )
       if self.log is not None:
         self.log(textline, level="error", terminal=True)
-      textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
+      TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
     if result:  # Previous steps succeeded.
       if self.log is not None:
         self.log(
@@ -294,7 +292,7 @@ class DiskMonitor:  # 2 references.
         )
         if self.log is not None:
           self.log(textline, level="error", terminal=True)
-        textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
+        TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
         result = False
     else:  # Previous steps failed.
       textline = (
@@ -335,15 +333,15 @@ class DiskMonitor:  # 2 references.
           )
         # Warn the user that the 'pi' user password will be required. The udisksctl utility requires it in order to mount the disc.
         lines = ["Mounting " + self.USBLabel + " under " + self.path]
-        textcolor.TextBox(lines, fg=textcolor.GREEN, bg=textcolor.BLACK)
+        TextColor.text_box(lines, fg=TextColor.GREEN, bg=TextColor.BLACK)
         lines = [
           'You may be prompted for the "pi" user password as part of the mount process.',
           "If you do not give the correct password the USB storage will not be mounted.",
         ]
-        textcolor.TextBox(lines, fg=textcolor.CYAN, bg=textcolor.BLACK)
+        TextColor.text_box(lines, fg=TextColor.CYAN, bg=TextColor.BLACK)
         cCmd = "udisksctl mount -b " + devname  # Construct the mount command.
         print(
-          textcolor.yellow("Executing: " + cCmd)
+          TextColor.yellow("Executing: " + cCmd)
         )  # Show the user exactly what's being executed.
         temp = self.os_cmd_code(cCmd)  # Check return code.
         if temp == 0:  # Return code '0' means success.
@@ -414,7 +412,7 @@ class DiskMonitor:  # 2 references.
           "- Delete the false USB folder " + self.DfPath,
           "- Restart the software.",
         ]
-        textcolor.TextBox(lines, fg=textcolor.YELLOW, bg=textcolor.BLACK)
+        TextColor.text_box(lines, fg=TextColor.YELLOW, bg=TextColor.BLACK)
         # Troubleshooting. If USB didn't mount properly for any reason earlier, the system will create a folder on the SD card with the same name.
         # - So os.path.exists returns TRUE, but in fact the USB memory isn't mounted, so the 'df' command will not list it...
         # If you get this 'not found in df listing' error but the device is there, try
@@ -537,95 +535,9 @@ class DiskMonitor:  # 2 references.
             "bytes",
             terminal=False,
           )
-
-    def GetDfDictionary(self):
-        """Return df information as a dictionary."""
-        dictionary = {}
-        #    $ df -h
-        #    $ df -h [mountpath]
-        #    Filesystem      Size  Used Avail Use% Mounted on
-        #    /dev/root        29G  7.5G   21G  27% /
-        #    devtmpfs        750M     0  750M   0% /dev
-        #    tmpfs           911M     0  911M   0% /dev/shm
-        #    tmpfs           911M  8.6M  902M   1% /run
-        #    tmpfs           5.0M  4.0K  5.0M   1% /run/lock
-        #    tmpfs           911M     0  911M   0% /sys/fs/cgroup
-        #    /dev/mmcblk0p1  253M   49M  204M  20% /boot
-        #    tmpfs           183M     0  183M   0% /run/user/1000
-        #    /dev/sda1       ***G   **G   **G  *** /media/pi/USBMEMORY
-        convlist = [
-            ["K", 1024],
-            ["M", 1024**2],
-            ["G", 1024**3],
-            ["T", 1024**4],
-            ["%", 1],
-        ]  # Conversions from 'human readable' forms back to float/integers.
-        cCmd = "df -h"  # Use the df command in human readable format.
-        lines = self.os_cmd(cCmd)  # Execute command and gather result.
-        fieldnames = None  # This will be a list of the column headers from the first line of the 'df' command output.
-        for i, line in enumerate(lines):  # Read the output lines one at a time.
-            lineitems = line.strip().split()  # Split into individual fields.
-            if len(lineitems) > 0:  # Poll through the devices.
-                if i == 0:  # 1st line is just field names.
-                    fieldnames = lineitems
-                else:  # Other lines contain data.
-                    for j in range(1, 5):  # Poll through the columns.
-                        v = lineitems[j]  # Get raw column value.
-                        for (
-                            ji
-                        ) in (
-                            convlist
-                        ):  # Convert from HumanReadable into absolute value. Check all conversions.
-                            if ji[0] in v:  # This HR value can be converted.
-                                v = int(
-                                    float(v[:-1]) * ji[1]
-                                )  # Convert from HR text value into absolute value.
-                                break  # No need to convert further.
-                        lineitems[j] = v  # Store back in the line.
-                    dictentry = {}  # Create an entry for this particular drive mount.
-                    for j, v in enumerate(
-                        lineitems
-                    ):  # Pull each field and convert into dictionary entry.
-                        dictentry[fieldnames[j]] = lineitems[j]
-                    dictionary[lineitems[-1]] = (
-                        dictentry  # Append this entry to the dictionary of all mount points.
-                    )
-        return dictionary
-
-    def Poll(self, force=False):
-        """Decide if it is time to update the storage statistics."""
-        if force or self.timer.Due():
-            dfdict = self.GetDfDictionary()
-            if self.DriveAvailable:  # Drive is available, so report the space left.
-                self.disk_free = dfdict[self.DfPath]["Avail"]
-            else:
-                self.disk_free = 0  # Drive isn't available, so no space.
-
-    def FreeBytes(self, force=False) -> int:
-        """Return the amount of memory left free."""
-        self.Poll(force=force)  # Make sure that the figures are the very latest.
-        return self.disk_free
-
-    def FreeMegaBytes(self, force=False) -> int:
-        """Return the amount of memory left free in megabytes."""
-        return self.FreeBytes(force=force) / (1024**2)
-
-    def FreeGigaBytes(self, force=False) -> int:
-        """Return the amount of memory left free in megabytes."""
-        return self.FreeBytes(force=force) / (1024**3)
-
-    def DiscOK(self, force=False) -> bool:
-        """Check that there is at least 500megabytes of storage available."""
-        megabytes = self.FreeMegaBytes(force=force)
-        if megabytes < self.low_disk_mb:
-            return False
-        else:
-          print("discmonitor.ListUSBDevices: Excluding", line)
-    if self.log is not None:
-      self.log("discmonitor.ListUSBDevices: listed:", result, terminal=False)
     return result
 
-  def FindUSBNew(self, devname="/dev/sda1", retries=2):
+  def find_usb_new(self, devname="/dev/sda1", retries=2):
     """Return True if a USB memory stick exists.
     Retries > 0, allows further attempst to enter password when mounting USB device.
     """
@@ -694,7 +606,7 @@ class DiskMonitor:  # 2 references.
       )
       if self.log is not None:
         self.log(textline, level="error", terminal=True)
-      textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
+      TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
     if result:  # Previous steps succeeded.
       if self.log is not None:
         self.log(
@@ -715,13 +627,13 @@ class DiskMonitor:  # 2 references.
         )
         if self.log is not None:
           self.log(textline, level="error", terminal=True)
-        textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
+        TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
         result = False
     else:  # Previous steps failed.
       textline = "discmonitor.FindUSB: " + devname + " is NOT recognised."
       if self.log is not None:
         self.log(textline, level="error", terminal=True)
-      textcolor.TextBox(textline, fg=textcolor.RED, bg=textcolor.BLACK)
+      TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
 
     if result:  # OK so far.
       self.DfPath = (
@@ -752,15 +664,15 @@ class DiskMonitor:  # 2 references.
           )
         # Warn the user that the 'pi' user password will be required. The udisksctl utility requires it in order to mount the disc.
         lines = ["Mounting " + self.USBLabel + " under " + self.path]
-        textcolor.TextBox(lines, fg=textcolor.GREEN, bg=textcolor.BLACK)
+        TextColor.text_box(lines, fg=TextColor.GREEN, bg=TextColor.BLACK)
         lines = [
           'You may be prompted for the "pi" user password as part of the mount process.',
           "If you do not give the correct password the USB storage will not be mounted.",
         ]
-        textcolor.TextBox(lines, fg=textcolor.CYAN, bg=textcolor.BLACK)
+        TextColor.text_box(lines, fg=TextColor.CYAN, bg=TextColor.BLACK)
         cCmd = "udisksctl mount -b " + devname  # Construct the mount command.
         print(
-          textcolor.yellow("Executing: " + cCmd)
+          TextColor.yellow("Executing: " + cCmd)
         )  # Show the user exactly what's being executed.
         while (
           retries >= 0
@@ -838,7 +750,7 @@ class DiskMonitor:  # 2 references.
           "- Delete the false USB folder " + self.DfPath,
           "- Restart the software.",
         ]
-        textcolor.TextBox(lines, fg=textcolor.YELLOW, bg=textcolor.BLACK)
+        TextColor.text_box(lines, fg=TextColor.YELLOW, bg=TextColor.BLACK)
         # Troubleshooting. If USB didn't mount properly for any reason earlier, the system will create a folder on the SD card with the same name.
         # - So os.path.exists returns TRUE, but in fact the USB memory isn't mounted, so the 'df' command will not list it...
         # If you get this 'not found in df listing' error but the device is there, try

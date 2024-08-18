@@ -1,3 +1,6 @@
+"""
+This module provides a class to control a Nema 17 stepper motor
+"""
 from RpiMotorLib import RpiMotorLib
 import RPi.GPIO as GPIO
 from enum import Enum
