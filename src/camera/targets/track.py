@@ -2,6 +2,13 @@
 # Image processing (OpenCV)
 # ///////////////////////////////////////////////////////////////////////////////////
 
+import math
+
+import numpy as np
+from camera.image import pilomarimage
+from utils.files.folder import FolderHandler
+from utils.params import attributemaster
+from utils.time_funcs import NowHMS, NowUTC
 
 class imagetracker(attributemaster):
   """ImageTracker uses OpenCV and AstroAlign packages to measure the drift of the

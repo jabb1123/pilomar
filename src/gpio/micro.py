@@ -3,7 +3,7 @@ import threading
 import time
 import serial
 from queue import Queue
-from utils.textcolor import TextColor
+from utils.text.textcolor import TextColor
 from utils.params import attributemaster
 from utils.time_funcs import NowUTC
 

@@ -2,7 +2,7 @@
 
 import traceback
 from utils.menus.menu import Menu
-from utils.textcolor import TextColor
+from utils.text.textcolor import TextColor
 
 
 class ProcedureMenu(Menu):

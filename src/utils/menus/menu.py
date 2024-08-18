@@ -1,6 +1,6 @@
 """Base class for all menus."""
 
-from utils.textcolor import TextColor
+from utils.text.textcolor import TextColor
 
 
 class Menu:

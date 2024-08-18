@@ -160,11 +160,11 @@ import pytz  # Timezone handling.
 
 # textcolor is a homegrown simplified terminal display library.
 # There are other libraries available for groovy character displays ('colorama', 'termcolor', 'blessing', 'rich' etc).
-from utils.textcolor import TextColor # Basic colour and cursor control codes for terminal displays.
-from utils.textcolor import ColorDisplay # Basic colour character graphics for window display on terminal.
-from utils.textcolor import KeyboardScanner  # Simple non-blocking keyboard scanner.
+from utils.text.textcolor import TextColor # Basic colour and cursor control codes for terminal displays.
+from utils.text.display import ColorDisplay # Basic colour character graphics for window display on terminal.
+from utils.text.textcolor import KeyboardScanner  # Simple non-blocking keyboard scanner.
 from utils.menus import ProcedureMenu, OptionMenu  # Basic menu handlers.
-from utils.textcolor import ListChooser  # Allow user to filter through a list of names.
+from utils.text.textcolor import ListChooser  # Allow user to filter through a list of names.
 from utils.files import FolderHandler  # File handling routines.
 import numpy as np  # Fast array handling
 import pandas  # Dataframe handling.

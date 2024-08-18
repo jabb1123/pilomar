@@ -3,7 +3,7 @@ from datetime import timedelta
 import os
 import time
 from utils.params import attributemaster
-from utils.textcolor import TextColor
+from utils.text.textcolor import TextColor
 from utils.timer import Timer
 
 

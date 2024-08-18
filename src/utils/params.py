@@ -4,7 +4,7 @@ import json
 import os
 
 from camera.image import pilomarimage
-from utils.textcolor import ListChooser, TextColor
+from utils.text.textcolor import ListChooser, TextColor
 
 
 class attributemaster:  # A parent class containing some common methods that other classes can inherit from.

@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Union
 from oscommand import OSCommand  # OS Command execution.
 from utils.timer import Timer  # Pilomar's timer class.
-from utils.textcolor import TextColor  # Text interface color utility.
+from utils.text.textcolor import TextColor  # Text interface color utility.
 import os
 
 

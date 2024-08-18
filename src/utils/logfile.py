@@ -16,7 +16,7 @@
 # 09.Dec.2023 Added PackageSearchResult() function to help with analysing functionality.
 
 from datetime import datetime, timedelta, timezone
-from utils.textcolor import TextColor
+from utils.text.textcolor import TextColor
 import os  # OS Command execution
 import traceback  # Used to record the stacktrace if recording an error.
 

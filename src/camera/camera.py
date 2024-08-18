@@ -28,7 +28,7 @@ from camera.image import (
   pilomarimage,
   pilomarkeogram,
 )  # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
-from utils.textcolor import (
+from utils.text.textcolor import (
   TextColor,
 )  # Basic colour and cursor control codes for terminal displays.
 

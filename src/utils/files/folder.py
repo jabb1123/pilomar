@@ -3,7 +3,7 @@ import glob
 import os
 from oscommand import OSCommand
 from utils import attributemaster
-from utils.textcolor import TextColor
+from utils.text.textcolor import TextColor
 
 class FolderHandler(attributemaster):
   """Class to define folders for various images.

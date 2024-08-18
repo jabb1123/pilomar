@@ -1,7 +1,7 @@
 
 from datetime import datetime, timezone
 from oscommand import OSCommand
-from utils.textcolor import TextColor
+from utils.text.textcolor import TextColor
 
 
 class AstroSensor:
