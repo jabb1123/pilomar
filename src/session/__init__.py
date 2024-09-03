@@ -1,4 +1,4 @@
 
-from session.list import sessionlist
-from session.entry import sessionentry
+from session.list import SessionList
+from session.entry import SessionEntry
 from session.status import sessionstatus

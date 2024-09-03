@@ -2,8 +2,49 @@
 from datetime import datetime, timedelta, timezone
 
 import pytz
+import os
+
+from utils.text.human_readable import CleanDatetimeString
 
 clock_offset = None
+
+
+def ts_to_datetime(tsvalue: object) -> datetime:
+  """Convert skyfield time value into datetime value."""
+  dtvalue = tsvalue.utc_datetime()
+  return dtvalue
+
+def Datetime2Ts(dtvalue):
+  """Convert datetime value into skyfield time value."""
+  if dtvalue.tzinfo is None:
+    dtvalue = dtvalue.replace(
+      tzinfo=pytz.UTC
+    )  # If timezone is not set, assign UTC.
+  tsvalue = ts.from_datetime(dtvalue)
+  return tsvalue
+
+def TsDelta(basets, yyyy=0, mm=0, dd=0, h=0, m=0, s=0):
+  """A basic 'timedelta' functionality for Skyfield timestamps.
+  yyyy = Number of YEARS to add/subtract.
+  mm = Number of MONTHS to add/subtract.
+  dd = Number of DAYS to add/subtract.
+  h = Number of HOURS to add/subtract.
+  m = Number of MINUTES to add/subtract.
+  s = Number of SECONDS to add/subtract.
+  These can be +ve or -ve and of any size, Skyfield will evaluate them to a correct timestamp.
+  """
+  WorkTs = (
+    basets.utc_datetime()
+  )  # Convert to DateTime to extract components of the date.
+  NewTs = ts.utc(
+    WorkTs.year + yyyy,
+    WorkTs.month + mm,
+    WorkTs.day + dd,
+    WorkTs.hour + h,
+    WorkTs.minute + m,
+    WorkTs.second + s,
+  )
+  return NewTs
 
 def HmsFromStamp(timestamp: datetime, dateaware=False) -> str:
   """Return the HH:MM:SS part of a timestamp as a string.
@@ -16,7 +57,7 @@ def HmsFromStamp(timestamp: datetime, dateaware=False) -> str:
     else:
       result = str(timestamp)
       if (
-        dateaware and timestamp.date() != NowUTC().date()
+        dateaware and timestamp.date() != now_utc().date()
       ):  # The date is not today.
         result = result[8:16]  # Extract "DD HH:MM"
       else:  # The date is today. Extract "HH:MM:SS"
@@ -44,10 +85,10 @@ def dts_to_datetime(utcvalue) -> datetime:
     dt = None
   return dt
 
-def NowHMS() -> str:
+def now_hour_minute_sec() -> str:
   """Return current time as formatted string.
   Returns HH:MM:SS string for the current time (UTC)"""
-  return HmsFromStamp(NowUTC())
+  return HmsFromStamp(now_utc())
 
 def UTCStringToDatetime(utcvalue) -> datetime:
   """Accept a UTC string and convert it into datetime.
@@ -86,7 +127,7 @@ def SetTimeOffset(starttime=None):
   else:  # Reset the clock offset.
     clock_offset = None
 
-def NowUTC(real=False) -> datetime:  # Many references.
+def now_utc(real=False) -> datetime:  # Many references.
   """Get system clock as UTC (timezone aware)
   Microcontroller and Skyfield are operated in UTC vales.
   All clock-times used in this program use the UTC timestamped clock.
@@ -99,3 +140,32 @@ def NowUTC(real=False) -> datetime:  # Many references.
   if not real and clock_offset is not None:  # Can apply time offset.
     dt = dt + timedelta(seconds=clock_offset)
   return dt
+
+def SourceDate() -> datetime:
+  """Return datetime of the modified timestamp of the source file.
+  As close as I get to 'version' stamping :)"""
+  try:
+    sourcefile = source_code()
+    t = os.path.getmtime(sourcefile)
+    d = datetime.fromtimestamp(t)
+  except Exception as e:
+    print(e)  # Trap all the exception information in the main log file.
+    raise Exception(
+      "SourceDate() failed"
+    ) from e  # Continue with regular exception handling.
+  return d
+print("Current time is:", now_utc(), " UTC, offset is", ClockOffset, "seconds.")
+
+def UtcTimeStamp() -> str:
+  """Return current UTC datetime value as a string of digits. Discard fractions of a second.
+  Returns value in string format YYYYMMDDHHMMSS."""
+  ds = None
+  try:
+    ds = str(now_utc()).split(".")[0]
+    ds = CleanDatetimeString(ds)
+  except Exception as e:
+    print(e)  # Trap all the exception information in the main log file.
+    raise Exception(
+      "UtcTimeStamp() failed."
+    ) from e  # Continue with regular exception stack.
+  return ds

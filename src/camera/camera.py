@@ -22,6 +22,7 @@ import math  # Math and trig functions.
 import random  # random number generator.
 import cv2  # openCV for image file handling.
 from datetime import datetime, timedelta, timezone
+from utils.text.human_readable import HRSeconds
 from utils.timer import Timer, ProgressTimer  # Pilomar's timer classes.
 from oscommand import OSCommand  # Pilomar's OS command executor.
 from camera.image import (
@@ -163,24 +164,6 @@ class AstroCamera:
       self
     )  # Add this instance to the global list of all defined cameras.
 
-  def NowUTC(self):
-    """Return system UTC timestamp as a datetime object."""
-    return datetime.now(timezone.utc)
-
-  def UtcTimeStamp(self):
-    """Return current UTC datetime value as a string of digits. Discard fractions of a second.
-    Returns value in string format YYYYMMDDHHMMSS."""
-    ds = None
-    try:
-      ds = str(self.NowUTC()).split(".")[0]
-      ds = self.CleanDatetimeString(ds)
-    except Exception as e:
-      print(e)  # Trap all the exception information in the main log file.
-      raise Exception(
-        "astrocamera.UtcTimeStamp() failed."
-      ) from e  # Continue with regular exception stack.
-    return ds
-
   def CleanDatetimeString(self, line):
     """Remove all the special characters from a timestamp string.
     Converts things like YYYY-MM-DD HH:MM:SS into YYYYMMDDHHMMSS"""
@@ -194,59 +177,6 @@ class AstroCamera:
       print(e)  # Trap all the exception information in the main log file.
       raise Exception(
         "astrocamera.CleanDatetimeString() failed."
-      ) from e  # Continue with regular exception stack.
-    return line
-
-  def HmsFromStamp(self, timestamp, dateaware=False):
-    """Return the HH:MM:SS part of a timestamp as a string.
-    Works with datetime input.
-    dateaware = True. If the date is not today, then it shows 'DD HH:MM' instead."""
-    result = None
-    try:
-      if timestamp is None:  # Protect from null values.
-        result = ""
-      else:
-        result = str(timestamp)
-        if (
-          dateaware and timestamp.date() != self.NowUTC().date()
-        ):  # The date is not today.
-          result = result[8:16]  # Extract "DD HH:MM"
-        else:  # The date is today. Extract "HH:MM:SS"
-          result = result.split(" ")[1]
-          result = result.split(".")[0]
-    except Exception as e:
-      print(e)  # Trap all the exception information in the main log file.
-      raise Exception(
-        "HmsFromStamp() failed."
-      ) from e  # Continue with regular exception stack.
-    return result
-
-  def NowHMS(self):
-    """Return current time as formatted string.
-    Returns HH:MM:SS string for the current time (UTC)"""
-    return self.HmsFromStamp(self.NowUTC())
-
-  def HRSeconds(self, seconds: int) -> str:
-    """Turn a number of seconds into days:hours:minutes:seconds"""
-    line = None
-    try:
-      d, remainder = divmod(seconds, 24 * 60 * 60)
-      h, remainder = divmod(remainder, 60 * 60)
-      m, s = divmod(remainder, 60)
-      line = (
-        str(int(h)).rjust(2, "0")
-        + "h:"
-        + str(int(m)).rjust(2, "0")
-        + "m:"
-        + str(int(s)).rjust(2, "0")
-        + "s"
-      )
-      if d > 0:  # Only show days if needed.
-        line = str(int(d)) + "d:" + line
-    except Exception as e:
-      print(e)  # Trap all the exception information in the main log file.
-      raise Exception(
-        "HRSeconds() failed."
       ) from e  # Continue with regular exception stack.
     return line
 
@@ -1977,7 +1907,7 @@ class AstroCamera:
       linelist.append("Observation end: " + str(end).split("+")[0] + " UTC")
       if start != None and end != None:
         linelist.append(
-          "Duration: " + self.HRSeconds((end - start).total_seconds())
+          "Duration: " + HRSeconds((end - start).total_seconds())
         )
       linelist.append("Images captured: " + str(Keo.SampleCount))
       linelist.append("Target alt: " + str(altitude) + ", az:" + str(azimuth))

@@ -2,10 +2,10 @@
 import glob
 import os
 from oscommand import OSCommand
-from utils import attributemaster
+from utils import AttributeMaster
 from utils.text.textcolor import TextColor
 
-class FolderHandler(attributemaster):
+class FolderHandler(AttributeMaster):
   """Class to define folders for various images.
   This can also ensure that a folder exists when needed.
 
@@ -55,7 +55,7 @@ class FolderHandler(attributemaster):
 
   def __init__(self, projectroot, logger=None):
     """Initialize the instance."""
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
     if not Path(projectroot).exists():  # Project root is missing.
@@ -288,7 +288,7 @@ class FolderHandler(attributemaster):
         self.FolderList[key][
           "exists"
         ] = True  # Mark that the folder now exists.
-        self.Log(
+        self.log(
           "folderhandler.CreateFolderFromListEntry(",
           key,
           ") created folder:",
@@ -296,7 +296,7 @@ class FolderHandler(attributemaster):
           terminal=False,
         )
     else:
-      self.Log(
+      self.log(
         "folderhandler.CreateFolderFromListEntry(",
         key,
         ") key does not exist.",
@@ -307,7 +307,7 @@ class FolderHandler(attributemaster):
     """Make sure a directory exists.
     folderpath can include a destination filename, but it's ignored."""
     try:
-      self.Log(
+      self.log(
         "folderhandler.CreateFolderByPath(", folderpath, ")", terminal=False
       )
       folderpath = self.ToPathType(folderpath)  # Convert to Path object.

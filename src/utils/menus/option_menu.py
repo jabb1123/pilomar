@@ -1,3 +1,4 @@
+"""Simple menu driver."""
 
 from utils.menus.menu import Menu
 from utils.text.textcolor import TextColor

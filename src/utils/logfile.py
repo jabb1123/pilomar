@@ -18,7 +18,9 @@
 from datetime import datetime, timedelta, timezone
 from utils.text.textcolor import TextColor
 import os  # OS Command execution
-import traceback  # Used to record the stacktrace if recording an error.
+import traceback
+
+from utils.time_funcs import now_utc  # Used to record the stacktrace if recording an error.
 
 
 class LogFile:  # 2 references.
@@ -40,7 +42,7 @@ class LogFile:  # 2 references.
         False. Fresh log file is started."""
     self.filename = filename
     self.clock_offset = clockoffset  # Can establish a clock offset when replicating/simulating specific situations.
-    self.prev_log_time = self.now_utc()
+    self.prev_log_time = now_utc()
     self.error_window = None  # Reference to window object for displaying errors. Must offer a 'Print()' method.
     self.error_list = (
       []
@@ -66,29 +68,6 @@ class LogFile:  # 2 references.
         self.log("LogFile: Overwriting previous", filename, terminal=False)
     else:
       self.log("LogFile: Starting new", filename, terminal=False)
-
-  # def now_utc(self) -> datetime: # Many references.
-  #    """ Get system clock as UTC (timezone aware)
-  #        Microcontroller and Skyfield are operated in UTC vales.
-  #        All clock-times used in this program use the UTC timestamped clock.
-  #        This should be the only reference to datetime.now() method in the entire
-  #        module. All other uses should refer to this now_utc() function.
-  #        """
-  #    return datetime.now(timezone.utc)
-
-  def now_utc(self, real=False) -> datetime:  # Many references.
-    """Get system clock as UTC (timezone aware)
-    Microcontroller and Skyfield are operated in UTC vales.
-    All clock-times used in this program use the UTC timestamped clock.
-    This should be the only reference to datetime.now() method in the entire
-    program. All other uses should refer to this now_utc() function.
-    real=True means that no time offset is applied, you get the true realtime clock value.
-    real=False means that any time offset is applied, making the clock run at some other point in time.
-    """
-    dt = datetime.now(timezone.utc)  # Offset supported.
-    if real is False and self.clock_offset is not None:  # Can apply time offset.
-      dt = dt + timedelta(seconds=self.clock_offset)
-    return dt
 
   def log(self, *args, **kwargs) -> bool:
     """Record a log message.
@@ -137,18 +116,16 @@ class LogFile:  # 2 references.
         True  # User must see message if they are supposed to acknowledge it.
       )
     # Write the message to the log file.
-    dtNow = self.now_utc()
-    Elapsed = (
-      dtNow - self.prev_log_time
+    dt_now = now_utc()
+    elapsed = (
+      dt_now - self.prev_log_time
     ).total_seconds()  # The log message includes the elapsed time since the previous message.
-    ES = "{:.6f}".format(
-      Elapsed
-    )  # 6dp and make sure it is not in scientific notation.
+    ES = f"{elapsed:.6f}" # 6dp and make sure it is not in scientific notation.
     saveline = (
-      str(dtNow) + "\t" + ES + "\t" + line
+      str(dt_now) + "\t" + ES + "\t" + line
     )  # Add current system timestamp and elapsed time to message.
     printline = (
-      str(dtNow).split(".")[0] + " " + line
+      str(dt_now).split(".")[0] + " " + line
     )  # Add current system timestamp to message.
     # Check if any LEVEL OR DETAIL filters are specified in the received parameters.
     if (
@@ -190,7 +167,7 @@ class LogFile:  # 2 references.
           printline
         )  # Info lines just keep default color scheme.
     self.prev_log_time = (
-      self.now_utc()
+      now_utc()
     )  # Note the last time a message was logged. This is used to report the elapsed time between messages in log file.
     return True
 
@@ -290,33 +267,7 @@ class LogFile:  # 2 references.
         break
     return uniquefilename
 
-  # def PackageSearchResultXXX(self,searchterms,ignorecase=False):
-  #    """ Generate a ZIP file with a selection of entries from the current log file.
-  #        searchterms = the selection phrase for grep.
-  #            Examples: "RPi received|RPi queueing" - Lists lines containing either phrase.
-  #        Returns a ZIP filename. """
-  #    path = os.path.dirname(self.filename)
-  #    timestamp = str(self.now_utc())
-  #    for c in ['-',':','.',' ']:
-  #        timestamp = timestamp.replace(c,'')
-  #    timestamp = timestamp.split('+')[0]
-  #    resultfile = os.path.join(path,'result_' + timestamp + '.log')
-  #    zipfile = os.path.join(path,'result_' + timestamp + '.zip')
-  #    self.log("LogFile.PackageSearchResult(",searchterms,") Begin.",terminal=False)
-  #    if ignorecase:
-  #        # -a : Treat file as text.
-  #        # -i : ignore case.
-  #        cmd = 'egrep -a -i "' + searchterms + '" ' + self.filename + '>' + resultfile
-  #    else:
-  #        cmd = 'egrep -a "' + searchterms + '" ' + self.filename + '>' + resultfile
-  #    self.log("LogFile.PackageSearchResult:",cmd,terminal=False)
-  #    os.system(cmd)
-  #    cmd = 'zip ' + zipfile + ' ' + resultfile
-  #    self.log("LogFile.PackageSearchResult:",cmd,terminal=False)
-  #    os.system(cmd)
-  #    return zipfile
-
-  def PackageSearchResult(self, searchterms, ignorecase=False):
+  def package_search_result(self, searchterms, ignorecase=False):
     """Generate a ZIP file with a selection of entries from the current log file.
     searchterms = the selection phrase for grep.
       Examples: "RPi received|RPi queueing" - Lists lines containing either phrase.
@@ -340,6 +291,3 @@ class LogFile:  # 2 references.
     self.log("LogFile.PackageSearchResult:", cmd, terminal=False)
     os.system(cmd)
     return zipfile
-
-
-#

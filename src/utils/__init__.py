@@ -1,2 +1,2 @@
 
-from utils.params import attributemaster, parameters
+from utils.params import AttributeMaster, Parameters

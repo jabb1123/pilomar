@@ -2,12 +2,13 @@
 from datetime import timedelta
 import os
 import time
-from utils.params import attributemaster
+from utils.params import AttributeMaster
+from utils.text.human_readable import HRSeconds
 from utils.text.textcolor import TextColor
 from utils.timer import Timer
 
 
-class motorcontrol(attributemaster):
+class MotorControl(AttributeMaster):
   """Representation of remote motor.
   The actual motor is controlled in the microcontroller software,
   this class contains an image of important parameters for
@@ -42,7 +43,7 @@ class motorcontrol(attributemaster):
     """Create an instance of a stepper motor.
     Set up the physical configuration of the gears.
     Set up the electrical configuration of the stepper motor driver."""
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
     self.MotorName = name  # A unique name to identify the motor, should be the same as the motor's name in the microcontroller side too.
@@ -59,7 +60,7 @@ class motorcontrol(attributemaster):
       self.SlewMicrosteps, self.MicrostepRatio
     )  # Slew cannot use finer microstepping than the observation!
     if self.SlewMicrosteps != slewmicrosteps:
-      self.Log(
+      self.log(
         "motorcontrol(",
         name,
         ") Slew microsteps (",
@@ -72,7 +73,7 @@ class motorcontrol(attributemaster):
     self.SlewStepMultiplier = int(
       round(self.MicrostepRatio / self.SlewMicrosteps, 0)
     )
-    self.Log(
+    self.log(
       "motorcontrol(",
       name,
       ") microstepping=",
@@ -91,7 +92,7 @@ class motorcontrol(attributemaster):
       ]  # Pull the driver's modelist.
       # What are the mode signals for the selected microstepping ratio of the motor?
       if not str(microstepratio) in modelist:  # Keys are strings, not integers.
-        self.Log(
+        self.log(
           "motorcontrol(",
           name,
           ") observation microstepratio",
@@ -113,7 +114,7 @@ class motorcontrol(attributemaster):
         )
       # microstep ratio is recognised. Pull the modepin settings.
       modesignals = modelist[str(microstepratio)]["modesignals"]
-      self.Log(
+      self.log(
         "motorcontrol(",
         name,
         ") observation microstep ratio",
@@ -128,7 +129,7 @@ class motorcontrol(attributemaster):
       if (
         not str(self.SlewMicrosteps) in modelist
       ):  # Keys are strings, not integers.
-        self.Log(
+        self.log(
           "motorcontrol(",
           name,
           ") slew microstepratio",
@@ -146,7 +147,7 @@ class motorcontrol(attributemaster):
         )
       # microstep ratio is recognised. Pull the modepin settings.
       slewsignals = modelist[str(self.SlewMicrosteps)]["modesignals"]
-      self.Log(
+      self.log(
         "motorcontrol(",
         name,
         ") slew microstep ratio",
@@ -158,7 +159,7 @@ class motorcontrol(attributemaster):
         terminal=False,
       )
     else:  # Driver is not recognised.
-      self.Log(
+      self.log(
         "motorcontrol(",
         name,
         ") steppermotor driver",
@@ -231,7 +232,7 @@ class motorcontrol(attributemaster):
     self.LastRecoveryAngle = (
       self.CurrentAngle
     )  # This is used to detect when the motor has physically moved so we don't keep writing the same position repeatedly to the recovery file.
-    self.Log(
+    self.log(
       "Motor "
       + self.MotorName
       + " recovered to "
@@ -426,7 +427,7 @@ class motorcontrol(attributemaster):
           filename = thisfile  # More recent image.
         oldfiles.append(thisfile)  # Maintain list of all files found.
     if len(filename) == 0:
-      self.Log(
+      self.log(
         "No recovery log file found for "
         + self.MotorName
         + " motor. Assuming "
@@ -447,12 +448,12 @@ class motorcontrol(attributemaster):
         if len(ls) > 1:
           angle = float(ls[1])  # 'timestamp';'angle';'seconds'
         else:
-          self.Log(
+          self.log(
             "Bad recovery entry (" + line + "), angle ignored.",
             level="warning",
           )
     self.CurrentAngle = angle
-    self.Log(
+    self.log(
       self.MotorName,
       "motor restored to last known position",
       self.AngleToStep(self.CurrentAngle),
@@ -468,7 +469,7 @@ class motorcontrol(attributemaster):
       for thisfile in oldfiles:
         cmd = "rm " + thisfile
         osCmd(cmd)
-        self.Log(
+        self.log(
           "Motor.RestoreAngle(",
           self.MotorName,
           ") removed old restore file",
@@ -481,7 +482,7 @@ class motorcontrol(attributemaster):
     """Process acknowledgement of a completed tuning command.
     Expects input like          tune complete azimuth yyyymmddhhmmss -342 yyyymmddhhmmss
                     0     1        2          3          4        5"""
-    self.Log(
+    self.log(
       "Motor",
       self.MotorName,
       "received tune acknowledgement:",
@@ -500,7 +501,7 @@ class motorcontrol(attributemaster):
       )  # Start time known.
     else:
       self.LatestTuneStart = self.LatestTuneTime  # Start time not known.
-    self.Log("motorcontrol.TuneComplete: LatestTuneSteps:", steps, terminal=False)
+    self.log("motorcontrol.TuneComplete: LatestTuneSteps:", steps, terminal=False)
     self.LatestTuneSteps = TextToInt(
       steps
     )  # Element 4 is the number of steps that the tune command executed.
@@ -532,7 +533,7 @@ class motorcontrol(attributemaster):
           success = True
           break  # Success, so don't try again.
         except Exception as e:
-          self.Log(
+          self.log(
             "steppermotor.StoreRecoveryAngle (",
             self.MotorName,
             ") to",
@@ -544,7 +545,7 @@ class motorcontrol(attributemaster):
           )
           time.sleep(0.3)
       if not success:
-        self.Log(
+        self.log(
           "steppermotor.StoreRecoveryAngle (",
           self.MotorName,
           ") to",
@@ -558,7 +559,7 @@ class motorcontrol(attributemaster):
     This version can accept status messages from all motors.
       goto 20210409090949 azimuth 180.0
         0       1          2      3"""
-    self.Log(
+    self.log(
       "motorcontrol.GoToAngle(",
       self.MotorName,
       "): Begin move from ",
@@ -574,7 +575,7 @@ class motorcontrol(attributemaster):
 
     # Clip angles to min/max allowed. The motor won't pass beyond these points, so the routine will wait forever for it to complete.
     if newangle < self.MinAngle:
-      self.Log(
+      self.log(
         "motorcontrol.GoToAngle(",
         self.MotorName,
         "): move limited to minimum",
@@ -583,7 +584,7 @@ class motorcontrol(attributemaster):
       )
       newangle = self.MinAngle
     if newangle > self.MaxAngle:
-      self.Log(
+      self.log(
         "motorcontrol.GoToAngle(",
         self.MotorName,
         "): move limited to maximum",
@@ -592,7 +593,7 @@ class motorcontrol(attributemaster):
       )
       newangle = self.MaxAngle
 
-    self.Log(
+    self.log(
       "motorcontrol.GoToAngle(",
       self.MotorName,
       "): Clear unprocessed messages received from microcontroller.",
@@ -604,7 +605,7 @@ class motorcontrol(attributemaster):
     # It repeats until the motor is finally at the target position.
 
     # Check that the motors are configured before proceeding.
-    self.Log(
+    self.log(
       "motorcontrol.GoToAngle(",
       self.MotorName,
       "): Configure motor",
@@ -619,7 +620,7 @@ class motorcontrol(attributemaster):
     ):  # Position tolerance of 1 works best here.
       loopcounter += 1
       if loopcounter > 1:
-        self.Log(
+        self.log(
           "motorcontrol.GoToAngle(",
           self.MotorName,
           "): Begin attempt",
@@ -629,7 +630,7 @@ class motorcontrol(attributemaster):
           terminal=True,
         )
       else:
-        self.Log(
+        self.log(
           "motorcontrol.GoToAngle(",
           self.MotorName,
           "): Begin attempt",
@@ -643,14 +644,14 @@ class motorcontrol(attributemaster):
         60
       )  # Allow 60 seconds, if no response, reset the microcontroller.
       if self.MotorConfigured:
-        self.Log(
+        self.log(
           "motorcontrol.GoToAngle(",
           self.MotorName,
           "): Motor already configured.",
           terminal=False,
         )
       else:
-        self.Log(
+        self.log(
           "motorcontrol.GoToAngle(",
           self.MotorName,
           "): Motor is not yet configured.",
@@ -662,7 +663,7 @@ class motorcontrol(attributemaster):
       ):  # Send configuration to the motor until it's acknowldeged. (May take a few seconds).
         mcl += 1  # Count how many times we've sent the configuration.
         if mcl > 15:  # Too many attempts.
-          self.Log(
+          self.log(
             "motorcontrol.GoToAngle(",
             self.MotorName,
             "): Motor has failed to configure. Abandoning GOTO.",
@@ -671,7 +672,7 @@ class motorcontrol(attributemaster):
           return False  # Report failure.
         self.SendConfig()  # Send the motor configuration regularly.
         if self.MotorConfigured:
-          self.Log(
+          self.log(
             "motorcontrol.GoToAngle(",
             self.MotorName,
             "): CheckMotorConfig: Motor reports it is now configured.",
@@ -680,21 +681,21 @@ class motorcontrol(attributemaster):
           break  # All motors configured. OK to proceed.
         time.sleep(5)  # Pause a moment.
         if rt.due():  # It's time to try resetting the microcontroller.
-          self.Log(
+          self.log(
             "motorcontrol.GoToAngle(",
             self.MotorName,
             "): CheckMotorConfig: Motor config not acknowledged. Resetting microcontroller.",
             terminal=True,
           )
           Mctl.Reset(planned=True)
-        self.Log(
+        self.log(
           "motorcontrol.GoToAngle(",
           self.MotorName,
           "): Not yet configured. Trying to configure again.",
           terminal=False,
         )
       # Motor is now configured. Perform the actual move now.
-      self.Log(
+      self.log(
         "motorcontrol.GoToAngle(",
         self.MotorName,
         "): Begin the move.",
@@ -733,7 +734,7 @@ class motorcontrol(attributemaster):
           self.CurrentAngle, newangle, ptolerance=2
         ):  # Sometimes there's a mathematical disagreement between microcontroller and this software. So allow a small tolerance when comparing angles.
           # Move complete.
-          self.Log(
+          self.log(
             "motorcontrol.GoToAngle(",
             self.MotorName,
             "): CompareAngles considers position is within tolerance, move considered complete.",
@@ -746,7 +747,7 @@ class motorcontrol(attributemaster):
         ).total_seconds() > 60:  # The angle hasn't changed for 60 seconds. Consider something's wrong.
           # *Q* A common reason for the timeout is a large backlog of configuration messages being exchanged.
           # - This can be caused by running the program as far as the main menu, but not starting an observation for a very long time.
-          self.Log(
+          self.log(
             "motorcontrol.GoToAngle(",
             self.MotorName,
             "): Angle has not changed for over 60 seconds. Will retry.",
@@ -755,7 +756,7 @@ class motorcontrol(attributemaster):
           break
         time.sleep(1)  # Don't poll too often.
       if loopcounter >= looplimit:
-        self.Log(
+        self.log(
           "motorcontrol.GoToAngle(",
           self.MotorName,
           "): After",
@@ -775,7 +776,7 @@ class motorcontrol(attributemaster):
     # In practice this is because the motor won't be asked to move if it's already within tolerance.
     # - Workarounds:-
     #   Move both motors by 10Degrees in any direction, which will increase the positions beyond the tolerances to allow homing again.
-    self.Log(
+    self.log(
       "motorcontrol.GoToAngle(",
       self.MotorName,
       "): Move completed: Got",
@@ -823,7 +824,7 @@ class motorcontrol(attributemaster):
     if self.StatusMctlTimestamp != None:
       age = round((NowUTC() - self.StatusMctlTimestamp).total_seconds(), 0)
     if age > 30:
-      self.Log(
+      self.log(
         "motorcontrol.PositionAge(",
         self.MotorName,
         ") position",
@@ -863,7 +864,7 @@ class motorcontrol(attributemaster):
     lineitems = line.split(" ")
     configuredflag = StringToBool(lineitems[9])  # Is the motor configured?
     if configuredflag != self.MotorConfigured:
-      self.Log(
+      self.log(
         "motorcontrol.ReceiveStatus(",
         self.MotorName,
         "): Configured flag set to ",
@@ -882,7 +883,7 @@ class motorcontrol(attributemaster):
       self.TrajectoryEntries = int(lineitems[6])
       self.OnTarget = StringToBool(lineitems[10])  # Is the motor on target?
     else:
-      self.Log(
+      self.log(
         "motorcontrol.ReceiveStatus(",
         self.MotorName,
         "): Motor is not yet configured. Position and trajectory info ignored. Configuring now.",
@@ -897,7 +898,7 @@ class motorcontrol(attributemaster):
     self.StatusMctlTimestamp = MctlStringToDatetime(
       lineitems[2]
     )  # When did the Microcontroller send the status message?
-    self.Log(
+    self.log(
       "motorcontrol.ReceiveStatus(",
       self.MotorName,
       "): StatusMctlTimestamp now",
@@ -942,7 +943,7 @@ class motorcontrol(attributemaster):
       21 = SlewEnabled flag (Can motor make FULL STEP moves during large position changes). <- Experimental feature.
       22 = Slew stepping mode signals (used when making large position changes). <- Experimental feature.
     """
-    self.Log(
+    self.log(
       "motorcontrol.SendConfig (" + self.MotorName + ") begin", terminal=False
     )
     line = "configure motor "  # Fields 0 & 1
@@ -996,7 +997,7 @@ class motorcontrol(attributemaster):
       self.SlewSignals + " "
     )  # Field 22 Steppermotor mode signals for full steps (Fast slew).
     Mctl.Write(line)
-    self.Log("motorcontrol.SendConfig (" + self.MotorName + ") end", terminal=False)
+    self.log("motorcontrol.SendConfig (" + self.MotorName + ") end", terminal=False)
     return True
 
   def StepToAngle(self, steps=0):
@@ -1018,7 +1019,7 @@ class motorcontrol(attributemaster):
 
     # This first makes sure that the motor is configured, it waits for that to be acknowledged before sending the tune command.
     # Check that the motors are configured before proceeding.
-    self.Log(
+    self.log(
       "motorcontrol.TunePosition(",
       self.MotorName,
       ") by",
@@ -1028,7 +1029,7 @@ class motorcontrol(attributemaster):
     )
     # There can be input queued from the microcontroller waiting to be handled.
     # - We should check in case the motor has lost its configuration before proceeding.
-    self.Log(
+    self.log(
       "motorcontrol.TunePosition(",
       self.MotorName,
       "): CheckMotorConfig: Precheck motor is still configured.",
@@ -1050,13 +1051,13 @@ class motorcontrol(attributemaster):
       # This doesn't wait for feedback, it is up to the motorcontroller to deal with the message when it sees fit.
       # This program may send further tune messages if it still needs to change things.
     else:
-      self.Log(
+      self.log(
         "motorcontroller.TunePosition(",
         self.MotorName,
         "): Motor is not yet configured. Tune command will not be sent.",
         level="error",
       )
-    self.Log(
+    self.log(
       "motorcontrol.TunePosition(",
       self.MotorName,
       "):",
@@ -1107,7 +1108,7 @@ class motorcontrol(attributemaster):
       self.LastSentTrajectoryKey == self.TrajectoryValidUntil
       and self.TrajectoryValidUntil > nowutc
     ):  # We have a future result cached already for this...
-      self.Log(
+      self.log(
         "motorcontroller.ExtendTrajectory(",
         self.MotorName,
         "): Using cached trajectory calculation:",
@@ -1199,7 +1200,7 @@ class motorcontrol(attributemaster):
         else:  # The extended period would drift too far. Don't try anything larger.
           break
       if MaxIterations <= 0:  # Iteration limit hit!
-        self.Log(
+        self.log(
           "motorcontroller.ExtendTrajectory(",
           self.MotorName,
           "): MaxIterations hit. Segment artificially limited to",
@@ -1212,7 +1213,7 @@ class motorcontrol(attributemaster):
     endpos = int(self.AngleToStep(endangle))
     line += str(startpos) + " "  # Add actual stepper position for START of segment.
     line += str(endpos) + " "  # Add actual stepper position for END of segment.
-    self.Log(
+    self.log(
       "motorcontroller.ExtendTrajectory(",
       self.MotorName,
       ") Segment",
@@ -1241,7 +1242,7 @@ class motorcontrol(attributemaster):
       self.LastSentTrajectoryData = line[
         26:
       ]  # Store the data sent (without the leading timestamp, a fresh timestamp will be used if resent).
-      self.Log(
+      self.log(
         "motorcontroller.ExtendTrajectory(",
         self.MotorName,
         "): Cached trajectory calculation:",
@@ -1249,7 +1250,7 @@ class motorcontrol(attributemaster):
         terminal=False,
       )
     else:
-      self.Log(
+      self.log(
         "motorcontroller.ExtendTrajectory("
         + self.MotorName
         + "): Trajectory is now complete.",

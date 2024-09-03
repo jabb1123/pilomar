@@ -1,9 +1,11 @@
 
 
-from utils.params import attributemaster
+from utils.params import AttributeMaster
+from utils.text.human_readable import HRSeconds
+from utils.text.textcolor import TextColor
 
 
-class target(attributemaster):
+class target(AttributeMaster):
   """Class that contains all the information we need about an observation target.
   There are some variations in the way different observation targets are handled,
   this wrapper should hide those differences from the rest of the program and
@@ -22,7 +24,7 @@ class target(attributemaster):
     objectdiameter=None,
     cometpandasrow=None,
   ):
-    self.SetLogger(
+    self.set_logger(
       MainLog
     )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
     self.Handle = handle  # Skyfield object for target. This is usually provided directly by the calling routine, but in the case of 'comets' it is calculated here during initialisation.
@@ -96,13 +98,13 @@ class target(attributemaster):
       temp = planetary_magnitude(astrometric)
       if temp != None:
         result = temp
-      self.Log(
+      self.log(
         "target.CurrentMagnitude: planetary_magnitude returned",
         temp,
         terminal=False,
       )
     except Exception:
-      self.Log(
+      self.log(
         "target.CurrentMagnitude: planetary_magnitude didn't work for this target.",
         terminal=False,
       )
@@ -115,7 +117,7 @@ class target(attributemaster):
     """
     self.Handle = newhandle
     self.RotationPoint = None  # Will hold rotation reference point if activated.
-    self.Log(
+    self.log(
       "target.UpdateLocation(): New co-ordinates updated to the target.",
       terminal=False,
     )
@@ -140,7 +142,7 @@ class target(attributemaster):
     )  # Return list of rise/set times within window.
     # If the object never rises/sets in the timeperiod checked, there are not values here, so None,None will be returned.
     for ti, yi in zip(t, y):  # Combine t and y lists.
-      self.Log("target.RiseSet(", self.Name, "): zipped", ti, yi, terminal=False)
+      self.log("target.RiseSet(", self.Name, "): zipped", ti, yi, terminal=False)
       tidt = ti.utc_datetime()
       if tidt < NowUTC():
         continue  # In the past, ignore it.
@@ -152,18 +154,18 @@ class target(attributemaster):
 
   def NextRiseSetSatellite(self):
     """Return next horizon event and time for satellites."""
-    self.Log("target.NextRiseSetSatellite(", self.Name, ")", terminal=False)
+    self.log("target.NextRiseSetSatellite(", self.Name, ")", terminal=False)
     if not hasattr(
       self.Handle, "find_events"
     ):  # This object doesn't support satellite pass calculations.
-      self.Log(
+      self.log(
         "Cannot calculate next Rise Set times for this type of target(",
         self.Name,
         self.ObjectType,
         ")",
         terminal=True,
       )
-      self.Log(
+      self.log(
         "target.NextRiseSetSatellite: find_events method not in this target type.",
         terminal=True,
       )
@@ -171,7 +173,7 @@ class target(attributemaster):
     risetime = settime = None
     t_from = self.CurrentTime()  # Start now.
     t_to = TsDelta(t_from, dd=1)  # Stop in 24hours time.
-    self.Log(
+    self.log(
       "target.NextRiseSetSatellite: t_from",
       str(t_from),
       "t_to",
@@ -181,7 +183,7 @@ class target(attributemaster):
     times, events = self.Handle.find_events(
       self.HomeSiteTopos, t_from, t_to, Parameters.MinSatelliteAltitude
     )  # What events occur above horizon in next 24 hours?
-    self.Log(
+    self.log(
       "target.NextRiseSetSatellite: times",
       times,
       "events",
@@ -190,7 +192,7 @@ class target(attributemaster):
     )
     telist = zip(times, events)
     for te in telist:
-      self.Log("target.NextRiseSetSatellite: Entry:", te, terminal=False)
+      self.log("target.NextRiseSetSatellite: Entry:", te, terminal=False)
       eventtime = te[0]
       eventtype = te[1]  # 0=Rise, 1=Culminate, 2=Set
       if eventtype == 2 and settime is None and risetime != None:
@@ -198,13 +200,13 @@ class target(attributemaster):
       if eventtype == 0 and risetime is None:
         risetime = eventtime.utc_datetime()
       if eventtype == 1:  # Culmination, how high?
-        self.Log(
+        self.log(
           "target.NextRiseSetSatellite: Checking culmination at",
           eventtime.utc_datetime(),
           terminal=False,
         )
         az, alt = self.AzAltDegrees(time=eventtime)
-        self.Log(
+        self.log(
           "target.NextRiseSetSatellite: Culmination at",
           eventtime.utc_datetime(),
           "is",
@@ -214,7 +216,7 @@ class target(attributemaster):
         )
       if risetime != None and settime != None:
         break  # We have our earliest acceptable set of values.
-    self.Log(
+    self.log(
       "target.NextRiseSetSatellite: Rise",
       risetime,
       "set",
@@ -225,10 +227,10 @@ class target(attributemaster):
 
   def SatellitePasses(self, window=24):
     """Print table of satellite pass information for next xx hours."""
-    self.Log("target.SatellitePasses: NOT YET IMPLEMENTED.", terminal=False)
+    self.log("target.SatellitePasses: NOT YET IMPLEMENTED.", terminal=False)
     t_from = self.CurrentTime()  # Start now.
     t_to = TsDelta(t_from, dd=1)  # Stop in 24hours time.
-    self.Log(
+    self.log(
       "target.SatellitePasses: t_from",
       str(t_from),
       "t_to",
@@ -238,14 +240,14 @@ class target(attributemaster):
     if not hasattr(
       self.Handle, "find_events"
     ):  # This object doesn't support satellite pass calculations.
-      self.Log(
+      self.log(
         "Cannot calculate next pass times for this type of target(",
         self.Name,
         self.ObjectType,
         ")",
         terminal=True,
       )
-      self.Log(
+      self.log(
         "target.SatellitePasses: find_events method not in this target type.",
         terminal=True,
       )
@@ -253,7 +255,7 @@ class target(attributemaster):
     times, events = self.Handle.find_events(
       self.HomeSiteTopos, t_from, t_to, 0.0
     )  # What events occur above horizon in next 24 hours?
-    self.Log(
+    self.log(
       "target.SatellitePasses: times", times, "events", events, terminal=False
     )
     passelements = (
@@ -346,7 +348,7 @@ class target(attributemaster):
       if eventtime is None or eventtime > settime:
         eventtime = settime
         eventtype = "set"
-    self.Log(
+    self.log(
       "target.NextRiseSet(",
       self.Name,
       "): rise",
@@ -375,7 +377,7 @@ class target(attributemaster):
       cutoff = NowUTC() + timedelta(hours=window)
       if eventtime > cutoff:  # Outside window.
         result = "--:--"
-    self.Log(
+    self.log(
       "target.NextRiseSetHHMM(",
       self.Name,
       "): eventtime",
@@ -399,7 +401,7 @@ class target(attributemaster):
       risetime, settime = self.NextRiseSetSatellite()
     else:  # Moving target, so check for rise/set times.
       risetime, settime = self.NextRiseSetObject()
-    self.Log(
+    self.log(
       "target.RiseSet(",
       self.Name,
       "): rise",
@@ -556,7 +558,7 @@ class target(attributemaster):
         ((SensorInUse.PixelWidth / 2) ** 2)
         + ((SensorInUse.PixelHeight / 2) ** 2)
       )
-    self.Log("target.RotationPixels: radius", radius, terminal=False)
+    self.log("target.RotationPixels: radius", radius, terminal=False)
     circumference = (
       radius * 2 * math.pi
     )  # How many pixels in total for the circumference of the circle defined by radius?
@@ -577,7 +579,7 @@ class target(attributemaster):
       time, s=-1 * round(calcperiod / 2)
     )  # Start rotation at 30minutes ago.
     t2 = TsDelta(t1, s=calcperiod)  # End rotation 30minutes ahead.
-    self.Log(
+    self.log(
       "target.RotationArc: Times",
       t1.utc_strftime(),
       t2.utc_strftime(),
@@ -586,7 +588,7 @@ class target(attributemaster):
     a1 = self.RotationPointBearing(t1)  # Rotation angle at start.
     a2 = self.RotationPointBearing(t2)  # Rotation angle at end.
     rate = a2 - a1  # Delta of rotation angle.
-    self.Log("target.RotationArc: gross rate=", rate, DegreeSymbol, terminal=False)
+    self.log("target.RotationArc: gross rate=", rate, DegreeSymbol, terminal=False)
     rate = rate * span / calcperiod
     return rate  # Field rotates at 'rate' degrees per 'span' seconds.
 
@@ -683,7 +685,7 @@ class target(attributemaster):
         else:
           self.AzSpeed = self.AltSpeed = 0.0
       else:
-        self.Log(
+        self.log(
           "target.AzAltDegrees(",
           self.Name,
           ") no previous measure yet.",
@@ -919,7 +921,7 @@ class target(attributemaster):
     aah, aam, aas = AngleToHMS(max_ra)
     for tt, ra, dec in Points:
       rah, ram, ras = AngleToHMS(ra)  # Convert degrees to H,M,S units.
-      self.Log(
+      self.log(
         str(tt.utc_datetime()).split(" ")[0],
         DisplayHMS(rah, ram, ras, 14),
         DisplayDegree(dec, 9) + DegreeSymbol,
@@ -970,7 +972,7 @@ class target(attributemaster):
     ):  # Old format field names. Pre Nov.2020 version of Skyfield.
       g_absoluteMagnitude = self.CometPandasRow["magnitude_h"]
       k_luminosityIndex = self.CometPandasRow["magnitude_g"]
-      self.Log(
+      self.log(
         "target.ApparentCometMagnitudeGK(",
         self.Name,
         "): Using OLD format fieldnames.",
@@ -979,7 +981,7 @@ class target(attributemaster):
     else:  # Post Nov.2020 version of Skyfield. To be verified.
       g_absoluteMagnitude = self.CometPandasRow["magnitude_g"]
       k_luminosityIndex = self.CometPandasRow["magnitude_k"]
-      self.Log(
+      self.log(
         "target.ApparentCometMagnitudeGK(",
         self.Name,
         "): Using NEW format fieldnames.",
@@ -1001,7 +1003,7 @@ class target(attributemaster):
       + (2.5 * k_luminosityIndex * math.log10(sunBodyDistance.au))
     )
     apparentMagnitude = round(apparentMagnitude, 1)  # Magnitude to 1 decimal place.
-    self.Log(
+    self.log(
       "target.ApparentCometMagnitudeGK(",
       self.Name,
       "): Apparent magnitude:",

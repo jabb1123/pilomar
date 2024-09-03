@@ -208,39 +208,6 @@ class AstroSensor:
     Use this when there is no logger defined."""
     return
 
-  def HmsFromStamp(self, timestamp, dateaware=False):
-    """Return the HH:MM:SS part of a timestamp as a string.
-    Works with datetime input.
-    dateaware = True. If the date is not today, then it shows 'DD HH:MM' instead."""
-    result = None
-    try:
-      if timestamp is None:  # Protect from null values.
-        result = ""
-      else:
-        result = str(timestamp)
-        if (
-          dateaware and timestamp.date() != self.NowUTC().date()
-        ):  # The date is not today.
-          result = result[8:16]  # Extract "DD HH:MM"
-        else:  # The date is today. Extract "HH:MM:SS"
-          result = result.split(" ")[1]
-          result = result.split(".")[0]
-    except Exception as e:
-      print(e)  # Trap all the exception information in the main log file.
-      raise Exception(
-        "HmsFromStamp() failed."
-      ) from e  # Continue with regular exception stack.
-    return result
-
-  def NowHMS(self):
-    """Return current time as formatted string.
-    Returns HH:MM:SS string for the current time (UTC)"""
-    return self.HmsFromStamp(self.NowUTC())
-
-  def NowUTC(self):
-    """Return system UTC timestamp as a datetime object."""
-    return datetime.now(timezone.utc)
-
   def GetCentre(self):
     """Return the X and Y co-ordinates of the centre of the image."""
     return int(round(self.PixelWidth / 2, 0)), int(round(self.PixelHeight / 2, 0))

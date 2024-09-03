@@ -221,6 +221,12 @@ class ColorDisplay:
         del ColorDisplay.DefinedWindows[i]
         break
 
+  @staticmethod
+  def clear_screen():
+    """Use this to perform a clean wipe of the screen and force display windows to refresh."""
+    ColorDisplay.global_force_redraw()  # Force all window buffers to fully redraw.
+    print(TextColor.clearscreen())  # Clear screen for refresh.
+
   def set_title(self, title):
     """Turn first row of a window into a title row.
     Color appropriately and change the scroll behaviour of the window.
@@ -1219,7 +1225,7 @@ class ColorDisplay:
     tempdict = ColorDisplay.global_save_to_dictionary(
       initialdictionary=initialdictionary
     )
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
       json.dump(tempdict, f, default=str)
     return True
 

@@ -22,7 +22,7 @@ except ModuleNotFoundError:
   pass
 
 try:
-  import gpio.gpiod as gpio_driver  # Handling IO signals. If available.
+  import gpiod as gpio_driver  # Handling IO signals. If available.
   from gpiod_module import *
   GPIO_DRIVER = "GPIOD"
 except ModuleNotFoundError:

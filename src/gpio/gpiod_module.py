@@ -88,7 +88,7 @@ class InputPinGPIO:
             bias=gpiod.line.Bias.PULL_UP,
           )
         }
-        self.ine = GPIOchip.request_lines(config)  # Will EARTH when triggered.
+        self.line = GPIOchip.request_lines(config)  # Will EARTH when triggered.
       else:
         config = {
           pinbcm: gpiod.LineSettings(
@@ -96,7 +96,7 @@ class InputPinGPIO:
             bias=gpiod.line.Bias.PULL_DOWN,
           )
         }
-        self.ine = GPIOchip.request_lines(
+        self.line = GPIOchip.request_lines(
           config
         )  # Will go HIGH when triggered.
     # Append to the global list of all input pins.
@@ -110,7 +110,7 @@ class InputPinGPIO:
     If you want the logical state of the pin after this use IsOn() and IsOff() methods.
     If you want the physical state of the pin after this use is_high() and is_low() methods.
     """
-    if self.enabled and self.ine.get_value(self.pin) != 0:
+    if self.enabled and self.line.get_value(self.pin) != 0:
       self.state = True  # High
     else:
       self.state = False  # Low
@@ -198,7 +198,7 @@ class OutputPinGPIO:
     """Release all defined pins."""
     for pin in OutputPinGPIO.OutputPins:
       try:
-        pin.Line.release()
+        pin.line.release()
       except Exception as excep:
         MainLog.Log(
           "OutputPinGPIO.release_all(): Failed to release pin:",
@@ -244,9 +244,9 @@ class OutputPinGPIO:
     Reset the output pin to the current
     """
     if self.enabled and self.state:
-      self.ine.set_value(self.pin, gpiod.line.Value.ACTIVE)  # High
+      self.line.set_value(self.pin, gpiod.line.Value.ACTIVE)  # High
     else:
-      self.ine.set_value(self.pin, gpiod.line.Value.INACTIVE)  # Low
+      self.line.set_value(self.pin, gpiod.line.Value.INACTIVE)  # Low
 
   def is_on(self):
     """Return ON/OFF state of the input, respecting the 'invert' flag.

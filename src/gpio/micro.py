@@ -4,10 +4,10 @@ import time
 import serial
 from queue import Queue
 from utils.text.textcolor import TextColor
-from utils.params import attributemaster
-from utils.time_funcs import NowUTC
+from utils.params import AttributeMaster
+from utils.time_funcs import now_utc
 
-class microcontroller(attributemaster):
+class microcontroller(AttributeMaster):
   """Class to manage the UART communication between the RPi and the motor microcontroller.
   This handles I/O and buffering of inbound/outbound messages over the UART lines.
   It also represents the entire motorcontroller PCB.
@@ -30,7 +30,7 @@ class microcontroller(attributemaster):
       "Ton-2023-12" = Raspberry Pi 4 HAT format with onboard 5V power source.
       "Matt-2023-12-06"  = Basic PCB board design published just after Instructables project published.
     """
-    self.SetLogger(
+    self.set_logger(
       logger=logger
     )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
     self.BoardType = boardtype  # Can be one of [None,'Ton-2023-12','Matt-2023-12-06'], or add your own.
@@ -64,9 +64,9 @@ class microcontroller(attributemaster):
     self.BytesSent = 0  # Byte count sent to the microcontroller.
     self.PrintComms = False  # When TRUE communication log is copied to the terminal, otherwise it's only written to the log file.
     self.LedStatus = True  # LEDS on by default.
-    self.LineOpenedTime = NowUTC()  # When did the UART comms start?
-    self.LastTxTime = NowUTC()  # When was data last sent?
-    self.LastRxTime = NowUTC()  # When was data last received?
+    self.LineOpenedTime = now_utc()  # When did the UART comms start?
+    self.LastTxTime = now_utc()  # When was data last sent?
+    self.LastRxTime = now_utc()  # When was data last received?
     self.RxErrors = 0  # How many receive errors have been detected.
     self.LastLineSent = None  # We get 'reflection' on the UART port if the remote device isn't ready. This helps us to detect that.
     self.CommsTimeout = (
@@ -132,21 +132,21 @@ class microcontroller(attributemaster):
   def StartMonitor(self):
     """Start replicating communications to the terminal.
     The messages are still logged."""
-    if self.Log != None:
-      self.Log("microcontroller.StartMonitor()", terminal=False)
+    if self.log != None:
+      self.log("microcontroller.StartMonitor()", terminal=False)
     self.PrintComms = True  # UART comms will be echoed to the terminal.
 
   def EndMonitor(self):
     """Stop replicating communications to the terminal.
     The messages are still logged."""
-    if self.Log != None:
-      self.Log("microcontroller.EndMonitor()", terminal=False)
+    if self.log != None:
+      self.log("microcontroller.EndMonitor()", terminal=False)
     self.PrintComms = False  # UART comms will not be echoed to the terminal.
 
   def PowerOn(self):
     """Overrides all safeties, turns power GPIO power pin on for microcontroller."""
     if self.ResetBCM is None:
-      self.Log(
+      self.log(
         "microcontroller.PowerOn(): No Reset pin defined. Cannot turn microcontroller on via GPIO.",
         terminal=True,
       )
@@ -158,7 +158,7 @@ class microcontroller(attributemaster):
       bg=TextColor.ORANGERED1,
     )
     if authority:
-      self.Log(
+      self.log(
         "microcontroller.PowerOn(): No safety checks. GPIO POWER PIN turned on for Microcontroller.",
         terminal=True,
       )
@@ -168,7 +168,7 @@ class microcontroller(attributemaster):
   def PowerOff(self):
     """Overrides all safeties, turns power GPIO power pin off for microcontroller."""
     if self.ResetBCM is None:
-      self.Log(
+      self.log(
         "microcontroller.PowerOff(): No Reset pin defined. Cannot turn microcontroller off via GPIO.",
         terminal=True,
       )
@@ -180,11 +180,11 @@ class microcontroller(attributemaster):
       bg=TextColor.ORANGERED1,
     )
     if authority:
-      self.Log(
+      self.log(
         "microcontroller.PowerOff(): No safety checks. GPIO POWER PIN turned off for Microcontroller.",
         terminal=True,
       )
-      self.Log(
+      self.log(
         "microcontroller.PowerOff(): Note: If the messagehandler is still running, it will restart the microcontroller automatically.",
         terminal=True,
       )
@@ -209,15 +209,15 @@ class microcontroller(attributemaster):
       return True  # Quit.
     if command != "":  # There's something to send.
       command = command.replace(
-        "&now", CleanDatetimeString(str(NowUTC()))
+        "&now", CleanDatetimeString(str(now_utc()))
       )  # Substitude any reference to the current clock.
-      self.Log("microcontroller.SendManualCommand():", command, terminal=True)
+      self.log("microcontroller.SendManualCommand():", command, terminal=True)
       self.Write(command)  # Sent.
     return True
 
   def Initiate(self):
     """Initiate communication."""
-    self.Log(
+    self.log(
       "microcontroller.__init__:",
       "baudrate=",
       self.uart.baudrate,
@@ -241,7 +241,7 @@ class microcontroller(attributemaster):
       self.uart.dsrdtr,
       terminal=False,
     )
-    self.Log(
+    self.log(
       "New UART device. Triggering reset to initialize it...", terminal=False
     )
     self.Reset(
@@ -249,7 +249,7 @@ class microcontroller(attributemaster):
     )  # Make sure that the microcontroller is fresh and ready for new tasks.
     self.uart.reset_input_buffer()
     self.uart.reset_output_buffer()
-    self.Log("New UART connection. Flushing...", terminal=False)
+    self.log("New UART connection. Flushing...", terminal=False)
     # Send a comment line to flush any crud from the system.
     for i in range(2):
       self.Write("#" * 20)
@@ -258,15 +258,15 @@ class microcontroller(attributemaster):
 
   def ReportBoard(self):
     """Report the board type to the log file."""
-    self.Log("microcontroller.ReportBoard:", self.BoardType, terminal=False)
+    self.log("microcontroller.ReportBoard:", self.BoardType, terminal=False)
 
   def SetClock(self):
     """Set the microcontroller clock."""
     line = "set time " + CleanDatetimeString(
-      str(NowUTC())
+      str(now_utc())
     )  # Immediately send a time update to the microcontroller to synchronise the clocks ASAP.
     self.Write(line)
-    self.Log("microcontroller.SetClock(): Setting time to", line, terminal=False)
+    self.log("microcontroller.SetClock(): Setting time to", line, terminal=False)
 
   def CalculateChecksum(self, line):
     """Calculate a basic checksum for a line of text."""
@@ -380,9 +380,9 @@ class microcontroller(attributemaster):
       ""  # This holds the currently arriving line while it is being constructed.
     )
     self.WriteQueue = []  # No output to send yet.
-    self.LineOpenedTime = NowUTC()
-    self.LastTxTime = NowUTC()  # When was data last sent?
-    self.LastRxTime = NowUTC()  # When was data last received?
+    self.LineOpenedTime = now_utc()
+    self.LastTxTime = now_utc()  # When was data last sent?
+    self.LastRxTime = now_utc()  # When was data last received?
     self.LastLineSent = None  # We get 'reflection' on the UART port if the remote device isn't ready. This needs ignoring.
     # Reset communication counters.
     self.LinesReceived = 0
@@ -399,7 +399,7 @@ class microcontroller(attributemaster):
 
   def RxAge(self):
     """How many seconds ago was the last message received?"""
-    Rx = int((NowUTC() - self.LastRxTime).total_seconds())
+    Rx = int((now_utc() - self.LastRxTime).total_seconds())
     return Rx
 
   def ReadPoll(self):
@@ -415,7 +415,7 @@ class microcontroller(attributemaster):
 
     # Check for stalled communications.
     if self.RxAge() > self.CommsTimeout:
-      self.Log(
+      self.log(
         "uart.ReadPoll(): microcontroller has not transmitted for",
         self.RxAge(),
         "seconds. It will be restarted",
@@ -423,15 +423,15 @@ class microcontroller(attributemaster):
         terminal=False,
       )
       if self.Reset():  # Trigger reset and resync mechanism.
-        self.Log(
+        self.log(
           "uart.ReadPoll(): microcontroller reset complete.", terminal=False
         )
       else:
-        self.Log(
+        self.log(
           "uart.ReadPoll(): microcontroller reset failed.", level="error"
         )
         if self.DeviceFailure:
-          self.Log(
+          self.log(
             "uart.ReadPoll(): microcontroller considered permanently unavailable after "
             + str(self.ResetAttempts)
             + " restart attempts.",
@@ -444,7 +444,7 @@ class microcontroller(attributemaster):
         response = response.decode("utf-8")  # Decode the character.
         self.BytesReceived += 1  # Increment received count.
       except Exception as e:
-        self.Log(
+        self.log(
           "uart.Read: uart.read(1) failed. Ignored. " + str(e), terminal=False
         )
         response = ""  # Ignore unusable character.
@@ -460,7 +460,7 @@ class microcontroller(attributemaster):
               + ")"
             )
           )
-          self.Log(
+          self.log(
             "uart.Read: Ignoring reflected line ("
             + str(self.InputLine)
             + ")",
@@ -471,7 +471,7 @@ class microcontroller(attributemaster):
             self.InputLine
           )  # Add received line to input queue.
           self.LastRxTime = (
-            NowUTC()
+            now_utc()
           )  # Note when last receive activity occurred.
           self.ResetAttempts = (
             0  # We have activity, so clear the restart counter.
@@ -504,7 +504,7 @@ class microcontroller(attributemaster):
         cleanresult = self.RemoveChecksum(result)
       else:  # Line is bad. Don't clean it.
         cleanresult = result
-      self.Log("RPi received: " + cleanresult, terminal=False)
+      self.log("RPi received: " + cleanresult, terminal=False)
       if self.PrintComms:
         print(TextColor.magenta("RPi received: " + cleanresult))
 
@@ -521,7 +521,7 @@ class microcontroller(attributemaster):
           ErrorWindow.print(NowHMS() + " RPi received: " + result)
       else:  # Checksum failure.
         MctlRxWindow.print("RPi rejected checksum on: " + result)
-        self.Log("RPi rejected checksum on: " + result, terminal=False)
+        self.log("RPi rejected checksum on: " + result, terminal=False)
         self.RxErrors += 1
         ErrorWindow.print(NowHMS() + " RPi rejected checksum on: " + result)
         result = ""
@@ -542,7 +542,7 @@ class microcontroller(attributemaster):
       return  # Input waiting. Handle that first.
     if (
       self.LastTxTime != None
-      and (NowUTC() - self.LastTxTime).total_seconds() < self.WriteChunkSeconds
+      and (now_utc() - self.LastTxTime).total_seconds() < self.WriteChunkSeconds
     ):  # 0.2:
       return  # Must be 0.2 second gap between each transmitted packet.
     if not self.uart.is_open:
@@ -565,13 +565,13 @@ class microcontroller(attributemaster):
     self.LinesSent += 1
     self.BytesSent += len(line)
     self.uart.write(line.encode("utf-8"))  # Send data in UTF-8 format.
-    self.LastTxTime = NowUTC()  # Note that time of the last data sent.
+    self.LastTxTime = now_utc()  # Note that time of the last data sent.
 
   def ReadFlush(self):
     """Clear the input buffer. Don't actually process them, because you may never reach the end if
     new messages are appearing. Just clear and reset the internal buffer of messages received.
     """
-    self.Log(
+    self.log(
       "microcontroller.ReadFlush: Drop",
       len(self.Lines),
       "unprocessed messages received from microcontroller...",
@@ -579,12 +579,12 @@ class microcontroller(attributemaster):
     )
     if len(self.Lines) > 0:
       for line in self.Lines:
-        self.Log(
+        self.log(
           "microcontroller.ReadFlush: Dropped line:", line, terminal=False
         )
       self.Lines = []  # Empty the queue.
     if len(self.InputLine) > 0:
-      self.Log(
+      self.log(
         "microcontroller.ReadFlush: Abandoned partly received input line (",
         self.InputLine,
         ")",
@@ -603,26 +603,26 @@ class microcontroller(attributemaster):
     - Send = False: This routine just flushes."""
     result = True
     if send:  # We should try to send outstanding messages.
-      self.Log(
+      self.log(
         "WriteFlush: Flushing microcontroller output queue (",
         len(self.WriteQueue),
         "pending messages will be sent)...",
         terminal=False,
       )
-      self.Log(
+      self.log(
         "WriteFlush: WriteProhibited:", self.WriteProhibited, terminal=False
       )
       TryCount = 0
       self.WriteProhibited = True  # Don't allow anything further to be added to the queue at the moment.
       while len(self.WriteQueue) > 0:
         TryCount += 1
-        self.Log(
+        self.log(
           "WriteFlush: Queue currently",
           len(self.WriteQueue),
           "entries",
           terminal=False,
         )
-        self.Log(
+        self.log(
           "WriteFlush: 1st in queue:", self.WriteQueue[0], terminal=False
         )
         self.WritePoll()  # Send next chunk of data from output buffer if allowed.
@@ -630,7 +630,7 @@ class microcontroller(attributemaster):
           0.1
         )  # Pause until the CommsLoop thread has cleared the buffer.
         if TryCount >= 500:
-          self.Log(
+          self.log(
             "WriteFlush: Flush timeout. Maximum loops.",
             len(self.WriteQueue),
             "Remaining messages will be dropped.",
@@ -640,7 +640,7 @@ class microcontroller(attributemaster):
           break
       self.WriteProhibited = False  # OK to write again to the write queue.
     else:
-      self.Log(
+      self.log(
         "WriteFlush: Flushing microcontroller output queue (",
         len(self.WriteQueue),
         "pending messages will be dropped)...",
@@ -680,7 +680,7 @@ class microcontroller(attributemaster):
     To send text from the output queue to the Microcontroller over the UART line use the WritePoll() method.
     """
     if self.WriteProhibited:
-      self.Log("microcontroller.Write: WriteProhibited: " + line)
+      self.log("microcontroller.Write: WriteProhibited: " + line)
     elif len(line) > 0:
       line = line.replace("\n", "")  # Was strip()
       self.SendId += 1  # Increment the message ID number.
@@ -693,7 +693,7 @@ class microcontroller(attributemaster):
       self.WriteQueue.append(
         self.AddChecksum(line)
       )  # Add to send queue with Checksum.
-      self.Log(
+      self.log(
         "RPi queueing (Q# " + str(len(self.WriteQueue)) + "): " + line,
         terminal=False,
       )
@@ -710,15 +710,15 @@ class microcontroller(attributemaster):
     It terminates when the main thread dies.
     You can send commands to this communication loop itself via the commandqueue queue.
     - Eg : 'stop' to shut down the loop completely."""
-    self.Log("microcontroller.CommsLoop(): Start", terminal=False)
+    self.log("microcontroller.CommsLoop(): Start", terminal=False)
 
-    prevloop = NowUTC()
+    prevloop = now_utc()
     while True:  # Loop until explicitly told to break.
       # Warn if the loop is running slowly.
-      tn = NowUTC()
+      tn = now_utc()
       td = (tn - prevloop).total_seconds()
       if td > 1:
-        self.Log(
+        self.log(
           "microcontroller.CommsLoop(): Loop slow. Took",
           td,
           "seconds.",
@@ -731,7 +731,7 @@ class microcontroller(attributemaster):
       if (
         threading.main_thread().is_alive() == False
       ):  # Check if parent is still alive. Quit if it is nolonger there.
-        self.Log(
+        self.log(
           "microcontroller.CommsLoop(): Parent thread is nolonger alive. Stopping.",
           level="error",
         )
@@ -741,7 +741,7 @@ class microcontroller(attributemaster):
       ):  # This queue allows the main thread to send commands to the microcontroller comms controller itself.
         ReceivedMessage = commandqueue.get()
         if ReceivedMessage == "stop":
-          self.Log(
+          self.log(
             "microcontroller.CommsLoop(): Received 'stop' command.",
             terminal=False,
           )
@@ -750,4 +750,4 @@ class microcontroller(attributemaster):
     self.WriteFlush(
       send=True
     )  # Flush any outbound comms to the microcontroller before closing.
-    self.Log("microcontroller.CommsLoop(): End", terminal=False)
+    self.log("microcontroller.CommsLoop(): End", terminal=False)

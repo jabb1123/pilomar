@@ -1,9 +1,9 @@
 
 import pandas
-from utils.params import attributemaster
-from utils.time_funcs import NowUTC
+from utils.params import AttributeMaster
+from utils.time_funcs import now_utc
 
-class localstars(attributemaster):
+class localstars(AttributeMaster):
   """Smart cache of neighbouring stars, to make rendering and markup of images faster.
   Creates a pandas dataframe of stars near the target.
   The dataframe is automatically updated if the target moves significantly.
@@ -32,10 +32,10 @@ class localstars(attributemaster):
   - This returns None if the column name is not known."""
 
   def __init__(self, ra, dec, radius, magnitude, maxstars=1000, logger=None):
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
-    self.Log(
+    self.log(
       "localstars.__init__(",
       ra,
       dec,
@@ -64,7 +64,7 @@ class localstars(attributemaster):
     self.Update(ra, dec)  # Trigger update immediately to load the cache.
 
   def Update(self, ra, dec):
-    self.Log("localstars.Update(", ra, dec, "): Begin", terminal=False)
+    self.log("localstars.Update(", ra, dec, "): Begin", terminal=False)
     self._df = None  # Clear old cache.
     self.ra = ra  # Update RIGHT ASCENSION location.
     self.dec = dec  # Update DECLINATION location.
@@ -73,7 +73,7 @@ class localstars(attributemaster):
     self.MinDecDeg = self.dec - self.radius
     self.MaxDecDeg = self.dec + self.radius
     # Select a subset of the Hipparcos catalog which is within TargetInclusionRadius of the target (=centre of image)
-    self.Log(
+    self.log(
       "localstars.Update(): CoreSelection RA",
       self.MinRADeg,
       "deg ...",
@@ -91,14 +91,14 @@ class localstars(attributemaster):
       & (self.MasterDf["dec_degrees"] <= self.MaxDecDeg)
       & (self.MasterDf["magnitude"] <= self.magnitude)
     ]
-    self.Log(
+    self.log(
       "localstars.Update(): Starting with",
       len(self._df),
       "stars in the master list.",
       terminal=False,
     )
     if self.MinRADeg < 0:  # -ve RA values need adjusting to 0-360 range.
-      self.Log(
+      self.log(
         "localstars.Update(): -ve RA Selection RA",
         self.MinRADeg + 360,
         "deg...",
@@ -116,7 +116,7 @@ class localstars(attributemaster):
         & (self.MasterDf["dec_degrees"] <= self.MaxDecDeg)
         & (self.MasterDf["magnitude"] <= self.magnitude)
       ]
-      self.Log(
+      self.log(
         "localstars.Update(): Appending",
         len(df1),
         "stars to the master list. (<0rule)",
@@ -125,7 +125,7 @@ class localstars(attributemaster):
       self._df = pandas.concat([self._df, df1])  # Add to original list.
     # If MaxRaDeg > 360 then subtract 360 and append result 0<x<=MaxRaDeg
     if self.MaxRADeg > 360:  # +ve RA values over 360 need adjusting to 0-360 range.
-      self.Log(
+      self.log(
         "localstars.Update(): +ve RA Selection RA",
         0,
         "...",
@@ -143,7 +143,7 @@ class localstars(attributemaster):
         & (self.MasterDf["dec_degrees"] <= self.MaxDecDeg)
         & (self.MasterDf["magnitude"] <= self.magnitude)
       ]
-      self.Log(
+      self.log(
         "localstars.Update(): Appending",
         len(df2),
         "stars to the master list. (>360rule)",
@@ -155,21 +155,21 @@ class localstars(attributemaster):
     )  # Sort the selected stars in ascending order of brightness. So we can match the brightest stars first.
     # If there's a StarFilter specified, apply it now.
     if len(self.StarFilter) != 0:
-      self.Log("localstars.Update(): Applying filter.", terminal=False)
+      self.log("localstars.Update(): Applying filter.", terminal=False)
       self.Filter()
       # self.Log("localstars.Update(): Applied filter.",terminal=False)
     # Clip to maxstars.
-    self.Log("localstars.Update(): Clipping dataframe.", terminal=False)
+    self.log("localstars.Update(): Clipping dataframe.", terminal=False)
     self._df = self._df[: self.maxstars]
     # self.Log("localstars.Update(): Clipped dataframe.",terminal=False)
-    self.update = NowUTC()  # Update timestamp.
-    self.Log(
+    self.update = now_utc()  # Update timestamp.
+    self.log(
       "localstars.Update(): Selected",
       len(self._df.index),
       "rows.",
       terminal=False,
     )
-    self.Log("localstars.Update(): Setting index.", terminal=False)
+    self.log("localstars.Update(): Setting index.", terminal=False)
     self._df = self._df.set_index(
       "hip", drop=False
     )  # Make 'hip' the index of the DataFrame, but keep the 'hip' column for reference.
@@ -177,17 +177,17 @@ class localstars(attributemaster):
     self.ColumnNames = list(
       self._df.columns
     )  # Get list of column names in sequence.
-    self.Log(
+    self.log(
       "localstars.Update(): ColumnNames are", self.ColumnNames, terminal=False
     )
-    self.Log("localstars.Update(): End", terminal=False)
+    self.log("localstars.Update(): End", terminal=False)
     return True
 
   def ColumnIndex(self, name):
     """Return the column index for any given column name.
     This is the column index number used in Pandas dataframe.iloc[] references."""
     if not name in self.ColumnNames:
-      self.Log(
+      self.log(
         "localstars.ColumnIndex:",
         name,
         "is not in",
@@ -212,18 +212,18 @@ class localstars(attributemaster):
     return True
 
   def Get(self, ra, dec):
-    self.Log("localstars.Get(", ra, dec, "): Begin", terminal=False)
+    self.log("localstars.Get(", ra, dec, "): Begin", terminal=False)
     if (
       abs(self.ra - ra) > self._updateangle
       or abs(self.dec - dec) > self._updateangle
     ):
-      self.Log(
+      self.log(
         "localstars.Get(): Target location has moved enough to trigger a refresh.",
         terminal=False,
       )
       self._df = None  # Trigger refresh if target location has changed enough.
     if type(self._df) == type(None):  # Need to update
       self.Update(ra, dec)  # Perform the update.
-    self.Log("localstars.Get(): End", terminal=False)
+    self.log("localstars.Get(): End", terminal=False)
     return self._df
 

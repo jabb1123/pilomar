@@ -7,16 +7,16 @@ import math
 import numpy as np
 from camera.image import pilomarimage
 from utils.files.folder import FolderHandler
-from utils.params import attributemaster
-from utils.time_funcs import NowHMS, NowUTC
+from utils.params import AttributeMaster
+from utils.time_funcs import now_hour_minute_sec, now_utc
 
-class imagetracker(attributemaster):
+class imagetracker(AttributeMaster):
   """ImageTracker uses OpenCV and AstroAlign packages to measure the drift of the
   stars between images. This may be useful for autocorrecting position or basic image tracking.
   """
 
   def __init__(self, logger=None):
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
 
@@ -54,12 +54,12 @@ class imagetracker(attributemaster):
     """Return age of latest tracking image in seconds."""
     td = None
     if self.LatestTimeStamp != None:
-      td = int((NowUTC() - self.LatestTimeStamp).total_seconds())
+      td = int((now_utc() - self.LatestTimeStamp).total_seconds())
     return td
 
   def Reset(self):
     """Reset image cache and related data."""
-    self.Log("ImageTracker.Reset: Begin", terminal=False)
+    self.log("ImageTracker.Reset: Begin", terminal=False)
     self.TargetImage.Clear()
     self.TargetTimeStamp = None
     self.TargetStarMatchList = []
@@ -71,7 +71,7 @@ class imagetracker(attributemaster):
     self.dy = None  # Measured delta-y between images.
     self.rotation = None  # Measured rotation between images.
     self.measureddelta = None  # Total seconds between reference images.
-    self.Log("ImageTracker.Reset: End", terminal=False)
+    self.log("ImageTracker.Reset: End", terminal=False)
 
   def SetTargetImage(
     self,
@@ -82,14 +82,14 @@ class imagetracker(attributemaster):
     MinMagnitude=None,
   ):
     """This registers a new target reference image."""
-    self.Log("ImageTracker.SetTargetImage: Begin", terminal=False)
-    self.Log(
+    self.log("ImageTracker.SetTargetImage: Begin", terminal=False)
+    self.log(
       "ImageTracker.SetTargetImage: Received image buffer type",
       str(type(cvimagebuffer)),
       terminal=False,
     )
     if isinstance(cvimagebuffer, type(None)):
-      self.Log(
+      self.log(
         "ImageTracker.SetTargetImage: Received None type image buffer. Nothing set.",
         terminal=False,
       )
@@ -97,23 +97,23 @@ class imagetracker(attributemaster):
     if (
       timestamp is None
     ):  # If we don't know the timestamp of the image, use the current clock.
-      timestamp = NowUTC()  # Assume current clock time.
+      timestamp = now_utc()  # Assume current clock time.
     self.TargetTimeStamp = timestamp
     self.TargetImage.LoadBuffer(cvimagebuffer)
     self.TargetImage.ChangeType("grayscale")
-    self.Log(
+    self.log(
       "ImageTracker.SetTargetImage: About to measure contrast.", terminal=False
     )
     contrast_m, contrast_s = (
       self.TargetImage.MeasureContrast()
     )  # Calculate contrast for latest image.
-    self.Log(
+    self.log(
       "ImageTracker.SetTargetImage: Contrast measures",
       contrast_m,
       contrast_s,
       terminal=False,
     )
-    self.Log(
+    self.log(
       "ImageTracker.SetTargetImage: Prepared image: type",
       str(type(self.TargetImage.ImageBuffer)),
       "shape",
@@ -130,31 +130,31 @@ class imagetracker(attributemaster):
     self.measureddelta = None
     self.TargetStarMatchList = []
     if MinMagnitude != None:
-      self.Log(
+      self.log(
         "ImageTracker.SetTargetImage: Setting MinMagnitude to",
         MinMagnitude,
         terminal=False,
       )
       self.TargetMinMagnitude = MinMagnitude  # The actual minimum star magnitude finally selected for the target image.
-    self.Log(
+    self.log(
       "ImageTracker.SetTargetImage: registered new target image", terminal=False
     )
     if (
       starcount is None or starlist is None
     ):  # StarCount or StarList not provided, calculate one from the image instead.
-      self.Log(
+      self.log(
         "ImageTracker.SetTargetImage: Did not receive StarCount or StarList. Calculating them from image.",
         terminal=False,
       )
       _, _ = self.TargetImage.CountStars()
     else:  # StarCount and StarList already available, just use those.
-      self.Log(
+      self.log(
         "ImageTracker.SetTargetImage: Received StarCount and StarList. Not recalculating them.",
         terminal=False,
       )
       self.TargetImage.StarCount = starcount
       self.TargetImage.StarList = starlist
-    self.Log(
+    self.log(
       "ImageTracker.SetTargetImage: Counted",
       self.TargetImage.StarCount,
       "stars.",
@@ -166,17 +166,17 @@ class imagetracker(attributemaster):
       "tracking", "TargetTrackingImage_" + UtcTimeStamp() + ".jpg"
     )
     CameraWindow.print(
-      NowHMS() + " " + filename.split("/")[-1]
+      now_hour_minute_sec() + " " + filename.split("/")[-1]
     )  # Note the filename that's been generated.
     self.TargetImage.SaveFile(filename)
     # Calculate the transformation between TARGET and LATEST images.
-    self.Log(
+    self.log(
       "ImageTracker.SetTargetImage: Calling FindTransform...", terminal=False
     )
     result = (
       self.FindTransformImage()
     )  # Try to calculate transform from TARGET and LATEST images.
-    self.Log(
+    self.log(
       "ImageTracker.SetTargetImage: FindTransform returned " + str(result),
       terminal=False,
     )
@@ -188,7 +188,7 @@ class imagetracker(attributemaster):
     Find Transform compares the two images and decides if they match.
     It measures any shift between the two images, this can be used to correct for drift in the telescope motion.
     """
-    self.Log("ImageTracker.FindTransformImage: Begin", terminal=False)
+    self.log("ImageTracker.FindTransformImage: Begin", terminal=False)
     result = False
     self.dx = None
     self.dy = None
@@ -200,7 +200,7 @@ class imagetracker(attributemaster):
       try:  # The transform object is a numpy structure, if the transform calculation fails you can get weird problems that I couldn't always detect cleanly.
         # So for now ignore any errors at this stage, and assume that no transform could be calculated.
         # Sometimes it returned a NoneType that I couldn't test for (numpy array peculiarity), and sometimes it returned an empty array.
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: TargetImage: type",
           str(type(self.TargetImage.ImageBuffer)),
           "shape",
@@ -216,7 +216,7 @@ class imagetracker(attributemaster):
           str(self.TargetImage.ImageBuffer.dtype),
           terminal=False,
         )
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: LatestImage: type",
           str(type(self.LatestImage.ImageBuffer)),
           "shape",
@@ -232,7 +232,7 @@ class imagetracker(attributemaster):
           str(self.LatestImage.ImageBuffer.dtype),
           terminal=False,
         )
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: Calling astroalign.find_transform()...",
           terminal=False,
         )
@@ -244,19 +244,19 @@ class imagetracker(attributemaster):
         )  # In Astroalign terms, this is source=LatestImage, target=TargetImage...
         self.TargetStarMatchList = TSL
         self.LatestStarMatchList = LSL
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: Received "
           + str(type(transform))
           + " type in return.",
           terminal=False,
         )
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: Identified "
           + str(len(TSL))
           + " suitable stars in target image.",
           terminal=False,
         )
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: TargetStarMatchList "
           + str(TSL)
           + ".",
@@ -265,23 +265,23 @@ class imagetracker(attributemaster):
         if (
           len(TSL) > 0 and len(LSL) > 0
         ):  # During development, look at the datatype.
-          self.Log(
+          self.log(
             "ImageTracker.FindTransformImage: Example TSL 1st entry is:",
             str(TSL[0]),
             terminal=False,
           )
-          self.Log(
+          self.log(
             "ImageTracker.FindTransformImage: Example LSL 1st entry is:",
             str(LSL[0]),
             terminal=False,
           )
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: Identified "
           + str(len(LSL))
           + " suitable stars in latest image.",
           terminal=False,
         )
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: LatestStarMatchList "
           + str(LSL)
           + ".",
@@ -296,13 +296,13 @@ class imagetracker(attributemaster):
         self.rotation = round(
           math.degrees(transform.rotation), 3
         )  # How does the image need to be rotated? Convert radians into degrees.
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: Calculated transform: dx="
           + str(self.dx),
           "dy=" + str(self.dy),
           terminal=False,
         )
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: Calculated rotation:",
           self.rotation,
           "degrees",
@@ -314,21 +314,21 @@ class imagetracker(attributemaster):
         result = True
       except Exception as e:
         # The most likely explanation is that the lens cap is ON, or there are not enough stars visible in the observation.
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: Ignored error: " + str(e),
           terminal=False,
         )  # Enable this line if you want to see what error is being ignored!
-        self.Log(
+        self.log(
           "ImageTracker.FindTransformImage: No transform matrix created. Too few stars, lens cap on, no transformation identified or fault in astroalign and dependencies?",
           terminal=False,
         )
-        DriftWindow.print(NowHMS() + " FindTransformImage unsuccessful.")
+        DriftWindow.print(now_hour_minute_sec() + " FindTransformImage unsuccessful.")
     try:
       self.SaveTrackingAnalysis()  # Create an image showing the drift analysis in terms of the actual stars.
     except Exception as e:
       print(e)  # Trap all the exception information in the main log file.
-      if self.Log != None:
-        self.ReportException(
+      if self.log != None:
+        self.report__exception(
           e,
           level="error",
           comment="SaveTrackingAnalysis call failed in FindTransform.",
@@ -346,7 +346,7 @@ class imagetracker(attributemaster):
       if isinstance(entry[0], int) and isinstance(entry[1], int):
         result = True
     if not result:
-      self.Log(
+      self.log(
         "imagetracker.ValidStarValues(",
         entry,
         ") type",
@@ -382,7 +382,7 @@ class imagetracker(attributemaster):
     This is a debug/development feature, but shows how the drift tracking is actually interpreting the images.
     If latestlist and targetlist are provided by the calling routine those are used for markup.
     Otherwise the existing values from the imagetracker instance are used."""
-    self.Log("ImageTracker.SaveTrackingAnalysis: Begin", terminal=False)
+    self.log("ImageTracker.SaveTrackingAnalysis: Begin", terminal=False)
     if type(latestlist) == type(None):
       latestlist = self.LatestImage.StarList
     if type(targetlist) == type(None):
@@ -412,7 +412,7 @@ class imagetracker(attributemaster):
             tx, ty, 15, pilomarimage.BGR("Green"), thickness=2
           )  # Green circle around matched Target stars.
         else:
-          self.Log(
+          self.log(
             "imagetracker.SaveTrackingAnalysis: TargetStarMatchList. tstar",
             tstar,
             "bad values.",
@@ -423,7 +423,7 @@ class imagetracker(attributemaster):
             lx, ly, 15, pilomarimage.BGR("Red"), thickness=2
           )  # Red circle around matched Latest stars.
         else:
-          self.Log(
+          self.log(
             "imagetracker.SaveTrackingAnalysis: LatestStarMatchList. lstar",
             lstar,
             "bad values.",
@@ -446,7 +446,7 @@ class imagetracker(attributemaster):
           arrow=True,
         )
     else:  # Lists don't agree, so don't try to map them.
-      self.Log(
+      self.log(
         "imagetracker.SaveTrackingAnalysis: Conflicting length of star lists: Target",
         type(self.TargetStarMatchList),
         len(self.TargetStarMatchList),
@@ -456,7 +456,7 @@ class imagetracker(attributemaster):
         terminal=False,
       )
       DriftWindow.print(
-        NowHMS() + " drift analysis image not done."
+        now_hour_minute_sec() + " drift analysis image not done."
       )  # Note analysis not done.
     # Superimpose all the TARGET stars. (Stars we expect to see)
     if self.TargetImage.StarList != None:
@@ -477,7 +477,7 @@ class imagetracker(attributemaster):
             magtext,
           )  # Mark location, brightness ranking (Brightest -> Dimmest) and magnitude if known.
         else:
-          self.Log(
+          self.log(
             "imagetracker.SaveTrackingAnalysis: TargetImage.StarList. star",
             star,
             "bad values.",
@@ -502,14 +502,14 @@ class imagetracker(attributemaster):
             magtext,
           )
         else:
-          self.Log(
+          self.log(
             "imagetracker.SaveTrackingAnalysis: LatestImage.StarList. star",
             star,
             "bad values.",
             terminal=True,
           )
     # Add key.
-    timestamp = str(NowUTC()).split(".")[0] + " UTC"
+    timestamp = str(now_utc()).split(".")[0] + " UTC"
     NewImageBuffer.AddText(
       "Tracking Analysis " + timestamp,
       1300,
@@ -656,35 +656,35 @@ class imagetracker(attributemaster):
       "tracking", "TrackingAnalysis_" + UtcTimeStamp() + ".jpg"
     )
     CameraWindow.print(
-      NowHMS() + " " + filename.split("/")[-1]
+      now_hour_minute_sec() + " " + filename.split("/")[-1]
     )  # Note the filename that's been generated.
     DriftWindow.print(
-      NowHMS() + " Drift analysis image done."
+      now_hour_minute_sec() + " Drift analysis image done."
     )  # Note analysis done.
     NewImageBuffer.SaveFile(filename)
-    self.Log("ImageTracker.SaveTrackingAnalysis: End", terminal=False)
+    self.log("ImageTracker.SaveTrackingAnalysis: End", terminal=False)
 
   def SetLatestImage(self, cvimagebuffer, timestamp=None):
     """This registers the latest image from the camera and performs the translation calculation.
     The imagetracker stores images in grayscale because we do some thresholding to enhance them.
     It does not return any measurements, but stores them in various attributes."""
-    self.Log("ImageTracker.SetLatestImage: Begin", terminal=False)
-    self.Log(
+    self.log("ImageTracker.SetLatestImage: Begin", terminal=False)
+    self.log(
       "ImageTracker.SetLatestImage: Received image buffer type",
       str(type(cvimagebuffer)),
       terminal=False,
     )
     if isinstance(cvimagebuffer, type(None)):
-      self.Log(
+      self.log(
         "ImageTracker.SetLatestImage: Received None type image buffer. Nothing set.",
         terminal=False,
       )
       return
     if timestamp is None:
-      timestamp = NowUTC()  # Assume current clock time.
+      timestamp = now_utc()  # Assume current clock time.
     uts = UtcTimeStamp()
     self.LatestTimeStamp = None  # Clear the timestamp until we've completed preparing the image. This is accessed concurrently by the CameraHandler.
-    self.Log(
+    self.log(
       "ImageTracker.SetLatestImage: About to measure contrast.", terminal=False
     )
     self.LatestImage.LoadBuffer(
@@ -693,7 +693,7 @@ class imagetracker(attributemaster):
     contrast_m, contrast_s = (
       self.LatestImage.MeasureContrast()
     )  # Calculate contrast for latest image.
-    self.Log(
+    self.log(
       "ImageTracker.SetLatestImage: Contrast measures",
       contrast_m,
       contrast_s,
@@ -708,20 +708,20 @@ class imagetracker(attributemaster):
       if self.LatestImage.RunFilterScript(
         Parameters.LatestTrackingFilter
       ):  # If the script succeeds or fails.
-        self.Log(
+        self.log(
           "ImageTracker.SetLatestImage: LatestTrackingFilter(",
           Parameters.LatestTrackingFilter,
           ") success.",
           terminal=False,
         )
       else:  # Failed.
-        self.Log(
+        self.log(
           "ImageTracker.SetLatestImage: LatestTrackingFilter(",
           Parameters.LatestTrackingFilter,
           ") failed.",
           level="warning",
         )
-    self.Log(
+    self.log(
       "ImageTracker.SetLatestImage: Prepared image:",
       "type",
       str(type(self.LatestImage.ImageBuffer)),
@@ -739,9 +739,9 @@ class imagetracker(attributemaster):
     self.LatestStarMatchList = (
       []
     )  # Clear the list of matched stars, this is set later when the find_transform call is made.
-    self.Log("ImageTracker.SetLatestImage: Registered latest image", terminal=False)
+    self.log("ImageTracker.SetLatestImage: Registered latest image", terminal=False)
     _, _ = self.LatestImage.CountStars()
-    self.Log(
+    self.log(
       "ImageTracker.SetLatestImage: Counted",
       self.LatestImage.StarCount,
       "stars.",
@@ -752,7 +752,7 @@ class imagetracker(attributemaster):
       "tracking", "LatestTrackingImage_" + uts + ".jpg"
     )
     CameraWindow.print(
-      NowHMS() + " " + filename.split("/")[-1]
+      now_hour_minute_sec() + " " + filename.split("/")[-1]
     )  # Note the file that's being created.
     self.LatestImage.SaveFile(filename)
 
@@ -761,8 +761,8 @@ class imagetracker(attributemaster):
     prediction is based upon timestamp received. If None, then prediction is based upon current timestamp.
     """
     if timestamp is None:
-      timestamp = NowUTC()  # Assume current clock.
-    self.Log(
+      timestamp = now_utc()  # Assume current clock.
+    self.log(
       "ImageTracker.PredictedTransform(): dx",
       str(self.dx),
       "dy",

@@ -17,6 +17,7 @@
 
 import os
 from datetime import datetime, timedelta
+from utils.text.human_readable import HRSeconds
 from utils.text.textcolor import TextColor
 import json
 import requests  # To handle json response for seeing conditions from online services.
@@ -49,30 +50,6 @@ class Celestrack:
     )  # Report exception details to logfile.
     self.RaiseException = logger.RaiseException  # Report and raise exception.
     self.Log("Celestrack.SetLogger: Linked to this log file.", terminal=False)
-
-  def HRSeconds(self, seconds: int) -> str:  # 15 references.
-    """Turn a number of seconds into days:hours:minutes:seconds"""
-    line = None
-    try:
-      d, remainder = divmod(seconds, 24 * 60 * 60)
-      h, remainder = divmod(remainder, 60 * 60)
-      m, s = divmod(remainder, 60)
-      line = (
-        str(int(h)).rjust(2, "0")
-        + "h:"
-        + str(int(m)).rjust(2, "0")
-        + "m:"
-        + str(int(s)).rjust(2, "0")
-        + "s"
-      )
-      if d > 0:  # Only show days if needed.
-        line = str(int(d)) + "d:" + line
-    except Exception as e:
-      print(e)  # Trap all the exception information in the main log file.
-      raise Exception(
-        "HRSeconds() failed."
-      ) from e  # Continue with regular exception stack.
-    return line
 
   def TleAgeWarning(self, name):  # *Q* Is this still used?
     """Extract the epoch datetime from the 1st line of a TLE entry.
@@ -219,7 +196,7 @@ class Celestrack:
         "Celestrack.LoadCache:",
         filename,
         "is",
-        self.HRSeconds(fa),
+        HRSeconds(fa),
         "old",
         terminal=False,
       )

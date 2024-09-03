@@ -1,4 +1,4 @@
-
+"""Procedure Menu."""
 
 import traceback
 from utils.menus.menu import Menu
@@ -23,8 +23,10 @@ class ProcedureMenu(Menu):
       'call' = Procedure to call if option is selected. (No parameters supported)
       'bold' = Print the menu option in bold text.
       'label' = The label to appear in the menu.
-      'precall' = Optional: Procedure call to make BEFORE the 'call' procedure is called. If this fails, the 'call' and 'postcall' procedures are not called.
-      'postcall' = Optional: Procedure call to make AFTER the 'call' procedure is called. This is executed even if the 'call' procedure fails.
+      'precall' = Optional: Procedure call to make BEFORE the 'call' procedure is called.
+                  If this fails, the 'call' and 'postcall' procedures are not called.
+      'postcall' = Optional: Procedure call to make AFTER the 'call' procedure is called.
+                  This is executed even if the 'call' procedure fails.
 
   You can also specify global PRE and POST procedure calls by setting the procedure handle in
   self.PreCall and self.PostCall attributes.

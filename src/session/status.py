@@ -4,10 +4,13 @@
 # Observation session
 # --------------------
 
-from utils.params import attributemaster
+from pilomar import SessionWindow
+from utils.params import AttributeMaster
+from utils.text.human_readable import HRSeconds
+from utils.time_funcs import HmsFromStamp
 
 
-class sessionstatus(attributemaster):
+class sessionstatus(AttributeMaster):
   """Class to hold current status of the observation.
   This can export all the status information to a file so that a remote process can also monitor the status.
   These are the variables that handle a single loop in the ObservationRun routine."""
@@ -15,7 +18,7 @@ class sessionstatus(attributemaster):
   def __init__(self, logger=None):
     """Initialize status fields."""
     self._FileNames = []
-    self.SetLogger(
+    self.set_logger(
       logger
     )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
     self.ProgramStartTime = NowUTC()  # When the program starts.
@@ -103,7 +106,7 @@ class sessionstatus(attributemaster):
     Unrecognised modes fail-safe to 'idle'."""
     PMT = self.MaintainTrajectory
     if mode in self.MCMdict:
-      self.Log(
+      self.log(
         "sessionstatus:SetMotorControlMode("
         + mode
         + ") from "
@@ -112,7 +115,7 @@ class sessionstatus(attributemaster):
         + mode,
         terminal=False,
       )
-      self.Log(
+      self.log(
         "sessionstatus:SetMotorControlMode("
         + mode
         + ") "
@@ -122,7 +125,7 @@ class sessionstatus(attributemaster):
       self.MotorControlMode = mode
       self.MaintainTrajectory = self.MCMdict[mode]["trajectory"]
     else:
-      self.Log(
+      self.log(
         "sessionstatus.SetMotorControlMode("
         + mode
         + ") is not recognised. Setting to idle.",
@@ -135,7 +138,7 @@ class sessionstatus(attributemaster):
     if (
       PMT and PMT != self.MaintainTrajectory
     ):  # We've just stopped maintaining the trajectory. Clear out any existing entries.
-      self.Log(
+      self.log(
         "sessionstatus.SetMotorControlMode(",
         mode,
         ") clearing trajectory from motors.",
@@ -165,7 +168,7 @@ class sessionstatus(attributemaster):
       line, self.Target
     )  # Check observation is active and keep trajectory up-to-date if needed.
     if not foundit:  # The motor name was not recognised.
-      self.Log(
+      self.log(
         "sessionstatus.CheckMotorStatus did not recognise the motor name (",
         motorname,
         ")",
@@ -259,21 +262,21 @@ class sessionstatus(attributemaster):
             duration.total_seconds() < Parameters.TrajectoryWindow
             and self.ClockSynchronised
           ):  # We need to add time to the trajectory plan.
-            self.Log(
+            self.log(
               "sessionstatus.CheckTrajectory: Decided to extend.",
               terminal=False,
             )
             i.ExtendTrajectory(targetobj)
           # else: self.Log('sessionstatus.CheckTrajectory: Decided not to extend. Valid for',duration.total_seconds(),"s, Minimum",Parameters.TrajectoryWindow,"s",self.ClockSynchronised,terminal=False)
       if not foundit:  # The motor name was not recognised.
-        self.Log(
+        self.log(
           "sessionstatus.CheckTrajectory did not recognise the motor name (",
           motorname,
           ")",
           level="error",
         )
     else:
-      self.Log(
+      self.log(
         "sessionstatus.CheckTrajectory: Not currently maintaining trajectories on microcontroller.",
         terminal=False,
       )
@@ -282,14 +285,14 @@ class sessionstatus(attributemaster):
     Mctl.MctlRestarted()
     for i in MotorControls:
       i.Restarted()  # Need to mark that the motor is nolonger configured.
-    self.Log(
+    self.log(
       "sessionstatus:CheckControllerStarted(): Microcontroller reports restart.",
       terminal=False,
     )
     ErrorWindow.print(NowHMS() + " Microcontroller reports restart.")
 
   def CheckGotoRejected(self, line):
-    self.Log(
+    self.log(
       "sessionstatus:MctlHandler(): Microcontroller rejected goto command.",
       terminal=False,
     )
@@ -306,7 +309,7 @@ class sessionstatus(attributemaster):
         i.TuneComplete(line)
         foundit = True
     if not foundit:  # The motor name was not recognised.
-      self.Log(
+      self.log(
         "sessionstatus.CheckTuneComplete did not recognise the motor name (",
         motorname,
         ")",
@@ -314,7 +317,7 @@ class sessionstatus(attributemaster):
       )
 
   def UnrecognisedMessage(self, line):
-    self.Log("sessionstatus:UnrecognisedMessage():", line, terminal=False)
+    self.log("sessionstatus:UnrecognisedMessage():", line, terminal=False)
     ErrorWindow.print(NowHMS() + " Unrecognised message: " + line)
 
   def ValidControllerVersion(self):
@@ -330,12 +333,12 @@ class sessionstatus(attributemaster):
         if compversion in ACCEPTABLECONTROLLERVERSIONS:
           result = True  # Acceptable
       except Exception as e:
-        self.Log(
+        self.log(
           "sessionstatus.ValidControllerVersion(): Failed to check",
           self.ControllerVersion,
           level="error",
         )
-        self.Log(
+        self.log(
           "sessionstatus.ValidControllerVersion(): Failed with",
           str(e),
           level="error",
@@ -352,7 +355,7 @@ class sessionstatus(attributemaster):
     It reports to the log file if the controller is reporting an incompatible version.
 
     """
-    self.Log("sessionstatus:CheckControllerVersion(): " + line, terminal=False)
+    self.log("sessionstatus:CheckControllerVersion(): " + line, terminal=False)
     lineitems = line.split(" ")
     result = False
     if len(lineitems) > 2:
@@ -364,7 +367,7 @@ class sessionstatus(attributemaster):
         if compversion in ACCEPTABLECONTROLLERVERSIONS:
           result = True  # Version is good.
         else:
-          self.Log(
+          self.log(
             "sessionstatus.CheckControllerVersion():",
             self.ControllerVersion,
             "is not in",
@@ -379,18 +382,18 @@ class sessionstatus(attributemaster):
             + str(ACCEPTABLECONTROLLERVERSIONS)
           )
       except Exception as e:
-        self.Log(
+        self.log(
           "sessionstatus.CheckControllerVersion(): Failed to check",
           self.ControllerVersion,
           level="error",
         )
-        self.Log(
+        self.log(
           "sessionstatus.CheckControllerVersion(): Failed with",
           str(e),
           level="error",
         )
     else:
-      self.Log(
+      self.log(
         "sessionstatus.CheckControllerVersion(): Response is incomplete:",
         line,
         level="warning",
@@ -405,7 +408,7 @@ class sessionstatus(attributemaster):
     This reads/writes to message queues. It analyses and processes messages from
     the microcontroller, it does not directly handle the UART transfer of data.
     To see the UART Channel handling look in microcontroller.CommsLoop method."""
-    self.Log("sessionstatus.MctlHandler(): Started.", terminal=True)
+    self.log("sessionstatus.MctlHandler(): Started.", terminal=True)
     heartbeat = Timer(
       30, skip=True
     )  # Send a heartbeat signal to the microcontroller every 30 seconds.
@@ -415,7 +418,7 @@ class sessionstatus(attributemaster):
     try:
       while True:  # Repeat until told to stop.
         if self.TerminateMctlHandler:
-          self.Log(
+          self.log(
             "sessionstatus.MctlHandler(): Terminate signal received.",
             terminal=False,
           )
@@ -423,7 +426,7 @@ class sessionstatus(attributemaster):
         if (
           threading.main_thread().is_alive() == False
         ):  # Check if parent is still alive. Quit if it is nolonger there.
-          self.Log(
+          self.log(
             "sessionstatus.MctlHandler(): Main thread nolonger alive.",
             terminal=False,
           )
@@ -489,14 +492,14 @@ class sessionstatus(attributemaster):
           heartbeat.due()
         ):  # Microcontroller will panic and flush trajectories if comms goes silent for too long.
           Mctl.Write("# heartbeat")  # Prove we're still alive.
-          self.Log("sessionstatus.MctlHandler(): Heartbeat", terminal=False)
+          self.log("sessionstatus.MctlHandler(): Heartbeat", terminal=False)
     except Exception as e:  # Message handler failed.
-      self.Log("sessionstatus.MctlHandler: Failed!", level="error")
+      self.log("sessionstatus.MctlHandler: Failed!", level="error")
       MainLog.ReportException(
         e, comment="MctlHandler failed."
       )  # Trap all the exception information in the main log file.
     self.TerminateMctlHandler = False  # Reset the termination flag.
-    self.Log("sessionstatus.MctlHandler(): End.", terminal=False)
+    self.log("sessionstatus.MctlHandler(): End.", terminal=False)
 
   def TimeDiffSecs(self):
     # Convert self.TimeDiff into an absolute number of seconds.
