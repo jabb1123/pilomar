@@ -1,9 +1,10 @@
-
 class WarningFlags:
-    
-    def __init__(self,):
+
+    def __init__(
+        self,
+    ):
         self.warningFlags = {}
-        
+
     def FirstWarningFlag(self, flagname):
         """Given a flag name, return True if this is the first time it's been triggered.
         This is used to prevent warning messages repeating when a condition is triggered.
@@ -20,4 +21,3 @@ class WarningFlags:
         Using this mechanism we know that the warning is already issued, so don't repeat it.
         """
         self.warningFlags[flagname] = False
-

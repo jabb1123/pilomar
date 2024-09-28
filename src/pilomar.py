@@ -109,9 +109,10 @@ VERSION = "1.1.0"  # Shared with microcontroller. # Make sure the microcontrolle
 import sys
 
 from motor.control import MotorControl
-from utils.text.human_readable import HRSeconds
-from utils.time_funcs import HmsFromStamp, now_hour_minute_sec, now_utc, UTCStringToDatetime
-from utils.text.human_readable import source_code, SourceDate
+from utils.math_func import AngleToDMS, AngleToHMS, CompassPoint, DMSToAngle, Deg3dp, DisplayDegree, DisplayHMS, HMSToAngle, Interpolate
+from utils.text.human_readable import CleanDatetimeString, DictionaryToString, HRBytes, HRSeconds, SafeName
+from utils.time_funcs import Datetime2Ts, HmsFromStamp, SourceDate, UtcTimeStamp, now_hour_minute_sec, now_utc, UTCStringToDatetime, ts_to_datetime
+from utils.text.human_readable import source_code
 
 
 ProgramTitle = (
@@ -127,12 +128,10 @@ ACCEPTABLECONTROLLERVERSIONS = [
 # Import required libraries
 from typing import Tuple  # For type hinting.
 import time  # sleep functionality for pauses in execution.
-import locale  # Internationalisation support.
 import glob  # file system.
 import os  # OS Command execution.
 import math  # Math and trig functions.
 import json  # json file handling.
-from pathlib import Path  # For navigating folder structure.
 import astroalign  # Image alignment routines.
 from datetime import datetime, timedelta
 from utils.timer import Timer, ProgressTimer  # Pilomar's timer classes.
@@ -2963,7 +2962,7 @@ def SkyfieldNow(real=False):
   global ClockOffset
   result = ts.now()  # Now. # *Q* Offset supported.
   if real == False and ClockOffset is not None:  # Can apply time offset.
-    dt = Ts2Datetime(result)
+    dt = ts_to_datetime(result)
     dt + timedelta(seconds=ClockOffset)
     result = Datetime2Ts(dt)
   return result
@@ -4949,7 +4948,7 @@ def MarkupPreview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
     t = (
       SkyfieldNow()
     )  # Current timestamp in 'astro' time. If there's a delay then there may be some mismatch in placing objects. # Offset supported.
-  CamLog.log("MarkupPreview: MarkupTime:", Ts2Datetime(t), terminal=False)
+  CamLog.log("MarkupPreview: MarkupTime:", ts_to_datetime(t), terminal=False)
   CamLog.log(
     "MarkupPreview: CameraInUse.CaptureStart:",
     CameraInUse.CaptureStart,
@@ -6412,7 +6411,7 @@ def MarkupPreview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
       bgcolor=pilomarimage.BGR("Black"),
       hjust="r",
     )
-    text = "Markup time: " + str(Ts2Datetime(t))
+    text = "Markup time: " + str(ts_to_datetime(t))
     NewImageBuffer.AddText(
       text,
       xpos,
@@ -6472,7 +6471,7 @@ def CreateTargetImage(
   if astrotime is not None:
     CamLog.log(
       "CreateTargetImage: Start. Astrotime",
-      Ts2Datetime(astrotime),
+      ts_to_datetime(astrotime),
       terminal=False,
     )
   else:
@@ -6492,13 +6491,13 @@ def CreateTargetImage(
       )  # What is the alt/az location of the centre of the image?
       CamLog.log(
         "CreateTargetImage: No astrotime received. Using current target position, at",
-        Ts2Datetime(t),
+        ts_to_datetime(t),
         "alt",
         Deg3dp(alt_degree),
         "deg, az",
         Deg3dp(az_degree),
         "deg. at",
-        Ts2Datetime(t),
+        ts_to_datetime(t),
         "for calculations",
         terminal=False,
       )
@@ -6516,7 +6515,7 @@ def CreateTargetImage(
         "deg, az",
         round(az_degree),
         "deg. at",
-        Ts2Datetime(t),
+        ts_to_datetime(t),
         "for calculations",
         terminal=False,
       )
@@ -6527,7 +6526,7 @@ def CreateTargetImage(
     )  # Get expected camera position at specified time.
     CamLog.log(
       "CreateTargetImage: Specific astrotime received. Using",
-      Ts2Datetime(t),
+      ts_to_datetime(t),
       Deg3dp(alt_degree),
       "deg",
       Deg3dp(az_degree),
@@ -8207,7 +8206,7 @@ def TrackingOff():
 
 def ObservationSubmenu(drifttracker=None):
   """Submenu of options that can be used DURING an observation."""
-  ClearScreen()  # Clear the screen and force window refresh.
+  TextColor.clearscreen()  # Clear the screen and force window refresh.
 
   if drifttracker is None:
     temp = None  # There is no drifttracker object to call.
@@ -8821,7 +8820,7 @@ def ObservationRun():
   else:
     # Not in debug mode. Specific window layout will be used to show information.
     # Any output from error messages or regular print() commands will be lost as the display frequently refreshes.
-    ClearScreen()  # Clear the screen and force window refresh.
+    TextColor.clearscreen()  # Clear the screen and force window refresh.
   if Session.DebugMode:
     MainLog.log("ObservationRun: (DebugMode) Starting main loop...")
   # keyboardcount = 0 # Count the iterations between keyboard scans.
@@ -8855,7 +8854,7 @@ def ObservationRun():
       ObservationSubmenu(
         drifttracker=DriftTracker
       )  # Pass the drifttracker object because the submenu can access its methods.
-      ClearScreen()  # Clear screen afterwards.
+      TextColor.clearscreen()  # Clear screen afterwards.
     elif (
       keypress == "+"
     ):  # Exposure compensation. Increase exposure. (200% exposure time).
@@ -8893,14 +8892,14 @@ def ObservationRun():
         params.debug_mode,
         terminal=False,
       )
-      ClearScreen()  # Clear screen afterwards.
+      TextColor.clearscreen()  # Clear screen afterwards.
       if Session.DebugMode:
         print(TextColor.yellow("Debug mode ON."))
       else:
         print(TextColor.yellow("Debug mode OFF."))
     elif keypress == "r":  # Refresh screen.
       MainLog.log("Keyboard interrupt: Refresh selected.", terminal=False)
-      ClearScreen()  # Clear screen afterwards.
+      TextColor.clearscreen()  # Clear screen afterwards.
     # # Start fresh move/capture iteration.
     # If the window dimensions have changed, clear the screen and let it redraw automatically.
     if not Session.DebugMode:
@@ -8910,7 +8909,7 @@ def ObservationRun():
       if (
         TerminalCols != temp[0] or TerminalRows != temp[1]
       ):  # Screen size has changed. Trigger refresh.
-        ClearScreen()  # Clear screen afterwards.
+        TextColor.clearscreen()  # Clear screen afterwards.
         TerminalCols = temp[0]  # Note the new display dimensions.
         TerminalRows = temp[1]
     if CameraThread.is_alive() == False:  # If the CameraThread has died, quit.
