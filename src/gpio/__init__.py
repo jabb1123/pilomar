@@ -10,28 +10,33 @@ from gpio import *
 This will import the correct GPIO driver for the system. If no GPIO driver is available,
 the module will not be imported.
 """
+
 from enum import Enum
+
 GPIO_DRIVER = None
-from gpio.micro import microcontroller
+from gpio.micro import Microcontroller
 
 try:
-  import RPi.GPIO as gpio_driver  # Handling IO signals. If available.
-  from gpio_module import *
-  GPIO_DRIVER = "GPIO"
+    import RPi.GPIO as gpio_driver  # Handling IO signals. If available.
+    from gpio_module import *
+
+    GPIO_DRIVER = "GPIO"
 except ModuleNotFoundError:
-  pass
+    pass
 
 try:
-  import gpiod as gpio_driver  # Handling IO signals. If available.
-  from gpiod_module import *
-  GPIO_DRIVER = "GPIOD"
+    import gpiod as gpio_driver  # Handling IO signals. If available.
+    from gpiod_module import *
+
+    GPIO_DRIVER = "GPIOD"
 except ModuleNotFoundError:
-  print("No GPIO driver available.")
+    print("No GPIO driver available.")
 
 
 class GPIOPull(Enum):
-  """
-  The pull of the GPIO pin
-  """
-  PULLUP = 1
-  PULLDOWN = 0
+    """
+    The pull of the GPIO pin
+    """
+
+    PULLUP = 1
+    PULLDOWN = 0

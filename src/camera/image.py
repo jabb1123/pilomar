@@ -27,20 +27,20 @@ from PIL import Image as PIL_Image
 from PIL import ExifTags as PIL_ExifTags
 
 
-class data_set:
+class DataSet:
     """Data set list of data points."""
 
     def __init__(self, name, color=None, style=["line"]):
-        self.Name = name
-        self.DataPoints = []
-        self.Color = color
-        self.Style = style
+        self.name = name
+        self.data_points = []
+        self.color = color
+        self.style = style
 
-    def Add(self, point):
-        self.DataPoints.append(point)
+    def add(self, point):
+        self.data_points.append(point)
 
-    def Clear(self):
-        self.DataPoints = []
+    def clear(self):
+        self.data_points = []
 
 
 class data_point:
@@ -910,7 +910,7 @@ class pilomarimage:
         """
         self.Name = name
         self.SetLogger(logger)  # Any method which supports pilomar's .Log() methods.
-        self.LogDrawing = False  # Record individual drawing commands in the log file?
+        self.logDrawing = False  # Record individual drawing commands in the log file?
         self.Font = cv2.FONT_HERSHEY_SIMPLEX
         self.InvertHeight = False  # When set to TRUE, height pixel values are inverted, so they count UP FROM THE BOTTOM instead of DOWN FROM THE TOP.
         self._initialize()
@@ -1135,7 +1135,7 @@ class pilomarimage:
             if dataset.Name == name:
                 foundit = True
         if foundit == False:  # Dataset does not exist yet, add it.
-            dataset = data_set(name)
+            dataset = DataSet(name)
             self.Graph_DataSets.append(dataset)
         # Check for tolerance limits. Don't add if too close to last entry.
         oktoadd = True
@@ -1166,7 +1166,7 @@ class pilomarimage:
             if dataset.Name == name:
                 foundit = True
         if foundit == False:  # Dataset does not exist yet, add it.
-            dataset = data_set(name, color, style)
+            dataset = DataSet(name, color, style)
             self.Graph_DataSets.append(dataset)
         result = not foundit
         return result
@@ -1257,7 +1257,7 @@ class pilomarimage:
         """Dump the graph data."""
         ft = filename.rindex(".")
         filename = filename[:ft] + ".dat"
-        self.Log(
+        self.log(
             "pilomarimage", self.Name, ".ExportData:", str(filename), terminal=False
         )
         with open(filename, "w") as f:
@@ -1287,7 +1287,7 @@ class pilomarimage:
         This is VERY crude! IF you want proper graphing capabilities then install matplotlib!
         This is really to support development/debugging work sometimes while avoiding having to install extra packages.
         export=True means a datafile is dumped too."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".PlotGraph:",
@@ -1352,21 +1352,21 @@ class pilomarimage:
     def SetLogger(self, logger):
         """Set up link to logging class and shortcuts to common methods."""
         # The logging methods default to 'consumers' which will just silently eat any parameters passed.
-        self.Logger = logger  # Logger instance.
-        self.Log = self._NullLogger  # No log method.
+        self.logger = logger  # Logger instance.
+        self.log = self._NullLogger  # No log method.
         self.ReportException = (
             self._NullLogger
         )  # Cannot report exception details to logfile.
         self.RaiseException = self._NullLogger  # Cannor report and raise exception.
         if hasattr(logger, "Log"):
-            self.Log = logger.Log  # Log method.
+            self.log = logger.Log  # Log method.
         if hasattr(logger, "ReportException"):
             self.ReportException = (
                 logger.ReportException
             )  # Report exception details to logfile.
         if hasattr(logger, "RaiseException"):
             self.RaiseException = logger.RaiseException  # Report and raise exception.
-        # self.Log("pilomarimage.SetLogger: Linked to this log file.",terminal=False)
+        # self.log("pilomarimage.SetLogger: Linked to this log file.",terminal=False)
 
     def _NullLogger(self, *args, **kwargs):
         """Null logger. Absorbs parameters and .log call but does nothing.
@@ -1485,14 +1485,14 @@ class pilomarimage:
 
     def NextInterpolation(self):
         """Move on to the next available sampling method."""
-        self.Log("pilomarimage", self.Name, ".NextInterpolation()", terminal=False)
+        self.log("pilomarimage", self.Name, ".NextInterpolation()", terminal=False)
         i = (self.ResizeMethods.index(self.ResizeMethod) + 1) % len(self.ResizeMethods)
         self.ResizeMethod = self.ResizeMethods[i]
         self.ActionList.append(["nextinterpolation", self.ResizeMethod])
 
     def PrevInterpolation(self):
         """Move back to the previous available sampling method."""
-        self.Log("pilomarimage", self.Name, ".PrevInterpolation()", terminal=False)
+        self.log("pilomarimage", self.Name, ".PrevInterpolation()", terminal=False)
         i = (self.ResizeMethods.index(self.ResizeMethod) - 1) % len(self.ResizeMethods)
         self.ResizeMethod = self.ResizeMethods[i]
         self.ActionList.append(["previnterpolation", self.ResizeMethod])
@@ -1503,7 +1503,7 @@ class pilomarimage:
 
     def Clear(self):
         """Clear the image buffer and related attributes."""
-        self.Log("pilomarimage", self.Name, ".Clear()", terminal=False)
+        self.log("pilomarimage", self.Name, ".Clear()", terminal=False)
         self._initialize()
         self.ActionList.append(["clear"])
         self.CreatedTimestamp = self.NowUTC()
@@ -1511,13 +1511,13 @@ class pilomarimage:
 
     def LoadBuffer(self, imagebuffer):
         """Import an existing OpenCV/Numpy image buffer."""
-        self.Log("pilomarimage", self.Name, ".LoadBuffer()", terminal=False)
+        self.log("pilomarimage", self.Name, ".LoadBuffer()", terminal=False)
         self.Clear()
         if type(imagebuffer) != type(None):
             self.ImageBuffer = imagebuffer.copy()
             self.ModifiedTimestamp = self.NowUTC()
         else:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".LoadBuffer(). FROM buffer is None.",
@@ -1528,7 +1528,7 @@ class pilomarimage:
     def AccumulateBuffer(self, buffer):
         """Accumulate values in a buffer into a running total buffer.
         buffer is a reference to another pilomarimage instance."""
-        self.Log("pilomarimage", self.Name, ".AccumulateBuffer()", terminal=False)
+        self.log("pilomarimage", self.Name, ".AccumulateBuffer()", terminal=False)
         if isinstance(self.ImageAccumulator, type(None)):  # Initialize accumulator.
             self.ImageAccumulator = np.zeros_like(
                 buffer.ImageBuffer, np.uint16
@@ -1544,7 +1544,7 @@ class pilomarimage:
         return True
 
     def ResolveAccumulator(self):
-        self.Log("pilomarimage", self.Name, ".ResolveAccumulator()", terminal=False)
+        self.log("pilomarimage", self.Name, ".ResolveAccumulator()", terminal=False)
         if isinstance(self.ImageAccumulator, type(None)):
             print(
                 "pilomarimage.ResolveAccumulator(): ImageAccumulator is not initialised."
@@ -1583,7 +1583,7 @@ class pilomarimage:
 
     def LoadFile(self, filename, loadexif=False):
         """Load image buffer from disc."""
-        self.Log("pilomarimage", self.Name, ".LoadFile(", filename, ")", terminal=False)
+        self.log("pilomarimage", self.Name, ".LoadFile(", filename, ")", terminal=False)
         self._initialize()
         self.ImageBuffer = cv2.imread(filename, cv2.IMREAD_COLOR)
         if self.ImageExists():
@@ -1599,7 +1599,7 @@ class pilomarimage:
                 self.ExifData = {}  # Empty.
         else:
             # File didn't load!
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".LoadFile(",
@@ -1620,7 +1620,7 @@ class pilomarimage:
             cv2.imwrite(filename,self.ImageBuffer,[int(cv2.IMWRITE_JPEG_QUALITY), 90] # 90% image quality.
         Set the 'quality' input parameter when making this call to override the jpg quality to your preferred value.
         """
-        self.Log("pilomarimage", self.Name, ".SaveFile(", filename, ")", terminal=False)
+        self.log("pilomarimage", self.Name, ".SaveFile(", filename, ")", terminal=False)
         if self.ImageExists():
             if quality != None:  # Image quality was specified.
                 cv2.imwrite(
@@ -1677,7 +1677,7 @@ class pilomarimage:
 
     def ClipImage(self, xstart, ystart, xend, yend):
         """Clip the image."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".ClipImage(",
@@ -1702,7 +1702,7 @@ class pilomarimage:
         scale is applied in both dimensions.
         vscale is applied to vertical only.
         hscale is applied to horizontal only."""
-        self.Log("pilomarimage", self.Name, ".ScaleImage(", scale, ")", terminal=False)
+        self.log("pilomarimage", self.Name, ".ScaleImage(", scale, ")", terminal=False)
         if scale != None:  # Same scale in both directions.
             vscale = scale
             hscale = scale
@@ -1714,7 +1714,7 @@ class pilomarimage:
             return False
         height = int(self.ImageBuffer.shape[0] * vscale)
         width = int(self.ImageBuffer.shape[1] * hscale)
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".ScaleImage: Dimensions h",
@@ -1734,7 +1734,7 @@ class pilomarimage:
         """Shrink the current image buffer horizontally, averaging the colors.
         Then return the image buffer to the correct width, blurring that average across the image.
         band = the pixel width that the image is horizontally compressed to."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".HorizontalBlurImage(",
@@ -1749,7 +1749,7 @@ class pilomarimage:
             print("pilomarimage.HorizontalBlurImage(scale", scale, ") must be > 0.0")
             return False
         width = int(originalwidth * scale)
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".HorizontalBlureImage: Dimensions h",
@@ -1773,7 +1773,7 @@ class pilomarimage:
         Then return the image buffer to the correct width, blurring that average across the image.
         buffer = the image buffer to work on.
         band = the pixel width that the image is horizontally compressed to."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".HorizontalBlurBuffer(",
@@ -1788,7 +1788,7 @@ class pilomarimage:
             print("pilomarimage.HorizontalBlurBuffer(scale", scale, ") must be > 0.0")
             return False
         width = int(originalwidth * scale)
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".HorizontalBlureImage: Dimensions h",
@@ -1812,14 +1812,14 @@ class pilomarimage:
         percentage = 0 : Buffer is fully black.
         percentage = 50 : Buffer is reduced by 50%.
         percentage = 100 : Buffer is returned unchanged."""
-        self.Log("pilomarimage", self.Name, ".PercentageBuffer()", terminal=False)
+        self.log("pilomarimage", self.Name, ".PercentageBuffer()", terminal=False)
         pc = percentage / 100
         buffer = cv2.multiply(buffer, (pc, pc, pc, 1.0))
         return buffer
 
     def SubtractBuffer(self, buffer):
         """Subtract 'buffer' from the main image buffer."""
-        self.Log("pilomarimage", self.Name, ".SubtractBuffer()", terminal=False)
+        self.log("pilomarimage", self.Name, ".SubtractBuffer()", terminal=False)
         self.ImageBuffer = cv2.subtract(self.ImageBuffer, buffer)
         self.ActionList.append(["subtractbuffer"])
         self.ModifiedTimestamp = self.NowUTC()
@@ -1828,7 +1828,7 @@ class pilomarimage:
     def CloneImage(self, donor):
         """Make this a copy of some other buffer.
         donor is a reference to another pilomarimage instance."""
-        self.Log(
+        self.log(
             "pilomarimage", self.Name, ".CloneImage(", donor.Name, ")", terminal=False
         )
         if isinstance(donor.ImageBuffer, type(None)):
@@ -1863,7 +1863,7 @@ class pilomarimage:
         https://stackoverflow.com/questions/28717054/calculating-sharpness-of-an-image (Vektorsoft)
         low return values = More blurred.
         high return values = More crisp."""
-        self.Log("pilomarimage", self.Name, ".Sharpness()", terminal=False)
+        self.log("pilomarimage", self.Name, ".Sharpness()", terminal=False)
         canny = cv2.Canny(
             self.NewBufferType("grayscale"), 50, 250
         )  # Use canny edge detection.
@@ -1887,7 +1887,7 @@ class pilomarimage:
         *Q* UNDER DEVELOPMENT!
         Several ways to perform a merge. This is testing a couple of them.
         Likely to change in the future."""
-        self.Log(
+        self.log(
             "pilomarimage", self.Name, ".MergeLayer(", donor.Name, ")", terminal=False
         )
         gt = self.GetType()
@@ -1987,9 +1987,9 @@ class pilomarimage:
         else:
             return False
 
-    def LineDetection(self):
+    def LineDetection(self) -> list:
         """Detect lines (satellites, meteors)."""
-        self.Log("pilomarimage", self.Name, ".LineDetection()", terminal=False)
+        self.log("pilomarimage", self.Name, ".LineDetection()", terminal=False)
         # Code based upon https://www.meteornews.net/2020/05/05/d64-nl-meteor-detecting-project/
         # Make a gray-scale copy and save the result in the variable 'gray'
         gray = self.NewBufferType("grayscale")
@@ -2011,7 +2011,7 @@ class pilomarimage:
                 )  # Length of the line.
                 if length < 10:
                     continue  # Too short.
-                self.Log(
+                self.log(
                     "pilomarimage",
                     self.Name,
                     ".LineDetection: Line",
@@ -2053,7 +2053,7 @@ class pilomarimage:
             area = int(moments["m00"])  # Contour area.
             if area > mincloudpixels:
                 cloudlist.append([center_x, center_y, area])
-                self.Log(
+                self.log(
                     "pilomarimage",
                     self.Name,
                     ".CloudDetection (",
@@ -2092,7 +2092,7 @@ class pilomarimage:
         doesn't overwrite the original image buffer."""
         cvimagebuffer = self.ImageBuffer.copy()
         if not newtype in pilomarimage.IMAGETYPES:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".ChangeType(",
@@ -2128,7 +2128,7 @@ class pilomarimage:
         elif cvimagebuffer.shape[2] == 4:
             checktype = "bgra"
         if checktype != newtype:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".ChangeType: Failed. From",
@@ -2188,7 +2188,7 @@ class pilomarimage:
                     int(self.ImageBuffer[y, x, 2]),
                 )
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage.GetPixelColor(",
                 self.Name,
                 ",row",
@@ -2204,7 +2204,7 @@ class pilomarimage:
 
     def New(self, height, width, imagetype="bgr", datatype=np.uint8):
         """Create a new empty ImageBuffer."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".New(",
@@ -2216,7 +2216,7 @@ class pilomarimage:
             terminal=False,
         )
         if not imagetype in pilomarimage.IMAGETYPES:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".New(",
@@ -2235,7 +2235,7 @@ class pilomarimage:
             )
             return False
         if max(height, width) > 65535:  # Maximum jpeg size.
-            self.Log(
+            self.log(
                 "pilomarimage: Dimensions exceed jpeg limits (",
                 height,
                 width,
@@ -2560,7 +2560,7 @@ class pilomarimage:
 
     def RotateImage(self, angle):
         """Accepts 0,90,180,270"""
-        self.Log("pilomarimage", self.Name, ".RotateImage(", angle, ")", terminal=False)
+        self.log("pilomarimage", self.Name, ".RotateImage(", angle, ")", terminal=False)
         angle = angle % 360  # Always in range 0-360 degrees.
         if angle >= 45 and angle < 135:
             rotateCode = cv2.ROTATE_90_CLOCKWISE
@@ -2588,7 +2588,7 @@ class pilomarimage:
         threshold = The brightness level (0-255) above which something is considered a star.
         """
 
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".CountStars(",
@@ -2626,7 +2626,7 @@ class pilomarimage:
                 staritem = [ctr_x, ctr_y, dot_radius]
                 starlist.append(staritem)  # Construct list of star locations.
             if starcount >= maxstars:
-                self.Log(
+                self.log(
                     "pilomarimage",
                     self.Name,
                     ".CountStars:",
@@ -2638,7 +2638,7 @@ class pilomarimage:
         self.StarList = starlist
         self.StarCount = starcount
         self.CalculateStarSpread()  # How widely spread are the stars across the image? Indicates good/bad tracking tuning.
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".CountStars: End. Counted",
@@ -2664,7 +2664,7 @@ class pilomarimage:
                 toi = len(pilomarimage.COLORPOINTS) - 1
                 fromi = toi - 1
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".BVRange:",
@@ -2684,7 +2684,7 @@ class pilomarimage:
                 pilomarimage.COLORPOINTS[toi][0] - pilomarimage.COLORPOINTS[fromi][0]
             )
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".BVdX:",
@@ -2705,7 +2705,7 @@ class pilomarimage:
                 - pilomarimage.COLORPOINTS[fromi][1][0]
             )
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".BVdR:",
@@ -2726,7 +2726,7 @@ class pilomarimage:
                 - pilomarimage.COLORPOINTS[fromi][1][1]
             )
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".BVdG:",
@@ -2747,7 +2747,7 @@ class pilomarimage:
                 - pilomarimage.COLORPOINTS[fromi][1][2]
             )
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage.",
                 self.Name,
                 "BVdB:",
@@ -2787,7 +2787,7 @@ class pilomarimage:
             b = max(0, b)
             b = min(255, b)
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage.",
                 self.Name,
                 "BVInterpolate:",
@@ -2819,7 +2819,7 @@ class pilomarimage:
             )  # Which pair of sample colour points do we interpolate from?
             b, g, r = self.BVInterpolate(BV, fromi, toi)
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage.",
                 self.Name,
                 "BVtoBGR:",
@@ -2856,7 +2856,7 @@ class pilomarimage:
         Each star in the list consists of x,y image positions.
             [xpos,ypos]
         Only the xpos and ypos entries are scaled, any extra terms remain unchanged."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".ScaleStarList: Scale:",
@@ -2875,7 +2875,7 @@ class pilomarimage:
             newlist.append(newstar)
         self.StarList = newlist
         self.ActionList = [["scalestarlist", scalefactor]]
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".ScaleStarList: Result:",
@@ -2903,7 +2903,7 @@ class pilomarimage:
         print(
             "pilomarimage.SimplifyImage(): Deprecated. Please use pilomarimage.EnhanceStars() method now."
         )
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".SimplifyImage -> EnhanceStars: Begin",
@@ -2916,7 +2916,7 @@ class pilomarimage:
         print(
             "pilomarimage.PrepareImage(): Deprecated. Please use pilomarimage.EnhanceStars() method now."
         )
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".PrepareImage -> EnhanceStars: Begin",
@@ -2931,7 +2931,7 @@ class pilomarimage:
         - cloudthresh is the threshold to remove cloud (experimental).
         - starthresh is the threshold to single out the stars.
         - maxval is the saturated value set for cells above the threshold."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".EnhanceStars: blurradius",
@@ -2965,7 +2965,7 @@ class pilomarimage:
         )  # OTSU is adaptive threshold limits.
         self.ActionList.append(["enhancestars", blurradius])
         self.ModifiedTimestamp = self.NowUTC()
-        self.Log("pilomarimage", self.Name, ".EnhanceStars: End.", terminal=False)
+        self.log("pilomarimage", self.Name, ".EnhanceStars: End.", terminal=False)
         return True
 
     def FS_Save(self, filterdata):
@@ -3005,14 +3005,14 @@ class pilomarimage:
             "comment", ""
         )  # Get any associated comment, default ''.
         if comment != "":
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".FS_Grayscale: Comment:",
                 comment,
                 terminal=False,
             )
-        self.Log("pilomarimage", self.Name, ".FS_Grayscale:", terminal=False)
+        self.log("pilomarimage", self.Name, ".FS_Grayscale:", terminal=False)
         self.ChangeType("grayscale")  # Convert to grayscale.
         self.ActionList.append(["FS_Grayscale"])
         self.ModifiedTimestamp = self.NowUTC()
@@ -3044,14 +3044,14 @@ class pilomarimage:
             "comment", ""
         )  # Get any associated comment, default ''.
         if comment != "":
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".FS_Threshold: Comment:",
                 comment,
                 terminal=False,
             )
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".FS_Threshold(",
@@ -3088,14 +3088,14 @@ class pilomarimage:
             "comment", ""
         )  # Get any associated comment, default ''.
         if comment != "":
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".FS_GaussianBlur: Comment:",
                 comment,
                 terminal=False,
             )
-        self.Log(
+        self.log(
             "pilomarimage", self.Name, ".FS_GaussianBlur(", radius, ")", terminal=False
         )
         self.ImageBuffer = cv2.GaussianBlur(self.ImageBuffer, (radius, radius), 0)
@@ -3122,14 +3122,14 @@ class pilomarimage:
             "comment", ""
         )  # Get any associated comment, default ''.
         if comment != "":
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".FS_Dehaze: Comment:",
                 comment,
                 terminal=False,
             )
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".FS_Dehaze(",
@@ -3161,13 +3161,13 @@ class pilomarimage:
     def RunFilterScript(self, scriptname):
         """Given a script name, apply the filters and parameters defined in the script.
         filterrules is a dictionary"""
-        self.Log("pilomarimage", self.Name, ".RunFilterScript()", terminal=False)
+        self.log("pilomarimage", self.Name, ".RunFilterScript()", terminal=False)
         if not type(scriptname) == str:  # Nothing useful set.
-            self.Log("RunFilterScript(): No valid script name.", terminal=False)
+            self.log("RunFilterScript(): No valid script name.", terminal=False)
             print("RunFilterScript(): No valid script name.")
             return False
         if not scriptname in pilomarimage.FILTERSCRIPTS:  # Script doesn't exist.
-            self.Log(
+            self.log(
                 "RunFilterScript(",
                 scriptname,
                 "). Script does not exist.",
@@ -3184,7 +3184,7 @@ class pilomarimage:
             entryname,
             filterdata,
         ) in filterscript.items():  # Go through each set of filters in turn.
-            self.Log(
+            self.log(
                 "pilomarimage.RunFilterScript(",
                 filtercount,
                 entryname,
@@ -3207,7 +3207,7 @@ class pilomarimage:
             elif filtermethod == "threshold":
                 result = self.FS_Threshold(filterdata)  # Apply a threshold filter.
             else:  # Filter method is not recognised.
-                self.Log(
+                self.log(
                     "pilomarimage.RunFilterScript(",
                     filtercount,
                     entryname,
@@ -3229,7 +3229,7 @@ class pilomarimage:
                 break  # Failure.
             filtercount += 1  # Increment count.
         if not result:
-            self.Log(
+            self.log(
                 "pilomarimage.RunFilterScript(",
                 scriptname,
                 ") did not complete successfully.",
@@ -3260,7 +3260,7 @@ class pilomarimage:
         0 = No haze reduction.
         50 = 50% haze reduction.
         100 = Full haze reduction."""
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".UrbanFilter(): band",
@@ -3452,7 +3452,7 @@ class pilomarimage:
         This returns a GRAYSCALE image with all stars depicted at the same size.
         The size is the same for LATEST and TARGET images (Parameters.TrackingStarRadius), so that the
         FindTransform() method has consistent images to compare."""
-        self.Log("pilomarimage", self.Name, ".PlotStars(", radius, ")", terminal=False)
+        self.log("pilomarimage", self.Name, ".PlotStars(", radius, ")", terminal=False)
         if self.ImageMissing():
             print("pilomarimage", self.Name, ".PlotStars: No image in the buffer.")
         GrayscaleWhite = 255
@@ -3484,7 +3484,7 @@ class pilomarimage:
         try:
             stddev_contrast = cvimagebuffer.std()  # Standard deviation.
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".MeasureContrast: stddev_contrast failed.",
@@ -3495,13 +3495,13 @@ class pilomarimage:
             max = float(np.max(cvimagebuffer))
             michelson_contrast = (max - min) / (max + min)  #
         except Exception as e:
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".MeasureContrast: michelson_contrast failed.",
                 terminal=False,
             )
-        self.Log(
+        self.log(
             "pilomarimage",
             self.Name,
             ".MeasureContrast: min",
@@ -4823,7 +4823,7 @@ class pilomarimage:
         """Fill an ellipse on the image, but the color fades from center to edge"""
         if self.ImageMissing():
             print("pilomarimage", self.Name, ".FadeEllipse: No image in the buffer.")
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".FadeEllipse: No image in the buffer.",
@@ -4906,7 +4906,7 @@ class pilomarimage:
 
         if self.ImageMissing():
             print("pilomarimage", self.Name, ".DrawDumbbell: No image in the buffer.")
-            self.Log(
+            self.log(
                 "pilomarimage",
                 self.Name,
                 ".DrawDumbbell: No image in the buffer.",

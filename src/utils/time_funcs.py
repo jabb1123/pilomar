@@ -1,30 +1,30 @@
-from datetime import datetime, timedelta, timezone
-
-import pytz
 import os
+from datetime import datetime, timedelta, timezone
+from skyfield.api import Time, Timescale, utc
+import pytz
 
-from utils.text.human_readable import CleanDatetimeString, source_code
+from utils.text.human_readable import clean_datetime_string, source_code
 
 clock_offset = None
 
 
-def ts_to_datetime(tsvalue: object) -> datetime:
+def ts_to_datetime(tsvalue: object) -> float:
     """Convert skyfield time value into datetime value."""
-    dtvalue = tsvalue.utc_datetime()
+    dtvalue = tsvalue.utc_datßetime()
     return dtvalue
 
 
-def Datetime2Ts(dtvalue):
+def datetime2_ts(dtvalue) -> float:
     """Convert datetime value into skyfield time value."""
     if dtvalue.tzinfo is None:
         dtvalue = dtvalue.replace(
             tzinfo=pytz.UTC
         )  # If timezone is not set, assign UTC.
-    tsvalue = ts_from_datetime(dtvalue)
+    tsvalue = datetime.timestamp(dtvalue)
     return tsvalue
 
 
-def TsDelta(basets, yyyy=0, mm=0, dd=0, h=0, m=0, s=0):
+def ts_delta(basets: Time, yyyy=0, mm=0, dd=0, h=0, m=0, s=0) -> Time:
     """A basic 'timedelta' functionality for Skyfield timestamps.
     yyyy = Number of YEARS to add/subtract.
     mm = Number of MONTHS to add/subtract.
@@ -34,21 +34,21 @@ def TsDelta(basets, yyyy=0, mm=0, dd=0, h=0, m=0, s=0):
     s = Number of SECONDS to add/subtract.
     These can be +ve or -ve and of any size, Skyfield will evaluate them to a correct timestamp.
     """
-    WorkTs = (
+    work_ts = (
         basets.utc_datetime()
     )  # Convert to DateTime to extract components of the date.
-    NewTs = ts.utc(
-        WorkTs.year + yyyy,
-        WorkTs.month + mm,
-        WorkTs.day + dd,
-        WorkTs.hour + h,
-        WorkTs.minute + m,
-        WorkTs.second + s,
+    new_ts = Timescale.utc(
+        work_ts.year + yyyy,
+        work_ts.month + mm,
+        work_ts.day + dd,
+        work_ts.hour + h,
+        work_ts.minute + m,
+        work_ts.second + s,
     )
-    return NewTs
+    return new_ts
 
 
-def HmsFromStamp(timestamp: datetime, dateaware=False) -> str:
+def hms_from_stamp(timestamp: datetime, dateaware=False) -> str:
     """Return the HH:MM:SS part of a timestamp as a string.
     Works with datetime input.
     dateaware = True. If the date is not today, then it shows 'DD HH:MM' instead."""
@@ -92,10 +92,10 @@ def dts_to_datetime(utcvalue) -> datetime:
 def now_hour_minute_sec() -> str:
     """Return current time as formatted string.
     Returns HH:MM:SS string for the current time (UTC)"""
-    return HmsFromStamp(now_utc())
+    return hms_from_stamp(now_utc())
 
 
-def UTCStringToDatetime(utcvalue) -> datetime:
+def utc_string_to_datetime(utcvalue) -> datetime:
     """Accept a UTC string and convert it into datetime.
     Eg 2023-06-23T04:00:00
     Regardless of any timezone info, UTC is assumed."""
@@ -111,14 +111,14 @@ def UTCStringToDatetime(utcvalue) -> datetime:
     return dt
 
 
-def SetTimeOffset(starttime=None):
+def set_time_offset(starttime=None):
     """Given a UTC format datetime string, set the clocks to that time.
     eg 2023-06-23T04:00:00
     This actually calculates a timeoffset which is then applied by all clocks."""
     global clock_offset
     if starttime is not None:  # Offset given.
         # Convert string into datetime type.
-        dt = UTCStringToDatetime(starttime)  # Convert to datetime type.
+        dt = utc_string_to_datetime(starttime)  # Convert to datetime type.
         if dt is not None:  # Successful conversion.
             td = dt - datetime.now(
                 timezone.utc
@@ -149,7 +149,7 @@ def now_utc(real=False) -> datetime:  # Many references.
     return dt
 
 
-def SourceDate() -> datetime:
+def source_date() -> datetime:
     """Return datetime of the modified timestamp of the source file.
     As close as I get to 'version' stamping :)"""
     try:
@@ -167,13 +167,13 @@ def SourceDate() -> datetime:
 print("Current time is:", now_utc(), " UTC, offset is", clock_offset, "seconds.")
 
 
-def UtcTimeStamp() -> str:
+def utc_time_stamp() -> str:
     """Return current UTC datetime value as a string of digits. Discard fractions of a second.
     Returns value in string format YYYYMMDDHHMMSS."""
     ds = None
     try:
         ds = str(now_utc()).split(".")[0]
-        ds = CleanDatetimeString(ds)
+        ds = clean_datetime_string(ds)
     except Exception as e:
         print(e)  # Trap all the exception information in the main log file.
         raise Exception(

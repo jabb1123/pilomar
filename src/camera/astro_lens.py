@@ -1,4 +1,5 @@
 from oscommand import OSCommand
+from utils.params import Parameters
 
 
 class AstroLens:
@@ -21,44 +22,44 @@ class AstroLens:
             logger
         )  # CamLog # Handle to the class that handles logging and error tracing.
         self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
-        self.osCmd = self.oscommand.Execute
-        self.CameraWindow = None
-        self.ErrorWindow = None
-        self.Parameters = (
+        self.os_cmd = self.oscommand.execute
+        self.camera_window = None
+        self.error_window = None
+        self.parameters: Parameters = (
             parameters  # Must define parameter file before using instance.
         )
-        self.BaseLength = (
+        self.base_length = (
             length  # The length of the lense WITHOUT any multiplier effect.
         )
-        self.Length = length  # 'focal length' of the lens.
-        self.EquivLength = (
-            self.Length * 5.6
+        self.length = length  # 'focal length' of the lens.
+        self.equiv_length = (
+            self.length * 5.6
         )  # From https://www.seeedstudio.com/blog/2020/06/18/a-complete-guide-to-help-you-choose-lenses-for-your-raspberry-pi-high-quality-camera-m/ 35mm equivalent focal length (?) (AKA the Crop Factor for the sensor?
-        self.FovHorizontal = horizontal_fov
-        self.FovVertical = vertical_fov
-        self.Fov = min(
-            self.FovHorizontal, self.FovVertical
+        self.fov_horizontal = horizontal_fov
+        self.fov_vertical = vertical_fov
+        self.fov = min(
+            self.fov_horizontal, self.fov_vertical
         )  # When calculating the FOV for a survey, use the smaller value.
-        self.Aperture = (
+        self.aperture = (
             aperture  # FStop of the lens. *Q* Multiplier will impact this too. Hmm...
         )
-        self.ID = (
-            str(self.Length)
+        self.id = (
+            str(self.length)
             + "|"
-            + str(self.FovHorizontal)
+            + str(self.fov_horizontal)
             + "|"
-            + str(self.FovVertical)
+            + str(self.fov_vertical)
         )  # Unique ID of lens features.
-        self.Log(
+        self.log(
             "AstroLens: Length:",
-            str(self.Length),
+            str(self.length),
             "mm (equiv.",
-            str(self.EquivLength),
+            str(self.equiv_length),
             "mm) FoV:",
-            str(self.FovHorizontal),
+            str(self.fov_horizontal),
             "deg",
             "*",
-            str(self.FovVertical),
+            str(self.fov_vertical),
             "deg",
             terminal=False,
         )
@@ -69,28 +70,28 @@ class AstroLens:
     def set_logger(self, logger):
         """Set up link to logging class and shortcuts to common methods."""
         # The logging methods default to 'consumers' which will just silently eat any parameters passed.
-        self.Logger = logger  # Logger instance.
-        self.Log = self._NullLogger  # No log method.
-        self.ReportException = (
-            self._NullLogger
+        self.logger = logger  # Logger instance.
+        self.log = self._null_logger  # No log method.
+        self.report_exception = (
+            self._null_logger
         )  # Cannot report exception details to logfile.
-        self.RaiseException = self._NullLogger  # Cannor report and raise exception.
+        self.raise_exception = self._null_logger  # Cannor report and raise exception.
         if hasattr(logger, "Log"):
-            self.Log = logger.Log  # Log method.
+            self.log = logger.Log  # Log method.
         if hasattr(logger, "ReportException"):
-            self.ReportException = (
+            self.report_exception = (
                 logger.ReportException
             )  # Report exception details to logfile.
         if hasattr(logger, "RaiseException"):
-            self.RaiseException = logger.RaiseException  # Report and raise exception.
-        self.Log("AstroLens.set_logger: Linked to this log file.", terminal=False)
+            self.raise_exception = logger.RaiseException  # Report and raise exception.
+        self.log("AstroLens.set_logger: Linked to this log file.", terminal=False)
 
-    def _NullLogger(self, *args, **kwargs):
+    def _null_logger(self, *args, **kwargs):
         """Null logger. Absorbs parameters and .log call but does nothing.
         Use this when there is no logger defined."""
         return
 
-    def EstimateFoV(self, length):
+    def estimate_fo_v(self, length):
         """Given 35mm equivalent focal length, this estimates the FoV for the lens on the Raspberry Pi Hi Quality sensor.
         This is just an estimation to get you started.
         The FoV can be finetuned by comparing the diameter of the moon's disc using astrocamera.CalibrateFoV function.
@@ -99,7 +100,7 @@ class AstroLens:
         # Table entries.
         # [ 35mm focal length, horizontal FoV, vertical FoV ]
         # Table was found online on a couple of forums, there are online calculators too.
-        FXFoVTable = [
+        fx_fov_table = [
             [10, 121.9, 100.4],
             [11, 117.1, 95.0],
             [12, 112.6, 90.0],
@@ -142,30 +143,30 @@ class AstroLens:
         # Search the table for surrounding entries.
         lower_entry = None
         upper_entry = None
-        for entry in FXFoVTable:
-            if entry[0] <= self.EquivLength:
+        for entry in fx_fov_table:
+            if entry[0] <= self.equiv_length:
                 lower_entry = entry
             else:
                 upper_entry = entry
                 break
 
         if lower_entry is not None:  # We found a reasonable match.
-            self.FovHorizontal = lower_entry[1]  # Start with this near match.
-            self.FovVertical = lower_entry[2]
+            self.fov_horizontal = lower_entry[1]  # Start with this near match.
+            self.fov_vertical = lower_entry[2]
             # See if we can improve it.
-            if upper_entry is not None and self.EquivLength != lower_entry[0]:
+            if upper_entry is not None and self.equiv_length != lower_entry[0]:
                 # Need to estimate a value between the two known entries.
                 len_range = upper_entry[0] - lower_entry[0]
                 hor_range = upper_entry[1] - lower_entry[1]
                 ver_range = upper_entry[2] - lower_entry[2]
-                prop = (self.EquivLength - lower_entry[0]) / len_range
-                self.FovHorizontal = prop * hor_range + lower_entry[1]
-                self.FovVertical = prop * ver_range + lower_entry[2]
+                prop = (self.equiv_length - lower_entry[0]) / len_range
+                self.fov_horizontal = prop * hor_range + lower_entry[1]
+                self.fov_vertical = prop * ver_range + lower_entry[2]
 
-        self.Log(
+        self.log(
             "AstroLens.EstimateFoV():",
-            self.EquivLength,
-            self.FovHorizontal,
-            self.FovVertical,
+            self.equiv_length,
+            self.fov_horizontal,
+            self.fov_vertical,
             terminal=False,
         )
