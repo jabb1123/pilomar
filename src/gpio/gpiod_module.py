@@ -16,6 +16,9 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+from utils.params import AttributeMaster
+
+
 try:
     import gpiod  # Handling IO signals. If available.
 
@@ -24,8 +27,6 @@ try:
 except ModuleNotFoundError:
     print("No GPIO driver available.")
     pass
-
-from pilomar import MainLog
 
 
 def cleanup_gpio():
@@ -36,7 +37,7 @@ def cleanup_gpio():
         pin.line.release()
 
 
-class InputPinGPIO:
+class InputPinGPIO(AttributeMaster):
     """Wrapper for GPIOD input pin.
     Allows different GPIO libraries to be implemented by hiding the actual implementation behind these methods.
     Pin can be declared as None in which case it's a non-functional device.
@@ -181,7 +182,7 @@ class InputPinGPIO:
         return temp
 
 
-class OutputPinGPIO:
+class OutputPinGPIO(AttributeMaster):
     """Define a GPIO output pin.
 
       The purpose is to present a common interface to an I/O pin regardless of the underlying
@@ -203,7 +204,7 @@ class OutputPinGPIO:
             try:
                 pin.line.release()
             except Exception as excep:
-                MainLog.Log(
+                super().logger.log(
                     "OutputPinGPIO.release_all(): Failed to release pin:",
                     excep,
                     level="error",

@@ -9,6 +9,7 @@ from skyfield.magnitudelib import planetary_magnitude
 from camera import AstroCamera
 from camera.targets.fixed import FixedPoint
 from pilomar import plot_relative_alt_az, relative_alt_az, skyfield_now
+from utils.logfile import LogFile
 from utils.math_func import angle_to_hms, deg_3dp, display_degree, display_hms
 from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL, SYMBOLS
@@ -36,9 +37,10 @@ class AstroTarget(AttributeMaster):
         objectdiameter=None,
         cometpandasrow=None,
         parameters=None,
+        logger: LogFile = None,
     ):
         self.set_logger(
-            MainLog
+            logger
         )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
         self.handle = handle  # Skyfield object for target. This is usually provided directly by the calling routine, but in the case of 'comets' it is calculated here during initialisation.
         self.name = name  # Name of object.

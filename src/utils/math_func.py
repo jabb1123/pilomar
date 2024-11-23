@@ -175,3 +175,54 @@ def deg_3dp(value, symbol=None):
     else:
         result = "None"  # No value set.
     return result
+
+
+def pandas_float(inputvalue, failvalue=None):
+    """Convert a Pandas value into a float, or return None if impossible.
+    inputvalue = The pandas value to convert.
+    failvalue = The return value if inputvalue cannot be converted."""
+    try:
+        result = float(str(inputvalue))
+    except ValueError:
+        result = failvalue
+    if str(result) == "nan":  # This is unacceptable too.
+        result = failvalue
+    return result
+
+
+def is_float(text) -> bool:
+    """Return TRUE if a string can be converted to a float value."""
+    try:
+        _ = float(text)
+        return True
+    except ValueError:
+        return False
+
+
+def is_int(text) -> bool:
+    """Return TRUE if a string can be converted to an integer value."""
+    try:
+        _ = int(text)
+        return True
+    except ValueError:
+        return False
+
+
+def text_to_int(text) -> int:
+    """Convert a character string into an INTEGER value.
+    Returns None if it can't be done."""
+    try:
+        a = int(text)
+    except ValueError:
+        a = None
+    return a
+
+
+def text_to_float(text) -> float:
+    """Convert a character string into a FLOAT value.
+    Returns None if it can't be done."""
+    try:
+        a = float(text)
+    except ValueError:
+        a = None
+    return a

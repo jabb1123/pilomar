@@ -4,8 +4,9 @@ import json
 import os
 
 from camera.image import pilomarimage
-from pilomar import is_int
 from utils.logfile import LogFile
+from utils.math_func import is_int
+from utils.text.display import ColorDisplay
 from utils.text.textcolor import ListChooser, TextColor
 
 
@@ -16,28 +17,40 @@ class AttributeMaster:  # A parent class containing some common methods that oth
     def __init__(self):
         self.logger: LogFile = None  # Logger instance.
         self.log = self._null_logger  # No log method.
-        self.report__exception = (
-            self._null_logger
-        )  # Cannot report exception details to logfile.
+        # Cannot report exception details to logfile.
+        self.report__exception = self._null_logger
         self.raise_exception = self._null_logger  # Cannor report and raise exception.
+
+        self.menu_title_fg = TextColor.WHITE
+        self.menu_title_bg = TextColor.DARKRED
+        self.menu_subtitle_fg = TextColor.BLACK
+        self.menu_subtitle_bg = TextColor.RED3
+        self.title_fg = TextColor.WHITE
+        self.title_bg = TextColor.RED3
+        self.text_fg = TextColor.RED
+        self.text_bg = TextColor.GREY15
+        self.text_good = TextColor.LIGHTPINK1
+        self.text_poor = TextColor.YELLOW
+        self.text_bad = TextColor.ORANGERED1
+        self.border_fg = TextColor.DARKRED
+        self.border_bg = TextColor.GREY15
+        self.color_scheme = "white"
 
     def set_logger(self, logger: LogFile):
         """Set up link to logging class and shortcuts to common methods."""
         # The logging methods default to 'consumers' which will just silently eat any parameters passed.
         self.logger: LogFile = logger  # Logger instance.
         self.log = self._null_logger  # No log method.
-        self.report__exception = (
-            self._null_logger
-        )  # Cannot report exception details to logfile.
+        # Cannot report exception details to logfile.
+        self.report__exception = self._null_logger
         self.raise_exception = self._null_logger  # Cannor report and raise exception.
         if hasattr(logger, "Log"):
             self.log = logger.Log  # Log method.
         if hasattr(logger, "ReportException"):
-            self.report__exception = (
-                logger.report_exception
-            )  # Report exception details to logfile.
+            # Report exception details to logfile.
+            self.report__exception = logger.report_exception
         if hasattr(logger, "RaiseException"):
-            self.raise_exception = logger.RaiseException  # Report and raise exception.
+            self.raise_exception = logger.raise_exception  # Report and raise exception.
         # self.log("attributemaster.SetLogger: Linked to this log file.",terminal=False)
 
     def _null_logger(self, *args, **kwargs):
@@ -50,17 +63,14 @@ class AttributeMaster:  # A parent class containing some common methods that oth
         """Pull parameter attribute values out of the object and store back into the parameter dictionary.
         Save the parameter dictionary back to disc.
         If the target file exists it will be overwritten by the 'mv' command."""
-        tempfilename = filename.replace(
-            ".json", ".tmp"
-        )  # During creation, the file is given a temporary filename, so that any reading process doesn't pick it up too soon.
+        # During creation, the file is given a temporary filename, so that any reading process doesn't pick it up too soon.
+        tempfilename = filename.replace(".json", ".tmp")
         tempdictionary = self.save_to_dictionary()  # Save to a working dictionary.
         with open(tempfilename, "w") as f:  # Dump as json to disc.
-            json.dump(
-                tempdictionary, f, indent=4, default=str
-            )  # Save the updated dictionary back to disc.
-        osCmd(
-            "mv " + tempfilename + " " + filename
-        )  # When the file is complete, rename it to its proper name.
+            # Save the updated dictionary back to disc.
+            json.dump(tempdictionary, f, indent=4, default=str)
+        # When the file is complete, rename it to its proper name.
+        osCmd("mv " + tempfilename + " " + filename)
 
     def save_to_dictionary(
         self, allowlist=None, denylist=None, initialdictionary={}, nameprefix=None
@@ -74,9 +84,8 @@ class AttributeMaster:  # A parent class containing some common methods that oth
         It will also ignore certain datatypes which don't save well or are typically very large (numpy arrays).
         """
         confdict = initialdictionary  # Start an empty dictionary.
-        methodlist = [
-            method for method in dir(self) if callable(getattr(self, method))
-        ]  # Don't export callable attributes (= methods).
+        # Don't export callable attributes (= methods).
+        methodlist = [method for method in dir(self) if callable(getattr(self, method))]
         for attr, value in vars(self).items():
             if attr[0] == "_":
                 continue  # Don't send internals.
@@ -89,6 +98,69 @@ class AttributeMaster:  # A parent class containing some common methods that oth
                     attr = nameprefix + attr  # Add optional prefix to fieldname.
                 confdict[attr] = value
         return confdict
+
+    def set_color_scheme(self, scheme="green"):
+        """Set the color scheme for the display."""
+        if scheme == "white":  # Chosen schemes.
+            self.menu_title_fg = TextColor.GREY66
+            self.menu_title_bg = TextColor.GREY11
+            self.menu_subtitle_fg = TextColor.GREY66
+            self.menu_subtitle_bg = TextColor.GREY7
+            self.title_fg = TextColor.GREY66
+            self.title_bg = TextColor.GREY11
+            self.text_fg = TextColor.WHITE
+            self.text_bg = TextColor.BLACK
+            self.text_good = TextColor.WHITE
+            self.text_poor = TextColor.YELLOW
+            self.text_bad = TextColor.RED
+            self.border_fg = TextColor.GREY66
+            self.border_bg = TextColor.BLACK
+        elif scheme == "blue":  # Chosen schemes.
+            self.menu_title_fg = TextColor.WHITE
+            self.menu_title_bg = TextColor.DEEPSKYBLUE4A
+            self.menu_subtitle_fg = TextColor.BLACK
+            self.menu_subtitle_bg = TextColor.DEEPSKYBLUE3
+            self.title_fg = TextColor.WHITE
+            self.title_bg = TextColor.DEEPSKYBLUE4A
+            self.text_fg = TextColor.CYAN
+            self.text_bg = TextColor.GREY15
+            self.text_good = TextColor.LIGHTSKYBLUE1
+            self.text_poor = TextColor.YELLOW
+            self.text_bad = TextColor.ORANGERED1
+            self.border_fg = TextColor.NAVYBLUE
+            self.border_bg = TextColor.GREY15
+        elif scheme == "green":  # Chosen schemes.
+            self.menu_title_fg = TextColor.LIME
+            self.menu_title_bg = TextColor.DARKGREEN
+            self.menu_subtitle_fg = TextColor.BLACK
+            self.menu_subtitle_bg = TextColor.GREEN
+            self.title_fg = TextColor.LIME
+            self.title_bg = TextColor.DARKGREEN
+            self.text_fg = TextColor.GREEN
+            self.text_bg = TextColor.GREY15
+            self.text_good = TextColor.LIGHTGREEN
+            self.text_poor = TextColor.YELLOW
+            self.text_bad = TextColor.ORANGERED1
+            self.border_fg = TextColor.DARKGREEN
+            self.border_bg = TextColor.GREY15
+        elif scheme == "red":  # Chosen schemes.
+            self.menu_title_fg = TextColor.WHITE
+            self.menu_title_bg = TextColor.DARKRED
+            self.menu_subtitle_fg = TextColor.BLACK
+            self.menu_subtitle_bg = TextColor.RED3
+            self.title_fg = TextColor.WHITE
+            self.title_bg = TextColor.RED3
+            self.text_fg = TextColor.RED
+            self.text_bg = TextColor.GREY15
+            self.text_good = TextColor.LIGHTPINK1
+            self.text_poor = TextColor.YELLOW
+            self.text_bad = TextColor.ORANGERED1
+            self.border_fg = TextColor.DARKRED
+            self.border_bg = TextColor.GREY15
+        else:
+            return  # Assume custom settings, don't override them.
+        self.color_scheme = scheme
+        return
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -107,7 +179,17 @@ class Parameters(AttributeMaster):  # Common
     These parameters are generally those which you may want to modify during development or testing.
     """
 
-    def __init__(self, filename, logger=None):
+    def __init__(
+        self,
+        filename,
+        logger=None,
+        dev_window: ColorDisplay = None,
+        error_window: ColorDisplay = None,
+        camera_window: ColorDisplay = None,
+        drift_window: ColorDisplay = None,
+        session_window: ColorDisplay = None,
+    ):
+        super().__init__()
         self.set_logger(
             logger=logger
         )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
@@ -117,6 +199,11 @@ class Parameters(AttributeMaster):  # Common
         self._defaults = (
             {}
         )  # Maintain a list of default values, used to highlight changes when reviewing parameters.
+        self.dev_window: ColorDisplay = dev_window
+        self.error_window: ColorDisplay = error_window
+        self.camera_window: ColorDisplay = camera_window
+        self.drift_window: ColorDisplay = drift_window
+        self.session_window: ColorDisplay = session_window
         self.param_filename = filename  # The disc copy of the parameter file. This is overwritten if the program completes correctly.
         self.load_parameters()
         self.require_restart = False  # These parameters are safe to consistently configure microcontroller and run observations.
@@ -291,15 +378,12 @@ class Parameters(AttributeMaster):  # Common
         )  # Max magnitude when selecting stars in a constellation.
 
         # The following parameters decide which types of images are stored.
-        self.camera_save_jpg = self.get_parm_val(
-            "CameraSaveJpg", True
-        )  # Save the jpg image from observations, but will strip out the embedded RAW data.
-        self.camera_save_dng = self.get_parm_val(
-            "CameraSaveDng", True
-        )  # Save the raw image data as .dng file.
-        self.camera_save_fits = self.get_parm_val(
-            "CameraSaveFits", False
-        )  # Save the raw image data as a .fit file. # Needs libcamera & Picamera2.
+        # Save the jpg image from observations, but will strip out the embedded RAW data.
+        self.camera_save_jpg = self.get_parm_val("CameraSaveJpg", True)
+        # Save the raw image data as .dng file.
+        self.camera_save_dng = self.get_parm_val("CameraSaveDng", True)
+        # Save the raw image data as a .fit file. # Needs libcamera & Picamera2.
+        self.camera_save_fits = self.get_parm_val("CameraSaveFits", False)
         if self.camera_save_jpg or self.camera_save_dng or self.camera_save_fits:
             pass  # OK
         else:
@@ -307,7 +391,8 @@ class Parameters(AttributeMaster):  # Common
                 "No image types are saved according to the parameters.", level="warning"
             )
 
-        cameracommands = {
+        # pylint: disable=line-too-long
+        camera_commands = {
             "raspistill": {  # These are the default commands for raspistill captures.
                 "light": "raspistill -o {&output} -ex off -t 10 -n -q 100 -md {&mode} -w {&width} -h {&height} -ag 16.0 -ss {&shutter}",
                 "dark": "raspistill -o {&output} -ex off -t 10 -n -q 100 -md {&mode} -w {&width} -h {&height} -ag 16.0 -ss {&shutter}",
@@ -345,12 +430,13 @@ class Parameters(AttributeMaster):  # Common
                 "rawswitch": "--raw",
             },  # How do you turn on RAW image extraction?
         }
-        self.camera_commands = self.get_parm_val("CameraCommands", cameracommands)
-        self.disable_cleanup = self.get_parm_val(
-            "DisableCleanup", True
-        )  # Set to TRUE to disable the on-chip cleanup. (More pure RAW image is captured.) # Applies to raspistill only!
+        # pylint: enable=line-too-long
+        self.camera_commands = self.get_parm_val("CameraCommands", camera_commands)
+        # Set to TRUE to disable the on-chip cleanup. (More pure RAW image is captured.)
+        # Applies to raspistill only!
+        self.disable_cleanup = self.get_parm_val("DisableCleanup", True)
         self.camera_driver = self.get_parm_val(
-            "CameraDriver", CameraDriver
+            "camera_driver", camera_driver
         )  # Set outside the Parameters object.
         self.set_camera_driver(
             self.camera_driver
@@ -360,11 +446,13 @@ class Parameters(AttributeMaster):  # Common
         self.use_tracking = self.get_parm_val(
             "UseTracking", True
         )  # TRUE = Use image tracking. FALSE = No tracking.
-        # LatestTrackingFilter and RunFilterScript are new features being tested. If used, they override PrepImagesForTracking and TrackingUrbanFilter parameters.
+        # LatestTrackingFilter and RunFilterScript are new features being tested.
+        # If used, they override PrepImagesForTracking and TrackingUrbanFilter parameters.
         self.tracking_target_grayscale = self.get_parm_val(
             "TrackingTargetGrayscale", False
         )  # Generate grayscale tracking target?
-        # The following 2 parameters are replaced by the general purpose LatestTrackingFilter parameter. This upgrades automatically.
+        # The following 2 parameters are replaced by the general purpose LatestTrackingFilter parameter.
+        # This upgrades automatically.
         prep_images_for_tracking = self.get_parm_val(
             "PrepImagesForTracking", False
         )  # TRUE = latest image is simplified. FALSE = latest image is used as is.
@@ -584,42 +672,42 @@ class Parameters(AttributeMaster):  # Common
             self.filter_scripts
         )  # Now assign whatever we have loaded back to pilomarimage.
 
-    def set_camera_driver(self, cameradriver):
-        """This will set cameradriver (raspistill,libcamera,pilomarfits) then
+    def set_camera_driver(self, camera_driver):
+        """This will set camera_driver (raspistill,libcamera,pilomarfits) then
         load the correct camera commands from the Parameters table."""
-        if cameradriver in self.camera_commands:  # CameraDriver is recognised.
-            self.camera_driver = cameradriver  # Select the camera driver.
+        if camera_driver in self.camera_commands:  # camera_driver is recognised.
+            self.camera_driver = camera_driver  # Select the camera driver.
             self.camera_image_types = self.camera_commands[self.camera_driver][
                 "imagetypes"
             ]
+            # Camera settings for 'light' images.
             self._camera_light_command = self.camera_commands[self.camera_driver][
                 "light"
-            ]  # Camera settings for 'light' images.
-            self._camera_dark_command = self.camera_commands[self.camera_driver][
-                "dark"
-            ]  # Camera settings for 'dark' images.
-            self._camera_bias_command = self.camera_commands[self.camera_driver][
-                "bias"
-            ]  # Camera settings for 'bias' images.
-            self._camera_flat_command = self.camera_commands[self.camera_driver][
-                "flat"
-            ]  # Camera settings for 'flat' images.
+            ]
+            # Camera settings for 'dark' images.
+            self._camera_dark_command = self.camera_commands[self.camera_driver]["dark"]
+            # Camera settings for 'bias' images.
+            self._camera_bias_command = self.camera_commands[self.camera_driver]["bias"]
+            # Camera settings for 'flat' images.
+            self._camera_flat_command = self.camera_commands[self.camera_driver]["flat"]
+            # Camera settings for 'darkflat' images.
             self._camera_dark_flat_command = self.camera_commands[self.camera_driver][
                 "darkflat"
-            ]  # Camera settings for 'darkflat' images.
-            self._camera_auto_command = self.camera_commands[self.camera_driver][
-                "auto"
-            ]  # Camera settings for 'auto' images.
+            ]
+            # Camera settings for 'auto' images.
+            self._camera_auto_command = self.camera_commands[self.camera_driver]["auto"]
+            # Camera settings for 'tracking' images.
             self._camera_tracking_command = self.camera_commands[self.camera_driver][
                 "tracking"
-            ]  # Camera settings for 'tracking' images.
+            ]
+            # How do you turn on RAW image extraction?
             self._camera_raw_switch = self.camera_commands[self.camera_driver][
                 "rawswitch"
-            ]  # How do you turn on RAW image extraction?
+            ]
         else:
-            MainLog.Log(
-                "**ERROR**: parameters.SetCameraDriver: Does not recognise:",
-                cameradriver,
+            self.logger.log(
+                "**ERROR**: parameters.Setcamera_driver: Does not recognise:",
+                self.camera_driver,
                 level="error",
                 terminal=True,
             )
@@ -634,18 +722,15 @@ class Parameters(AttributeMaster):  # Common
 
         If the value does not exist, create it with the default value.
         If the value is different to the default value, report that in the log file."""
-        self._defaults[name] = (
-            default  # Maintain a list of default values, used to highlight changes when reviewing parameters.
-        )
+        # Maintain a list of default values, used to highlight changes when reviewing parameters.
+        self._defaults[name] = default
         result = default
         if isinstance(oldnames, list):  # Check for earlier parameter values.
             for oldname in oldnames:  # Check each name in turn.
-                if (
-                    oldname in self._dictionary
-                ):  # oldname exists in the dictionary (can migrate from oldname to new name).
-                    result = self._dictionary[
-                        oldname
-                    ]  # Retrieve the value from the oldname entry.
+                # oldname exists in the dictionary (can migrate from oldname to new name).
+                if oldname in self._dictionary:
+                    # Retrieve the value from the oldname entry.
+                    result = self._dictionary[oldname]
                     self.log(
                         "parameters.GetParmVal(",
                         name,
@@ -673,9 +758,8 @@ class Parameters(AttributeMaster):  # Common
     def choose_color_scheme(self):
         """Prompt for and set a standard color scheme."""
         item_list = ["white", "blue", "green", "red"]
-        objectchooser = ListChooser(
-            item_list, compress=False
-        )  # Always show the full list.
+        # Always show the full list.
+        objectchooser = ListChooser(item_list, compress=False)
         print(TextColor.yellow("Choose color scheme to apply."))
         chosen_item = objectchooser.prompt()
         if chosen_item is None:
@@ -708,9 +792,8 @@ class Parameters(AttributeMaster):  # Common
             "BorderFG",
             "BorderBG",
         ]
-        objectchooser = ListChooser(
-            item_list, compress=False
-        )  # Always show the full list.
+        # Always show the full list.
+        objectchooser = ListChooser(item_list, compress=False)
         print(TextColor.yellow("Choose color item to change."))
         chosen_item = objectchooser.prompt()
         if chosen_item is None:
@@ -735,9 +818,8 @@ class Parameters(AttributeMaster):  # Common
                     continue  # Try again.
                 # Good value, assign it.
                 print("Setting", chosen_item, result)
-                setattr(
-                    self, chosen_item, result
-                )  # Dynamically set the value in the parameter class.
+                # Dynamically set the value in the parameter class.
+                setattr(self, chosen_item, result)
                 self.color_scheme = "custom"
                 print(
                     "Example choice on white: ",
@@ -772,68 +854,6 @@ class Parameters(AttributeMaster):  # Common
             fg=TextColor.YELLOW,
             bg=TextColor.BLACK,
         )
-        return
-
-    def set_color_scheme(self, scheme="green"):
-        if scheme == "white":  # Chosen schemes.
-            self.menu_title_fg = TextColor.GREY66
-            self.menu_title_bg = TextColor.GREY11
-            self.menu_subtitle_fg = TextColor.GREY66
-            self.menu_subtitle_bg = TextColor.GREY7
-            self.title_fg = TextColor.GREY66
-            self.title_bg = TextColor.GREY11
-            self.text_fg = TextColor.WHITE
-            self.text_bg = TextColor.BLACK
-            self.text_good = TextColor.WHITE
-            self.text_poor = TextColor.YELLOW
-            self.text_bad = TextColor.RED
-            self.border_fg = TextColor.GREY66
-            self.border_bg = TextColor.BLACK
-        elif scheme == "blue":  # Chosen schemes.
-            self.menu_title_fg = TextColor.WHITE
-            self.menu_title_bg = TextColor.DEEPSKYBLUE4A
-            self.menu_subtitle_fg = TextColor.BLACK
-            self.menu_subtitle_bg = TextColor.DEEPSKYBLUE3
-            self.title_fg = TextColor.WHITE
-            self.title_bg = TextColor.DEEPSKYBLUE4A
-            self.text_fg = TextColor.CYAN
-            self.text_bg = TextColor.GREY15
-            self.text_good = TextColor.LIGHTSKYBLUE1
-            self.text_poor = TextColor.YELLOW
-            self.text_bad = TextColor.ORANGERED1
-            self.border_fg = TextColor.NAVYBLUE
-            self.border_bg = TextColor.GREY15
-        elif scheme == "green":  # Chosen schemes.
-            self.menu_title_fg = TextColor.LIME
-            self.menu_title_bg = TextColor.DARKGREEN
-            self.menu_subtitle_fg = TextColor.BLACK
-            self.menu_subtitle_bg = TextColor.GREEN
-            self.title_fg = TextColor.LIME
-            self.title_bg = TextColor.DARKGREEN
-            self.text_fg = TextColor.GREEN
-            self.text_bg = TextColor.GREY15
-            self.text_good = TextColor.LIGHTGREEN
-            self.text_poor = TextColor.YELLOW
-            self.text_bad = TextColor.ORANGERED1
-            self.border_fg = TextColor.DARKGREEN
-            self.border_bg = TextColor.GREY15
-        elif scheme == "red":  # Chosen schemes.
-            self.menu_title_fg = TextColor.WHITE
-            self.menu_title_bg = TextColor.DARKRED
-            self.menu_subtitle_fg = TextColor.BLACK
-            self.menu_subtitle_bg = TextColor.RED3
-            self.title_fg = TextColor.WHITE
-            self.title_bg = TextColor.RED3
-            self.text_fg = TextColor.RED
-            self.text_bg = TextColor.GREY15
-            self.text_good = TextColor.LIGHTPINK1
-            self.text_poor = TextColor.YELLOW
-            self.text_bad = TextColor.ORANGERED1
-            self.border_fg = TextColor.DARKRED
-            self.border_bg = TextColor.GREY15
-        else:
-            return  # Assume custom settings, don't override them.
-        self.color_scheme = scheme
         return
 
     def show_color_scheme(self):
@@ -897,7 +917,7 @@ class Parameters(AttributeMaster):  # Common
 
     def show(self):
         """List parameters."""
-        print(TextColor.yellow("List parameters", ProgramTitle, VERSION, ":"))
+        print(TextColor.yellow("List parameters", "", "", ":"))
         print(TextColor.red("(*)"), "indicates a modified parameter value.")
         tempd = vars(self)  # Load instance variables into a temporary dictionary.
         ignorelist = [

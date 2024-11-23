@@ -1380,3 +1380,33 @@ class ColorDisplay:
             except:
                 pass  # Window nolonger exists.
         return (maxcol, maxrow)
+
+
+def ask_yes_no(text, default=True, fg=None, bg=None):
+    """Ask any question that needs a simple Y/N answer.
+    Returns logical value ('yes' or 'true' returns True, 'no' or 'false' returns False)
+    Returns default value if user just presses ENTER.
+    Ignores 2nd and subsequent characters.
+    Rejects all other input."""
+    while True:  # Loop until a satisfactory answer is given.
+        if fg is None:  # Use default color.
+            temp = input(
+                TextColor.cyan(text.strip() + " ")
+            )  # Ensure 1 character space between text and response cursor.
+        else:
+            temp = input(TextColor.fgbgcolor(fg, bg, text.strip() + " "))
+        if len(temp) == 0:
+            result = default
+            break
+        elif temp.lower()[0] in ["n"]:  # FALSE and NO recognised.
+            result = False
+            break
+        elif temp.lower()[0] in ["y"]:  # TRUE and YES recognised.
+            result = True
+            break
+        print(TextColor.red("? " + str(temp) + " ?"))
+        if default:
+            print(TextColor.red("Please answer yes, no or [ENTER]=(YES)"))
+        else:
+            print(TextColor.red("Please answer yes, no or [ENTER]=(NO)"))
+    return result

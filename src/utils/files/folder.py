@@ -1,7 +1,10 @@
+"""This module defines the FolderHandler class."""
+
 import glob
 import os
 from oscommand import OSCommand
 from utils import AttributeMaster
+from utils.logfile import LogFile
 from utils.params import Parameters
 from utils.text.textcolor import TextColor
 
@@ -12,13 +15,18 @@ class FolderHandler(AttributeMaster):
 
     Usage:
 
-      FolderHandler = folderhandler(projectroot=ProjectRoot,logger=MainLog) # Create FolderHandler instance. Defines and create folder structures.
-      FolderHandler.NewSession(campaign='mycampaign',session='mysession') # Define dummy structures until target chosen.
-      filename = FolderHandler.PrepFile('light','image.jpg') # Return full path where a 'light' image is to be stored. This will also check that the structure exists.
-      image.save(filename)
+        # Create FolderHandler instance. Defines and create folder structures.
+        FolderHandler = folderhandler(projectroot=ProjectRoot,logger=self.logger)
+        # Define dummy structures until target chosen.
+        FolderHandler.NewSession(campaign='mycampaign',session='mysession')
+        # Return full path where a 'light' image is to be stored. This will also check that the structure exists.
+        filename = FolderHandler.PrepFile('light','image.jpg')
+        image.save(filename)
 
-    "imageroot" = imageroot # Don't 'verify' the root structure. (For safety!) # Root of folders for campaign (image) data. If it's missing, it's an error.
-    "dataroot" = dataroot # Don't 'verify' the root structure. (For safety!) # Root of folders for other data (target lists, parameters etc). If it's missing it's an error.
+    # Root of folders for campaign (image) data. If it's missing, it's an error.
+    "imageroot" = imageroot # Don't 'verify' the root structure. (For safety!)
+    # Root of folders for other data (target lists, parameters etc). If it's missing it's an error.
+    "dataroot" = dataroot # Don't 'verify' the root structure. (For safety!)
     "campaign" = imageroot + campaign # The parent folder for the campaign. Which could store work over several nights.
     "temp" = ProjectRoot + "temp" # Temporary folder for experiments.
     "session" = imageroot + session # The folder for an individual session.
@@ -49,12 +57,15 @@ class FolderHandler(AttributeMaster):
     filepath.is_dir()
     filepath.is_file()
     # filepath.walk(top_down=True) return tuple of structure. - Not in current RPi Python.
-    filepath.mkdir(mode=0o777, parents=True, exist_ok=True) # Create directory and any required parents, don't complain if already exists.
+    # Create directory and any required parents, don't complain if already exists.
+    filepath.mkdir(mode=0o777, parents=True, exist_ok=True)
     filepath.touch(mode=0o777, exist_ok=True) # Create / modify file.
 
     """
 
-    def __init__(self, projectroot, logger=None):
+    def __init__(
+        self, projectroot, logger: LogFile = None, parameters: Parameters = None
+    ):
         """Initialize the instance."""
         self.set_logger(
             logger
@@ -63,17 +74,16 @@ class FolderHandler(AttributeMaster):
             raise Exception(
                 "folderhandler.__init__(" + str(projectroot) + ") does not exist."
             )
-        self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
+        self.oscommand = OSCommand(logger=logger.log)  # Create OS command executor.
         self.os_cmd = (
             self.oscommand.execute
         )  # Point to the chosen Execute method for os commands.
-        self.error_window = None  # Handle to optional error window.
         self.folder_list = {}  # Initial empty list of folders and attributes.
         self.project_root = projectroot  # The base of all folders. Only folders beneath this level are created/modified.
-        if Parameters.use_usb_storage and USBDiscMonitor.DriveAvailable:
+        if parameters.use_usb_storage and USBDiscMonitor.DriveAvailable:
             temp = USBDiscMonitor.DfPath
             self.image_root = temp
-            MainLog.Log(
+            self.logger.log(
                 "folderhandler.__init__(): UsbFolder is specified for image storage. Using ",
                 temp,
                 terminal=False,
@@ -81,7 +91,7 @@ class FolderHandler(AttributeMaster):
         else:
             temp = self.project_root  # Default to the system SD card for storage.
             self.image_root = self.join_path(temp, "data")
-            MainLog.Log(
+            self.logger.log(
                 "folderhandler.__init__(): No UsbFolder is secified for image storage. Using ",
                 temp,
                 terminal=False,
@@ -321,6 +331,6 @@ class FolderHandler(AttributeMaster):
                 mode=0o777, parents=True, exist_ok=True
             )  # Create folder and all parent folders if missing.
         except Exception as e:
-            MainLog.ReportException(
+            self.logger.ReportException(
                 e, command="folderhandler.CreateFolderByPath"
             )  # Trap all the exception information in the main log file.

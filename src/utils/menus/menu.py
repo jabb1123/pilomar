@@ -41,10 +41,8 @@ class Menu:
         if titlebg is None:
             self.title_background = TextColor.YELLOW
         counter = 0
-        for (
-            key,
-            value,
-        ) in self.dictionary.items():  # Assign menu ID number to each entry.
+        # Assign menu ID number to each entry.
+        for _, value in self.dictionary.items():
             counter += 1
             value["id"] = counter
             self.label_width = max(self.label_width, len(value["label"]))
@@ -54,7 +52,7 @@ class Menu:
     def get_help_file(self, menuid):
         """Given an ID number, retrieve and display the help text if it exists."""
         filename = None
-        for key, value in self.dictionary.items():  # Find entry with matching ID.
+        for _, value in self.dictionary.items():  # Find entry with matching ID.
             if value["id"] == menuid:  # Found a match.
                 filename = value.get("helpdoc", None)  # Get the helpdoc filename.
                 break  # Look no further.
@@ -79,7 +77,7 @@ class Menu:
     def get_help_url(self, menuid):
         """Given an ID number, return URL associated with the help documentation."""
         helpurl = None
-        for key, value in self.dictionary.items():  # Find entry with matching ID.
+        for _, value in self.dictionary.items():  # Find entry with matching ID.
             if value["id"] == menuid:  # Found a match.
                 helpurl = value.get("helpurl", None)  # Get the helpdoc helpurl.
                 break  # Look no further.
@@ -103,7 +101,7 @@ class Menu:
                 " " + menuprefix + self.title + " ",
             )
         )  # Menu title is painted in inverse colours.
-        for key, value in self.dictionary.items():  # Go through each menu item in turn.
+        for _, value in self.dictionary.items():  # Go through each menu item in turn.
             entry = (
                 TextColor.yellow(str(value["id"]).rjust(self.id_width, " ")) + " "
             )  # ID number in yellow.

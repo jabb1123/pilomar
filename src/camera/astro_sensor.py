@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from oscommand import OSCommand
 from utils.params import Parameters
 from utils.text.textcolor import TextColor
@@ -82,7 +81,7 @@ class AstroSensor:
     def denoise_status(self):
         """With libcamera the denoise / onchip cleanup is set via the command template rather than the parameter file."""
         if (
-            self.parameters.CameraDriver == "raspistill"
+            self.parameters.camera_driver == "raspistill"
         ):  # These are the default commands for raspistill captures.
             result = (
                 not self.parameters.disable_cleanup
@@ -138,8 +137,6 @@ class AstroSensor:
         )  # CamLog # Handle to the class that handles logging and error tracing.
         self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
         self.os_cmd = self.oscommand.execute
-        self.camera_window = None
-        self.error_window = None
         self.parameters: Parameters = (
             parameters  # Must declare the parameter file before you can use the instance.
         )
@@ -265,8 +262,8 @@ class AstroSensor:
         self.log(
             "AstroSensor._set_mode: Mode " + str(mode) + " selected.", terminal=False
         )
-        if self.camera_window is not None:
-            self.camera_window.Print("Sensor mode: " + str(mode))
+        if self.parameters.camera_window is not None:
+            self.parameters.camera_window.Print("Sensor mode: " + str(mode))
         self.log(
             "AstroSensor: Pixel dimensions now: "
             + str(self.pixel_width)
@@ -281,7 +278,7 @@ class AstroSensor:
         This cleanup degrades the raw data that astro photo stacking software will work with.
         Therefore it is advisable to disable this cleanup before taking photos for stacking.
         """
-        if self.parameters.CameraDriver == "raspistill":  # if OS_name in ['buster']:
+        if self.parameters.camera_driver == "raspistill":  # if OS_name in ['buster']:
             print(
                 TextColor.yellow(
                     "Disabling sensor cleanup to improve purity of sensor raw data."
@@ -314,8 +311,8 @@ class AstroSensor:
                 "Raspberry Pi High Quality Camera, on chip image cleanup DISABLED.",
                 terminal=False,
             )
-            if self.camera_window is not None:
-                self.camera_window.Print(
+            if self.parameters.camera_window is not None:
+                self.parameters.camera_window.Print(
                     now_hour_minute_sec() + " On Chip Cleanup - OFF"
                 )
         else:  # libcamera has a command line option to disable cleanup.
@@ -329,7 +326,7 @@ class AstroSensor:
         """Enable the on-chip image cleanup for the sensor.
         This returns the on-chip image cleanup back to the default state (ON)
         It is recommended to have it disabled for image stacking of raw images."""
-        if self.parameters.CameraDriver == "raspistill":  # if OS_name in ['buster']:
+        if self.parameters.camera_driver == "raspistill":  # if OS_name in ['buster']:
             print(
                 TextColor.yellow(
                     "Enabling sensor cleanup to restore factory functionality."
@@ -360,8 +357,8 @@ class AstroSensor:
                 "Raspberry Pi High Quality Camera, on chip image cleanup ENABLED.",
                 terminal=False,
             )
-            if self.camera_window is not None:
-                self.camera_window.Print(
+            if self.parameters.camera_window is not None:
+                self.parameters.camera_window.Print(
                     now_hour_minute_sec() + " On Chip Cleanup - ON"
                 )
         else:  # libcamera has a command line option to disable cleanup.

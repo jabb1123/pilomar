@@ -2,10 +2,11 @@ import os
 import pandas
 from skyfield.data import hipparcos  # Hipparcos star catalog.
 from skyfield.api import load  # Skyfield data loader.
-from pilomar import pandas_float
+from pilomar import dim_channel, hip_color, magnitude2_radius, pandas_float
 from utils.logfile import LogFile
 from utils.math_func import angle_to_dms, angle_to_hms
 from utils.params import AttributeMaster
+from utils.text.textcolor import TextColor
 from utils.time_funcs import now_utc
 from utils.timer import ProgressTimer, Timer
 
@@ -72,34 +73,34 @@ class LocalStars(AttributeMaster):
                 terminal=False,
             )
         else:
-            HipparcosUrl = (
+            hipparcos_url = (
                 ProjectRoot + "/data/hip_main.dat.gz"
             )  # The skyfield example tries to pull this from the internet,
         # but the .gz. file doesn't always exist in the format expected so it is stored locally for now.
         # http://cdsarc.u-strasbg.fr/ftp/cats/aliases/H/Hipparcos/hip_main.dat
         # This was fixed by skyfield 1.31, it may break again if someone in u-strasbg re-zips the file.
         # hipparcos.URL contains the remote server copy of the file.
-        if not os.path.exists(HipparcosUrl):
+        if not os.path.exists(hipparcos_url):
             self.logger.log(
                 "Hipparcos compressed catalog was not found locally (",
-                HipparcosUrl,
+                hipparcos_url,
                 "), will use Skyfield sources.",
                 terminal=False,
             )
-            # HipparcosUrl = 'https://cdsarc.u-strasbg.fr/ftp/cats/I/239/hip_main.dat'
-            HipparcosUrl = (
+            # hipparcos_url = 'https://cdsarc.u-strasbg.fr/ftp/cats/I/239/hip_main.dat'
+            hipparcos_url = (
                 hipparcos.URL
             )  # The official source of the data file as provided by skyfield itself.
             self.logger.log(
                 "Loading Hipparcos catalog dataframe from "
-                + HipparcosUrl
+                + hipparcos_url
                 + " (or local cache)...",
                 terminal=False,
             )
             with load.open(
-                HipparcosUrl, reload=reload_data
+                hipparcos_url, reload=reload_data
             ) as f:  # Don't keep reloading it if it is already on disc.
-                hipparcos_df = hipex_load_dataframe(f)
+                hipparcos_df: pandas.DataFrame = hipex_load_dataframe(f)
                 self.logger.log(
                     "Hipparcos data:", list(hipparcos_df.columns), terminal=False
                 )
@@ -107,9 +108,8 @@ class LocalStars(AttributeMaster):
                     "Saving Hipparcos cache as", hipparcos_cache_file, terminal=True
                 )
                 hipparcos_df.to_pickle(hipparcos_cache_file)
-        self.master_df = (
-            hipparcos_df  # The master dataframe that the cache is built from.
-        )
+        # The master dataframe that the cache is built from.
+        self.master_df: pandas.DataFrame = hipparcos_df
         self.star_filter = []  # Integer list of HIP numbers to filter against.
         self.updated = None  # Timestamp when the cache was last updated.
         self.ra = ra  # Centre RIGHT ASCENSION in degrees.
@@ -492,7 +492,7 @@ def hipex_load_dataframe(fobj, logger: LogFile = None):
     ):  # Convert each unique value only once, then assign to all matching entries in the dataframe.
         temp = pandas_float(e)
         if temp is not None:
-            b, g, r = HipColor(temp)
+            b, g, r = hip_color(temp)
         else:
             b = g = r = 255
         BVColors[e] = (b, g, r)
@@ -567,7 +567,7 @@ def hipex_load_dataframe(fobj, logger: LogFile = None):
                 max(int(15 - temp) * 3, 1)
             )  # Calculate the radius of the star, brighter = bigger.
             # What size is the star dot when creating images?
-            TempStarRadius, TempStarDimmer = Magnitude2Radius(
+            TempStarRadius, TempStarDimmer = magnitude2_radius(
                 mag=temp, dimmest=10, brightest=-2, radius_max=20
             )
             df.iat[i, col_starradius] = int(TempStarRadius)
@@ -577,18 +577,18 @@ def hipex_load_dataframe(fobj, logger: LogFile = None):
         b, g, r = BVColors[
             dfrec["B-V"]
         ]  # Look up the basic color from a dictionary of precalculated conversions.
-        df.iat[i, col_color_b] = DimChannel(
+        df.iat[i, col_color_b] = dim_channel(
             b, TempStarDimmer
         )  # Dim the star depending upon the magnitude.
-        df.iat[i, col_color_g] = DimChannel(g, TempStarDimmer)
-        df.iat[i, col_color_r] = DimChannel(r, TempStarDimmer)
+        df.iat[i, col_color_g] = dim_channel(g, TempStarDimmer)
+        df.iat[i, col_color_r] = dim_channel(r, TempStarDimmer)
         # Show progress...
         if updatetimer.due():
             prgt.update_count(
                 i
             )  # How far have we got so far? prgt will then produce ETA and % complete for us.
             print(
-                TextColor.cursorup() + now_hour_minute_sec(),
+                TextColor.cursorup() + now_utc(),
                 TextColor.white(str(round(prgt.get_percent(), 1))),
                 "%. Record",
                 i,

@@ -1,4 +1,6 @@
+from utils.logfile import LogFile
 from utils.params import AttributeMaster
+from utils.time_funcs import dts_to_datetime
 
 
 class SessionEntry(AttributeMaster):
@@ -6,7 +8,10 @@ class SessionEntry(AttributeMaster):
     Used for recording past observations, and also to construct lists of future observation schedules.
     """
 
-    def __init__(self, dictionary):
+    def __init__(self, dictionary, logger: LogFile = None):
+        """Initialize an instance."""
+        super().__init__()
+        self.set_logger(logger)
         self._dictionary = dictionary  # Populate the dictionary to load key attributes.
         self.extract_dictionary()  # Pull the attributes out of the dictionary.
         self.reset()  # Initialise other attributes.
@@ -24,9 +29,8 @@ class SessionEntry(AttributeMaster):
         This is called in the __init__() phase and creates the basic attributes of the instance.
         """
         if dictionary is not None:
-            self._dictionary = (
-                dictionary  # Update the dictionary attribute with the latest version.
-            )
+            # Update the dictionary attribute with the latest version.
+            self._dictionary = dictionary
         # Attributes that can be saved/loaded via a dictionary.
         self.import_export_list = [
             "Name",
@@ -45,9 +49,8 @@ class SessionEntry(AttributeMaster):
             "ObservationFrames",
         ]
         self.name = self.get_parm_val("Name", None)
-        self.last_observed = self.get_datetime_val(
-            "LastObserved", None
-        )  # Needs converting from string to datetime with UTC tz.
+        # Needs converting from string to datetime with UTC tz.
+        self.last_observed = self.get_datetime_val("LastObserved", None)
         self.search_term = self.get_parm_val("SearchTerm", None)
         self.search_group = self.get_parm_val("SearchGroup", None)
         self.target_type = self.get_parm_val("TargetType", None)
@@ -58,12 +61,10 @@ class SessionEntry(AttributeMaster):
         self.exposure_seconds = self.get_parm_val("ExposureSeconds", None)
         self.timelapse_period = self.get_parm_val("TimelapseSeconds", None)
         # self.SensorMode = self.GetParmVal("SensorMode",None)
-        self.observation_start = self.get_datetime_val(
-            "ObservationStart", None
-        )  # Needs converting from string to datetime with UTC tz.
-        self.observation_end = self.get_datetime_val(
-            "ObservationEnd", None
-        )  # Needs converting from string to datetime with UTC tz.
+        # Needs converting from string to datetime with UTC tz.
+        self.observation_start = self.get_datetime_val("ObservationStart", None)
+        # Needs converting from string to datetime with UTC tz.
+        self.observation_end = self.get_datetime_val("ObservationEnd", None)
         self.observation_duration = self.get_parm_val("ObservationDuration", None)
         self.observation_frames = self.get_parm_val("ObservationFrames", None)
 
@@ -73,7 +74,8 @@ class SessionEntry(AttributeMaster):
         This is so we can recognise duplicates."""
         signature = ""
         # Which attributes are used to identify an entry uniquely?
-        # fieldlist = ['SearchTerm','TargetType','ExposureSeconds','TimelapsePeriod','SensorMode','ObservationStart','ObservationEnd','ObservationDuration','ObservationFrames']
+        # fieldlist = ['SearchTerm','TargetType','ExposureSeconds','TimelapsePeriod',
+        # 'SensorMode','ObservationStart','ObservationEnd','ObservationDuration','ObservationFrames']
         fieldlist = [
             "SearchTerm",
             "TargetType",
@@ -121,7 +123,7 @@ class SessionEntry(AttributeMaster):
                     result = self._dictionary[
                         oldname
                     ]  # Retrieve the value from the oldname entry.
-                    MainLog.Log(
+                    self.logger.log(
                         "sessionentry.GetParmVal(",
                         name,
                         ") migrating from",
@@ -143,5 +145,5 @@ class SessionEntry(AttributeMaster):
         ):  # Return None and datetime values without conversion.
             result = sval
         else:  # String values need converting.
-            result = DTSToDatetime(sval)
+            result = dts_to_datetime(sval)
         return result

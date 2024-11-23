@@ -1,16 +1,25 @@
 from datetime import timedelta
 import os
 import time
+from typing import Tuple
 from camera.targets.target import AstroTarget
 from circuitpython.code import BoolToString, StringToBool
+from gpio.micro import Microcontroller
 from pilomar import text_to_int, verify_folder
 from utils.math_func import deg_3dp
 from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL
 from utils.text.human_readable import clean_datetime_string, human_readable_seconds
 from utils.text.textcolor import TextColor
-from utils.time_funcs import datetime2_ts, now_hour_minute_sec, utc_time_stamp, now_utc
+from utils.time_funcs import (
+    datetime2_ts,
+    now_hour_minute_sec,
+    utc_string_to_datetime,
+    utc_time_stamp,
+    now_utc,
+)
 from utils.timer import Timer
+from utils.warning import WarningFlags
 
 
 class MotorControl(AttributeMaster):
@@ -39,11 +48,12 @@ class MotorControl(AttributeMaster):
         horizon=None,
         fasttime=0.001,
         slowtime=0.05,
-        timedelta=0.003,
+        time_delta=0.003,
         driver="drv8825",
         slewmicrosteps=1,
         optimisemoves=False,
         logger=None,
+        microcontroller: Microcontroller = None,
         parameters: Parameters = None,
     ):
         """Create an instance of a stepper motor.
@@ -55,6 +65,8 @@ class MotorControl(AttributeMaster):
         self.parameters: Parameters = (
             parameters  # Inherited from attributemaster: Set up references to chosen parameters (or disable if no parameters defined).
         )
+        # Reference to the microcontroller.
+        self.microcontroller: Microcontroller = microcontroller
         self.motor_name = name  # A unique name to identify the motor, should be the same as the motor's name in the microcontroller side too.
         self.driver = driver  # What driver board is being used?
         self.optimise_moves = optimisemoves  # Is the motor allowed to move freely across the 0/360 movement limit to track targets?
@@ -223,7 +235,7 @@ class MotorControl(AttributeMaster):
         self.motor_configured = False
         self.fast_time = fasttime  # Fastest pulse to the motor STEP signal. (Full speed in large move.) # Was 0.0005
         self.slow_time = slowtime  # Slowest pulse to the motor STEP signal. (Initial speed at start of move.)
-        self.time_delta = timedelta  # Acceleration rate for the motor STEP signal.
+        self.time_delta = time_delta  # Acceleration rate for the motor STEP signal.
         self.trajectory_segment_size = 60  # Seconds.
         self.trajectory_valid = False  # Is the microcontroller trajectory valid?
         self.trajectory_entries = (
@@ -257,7 +269,7 @@ class MotorControl(AttributeMaster):
             + DEGREE_SYMBOL,
             terminal=False,
         )
-        self.all_motors.append(
+        self.AllMotors.append(
             self
         )  # Class attribute AllMotors points to ALL sibling motors. Can be used to check condition of any other motors too.
         self.status_mctl_timestamp = (
@@ -272,7 +284,7 @@ class MotorControl(AttributeMaster):
 
     def __del__(self):
         """When deleted, remove this motor from the global list of all available motors."""
-        self.all_motors.remove(
+        self.AllMotors.remove(
             self
         )  # Class attribute AllMotors points to ALL sibling motors. Remove this motor from the list when deleted.
 
@@ -511,13 +523,13 @@ class MotorControl(AttributeMaster):
             terminal=False,
         )
         lineitems = line.split(" ")  # Separate each element of the line.
-        self.latest_tune_time = mctl_string_to_datetime(
+        self.latest_tune_time = utc_string_to_datetime(
             lineitems[3]
         )  # Element #3 is the timestamp of the last tune command completed.
         steps = text_to_int(lineitems[4])
         endtime = lineitems[3]  # When did the tune complete?
         if len(lineitems) > 5:  # When did the tune start?
-            self.latest_tune_start = mctl_string_to_datetime(
+            self.latest_tune_start = utc_string_to_datetime(
                 lineitems[5]
             )  # Start time known.
         else:
@@ -620,7 +632,7 @@ class MotorControl(AttributeMaster):
             "): Clear unprocessed messages received from microcontroller.",
             terminal=False,
         )
-        Mctl.ReadFlush()  # Reset the input buffers. Scrap anything still waiting to be processed.
+        self.microcontroller.read_flush()  # Reset the input buffers. Scrap anything still waiting to be processed.
 
         # The following section 'repeats' in the event of the microcontroller resetting during a large move.
         # It repeats until the motor is finally at the target position.
@@ -707,7 +719,7 @@ class MotorControl(AttributeMaster):
                         "): CheckMotorConfig: Motor config not acknowledged. Resetting microcontroller.",
                         terminal=True,
                     )
-                    Mctl.Reset(planned=True)
+                    self.microcontroller.reset(planned=True)
                 self.log(
                     "motorcontrol.GoToAngle(",
                     self.motor_name,
@@ -726,7 +738,7 @@ class MotorControl(AttributeMaster):
             line += clean_datetime_string(now_utc()) + " "
             line += self.motor_name + " "
             line += str(newangle) + " "
-            Mctl.Write(line)  # Send GO TO command.
+            self.microcontroller.write(line)  # Send GO TO command.
             # Wait for movement to complete.
             prevangle = None  # Monitor changes in angle. If it doesn't change for a while, consider something went wrong.
             prevangletime = now_utc()
@@ -787,7 +799,7 @@ class MotorControl(AttributeMaster):
                     ".",
                     level="error",
                 )
-                ErrorWindow.print(
+                self.parameters.error_window.print(
                     now_hour_minute_sec()
                     + " "
                     + str(looplimit)
@@ -907,7 +919,7 @@ class MotorControl(AttributeMaster):
             self.current_angle = float(lineitems[8])
             self.store_recovery_angle()  # Record the latest position of the motor for restart/recovery later.
             self.trajectory_valid = StringToBool(lineitems[4])
-            self.trajectory_valid_until = mctl_string_to_datetime(lineitems[5])
+            self.trajectory_valid_until = utc_string_to_datetime(lineitems[5])
             self.trajectory_entries = int(lineitems[6])
             self.on_target = StringToBool(lineitems[10])  # Is the motor on target?
         else:
@@ -923,7 +935,7 @@ class MotorControl(AttributeMaster):
         self.previous_mctl_timestamp = (
             self.status_mctl_timestamp
         )  # Store previous timestamp
-        self.status_mctl_timestamp = mctl_string_to_datetime(
+        self.status_mctl_timestamp = utc_string_to_datetime(
             lineitems[2]
         )  # When did the Microcontroller send the status message?
         self.log(
@@ -1024,7 +1036,7 @@ class MotorControl(AttributeMaster):
         line += (
             self.slew_signals + " "
         )  # Field 22 Steppermotor mode signals for full steps (Fast slew).
-        Mctl.Write(line)
+        self.microcontroller.write(line)
         self.log(
             "motorcontrol.SendConfig (" + self.motor_name + ") end", terminal=False
         )
@@ -1077,7 +1089,7 @@ class MotorControl(AttributeMaster):
                 + " "
                 + str(delta)
             )
-            Mctl.Write(line)
+            self.microcontroller.write(line)
             # This doesn't wait for feedback, it is up to the motorcontroller to deal with the message when it sees fit.
             # This program may send further tune messages if it still needs to change things.
         else:
@@ -1146,7 +1158,7 @@ class MotorControl(AttributeMaster):
                 terminal=False,
             )
             line += self.last_sent_trajectory_data
-            Mctl.Write(line)
+            self.microcontroller.write(line)
             return  # No need to process further.
         if (
             self.trajectory_valid_until is None
@@ -1159,7 +1171,7 @@ class MotorControl(AttributeMaster):
         if startutc < nowutc:  # Don't create OLD entries.
             startutc = nowutc
         # Calculate START angle for trajectory segment.
-        az, alt = targetobj.az_alt_degrees(
+        az, alt = targetobj.AzAltDegrees(
             time=datetime2_ts(startutc)
         )  # Needs to be Skyfield time!
         line += clean_datetime_string(str(startutc)) + " "
@@ -1168,14 +1180,14 @@ class MotorControl(AttributeMaster):
         else:
             startangle = az
         line += str(startangle) + " "
-        if targetobj.is_fixed_point():  # Fixed points can have a larger segment size.
+        if targetobj.IsFixedPoint():  # Fixed points can have a larger segment size.
             endutc = startutc + timedelta(
                 seconds=segmentsize * 2
             )  # But not too large because we need multiple segments queued up on the microcontroller, otherwise it may send an off target signal if the trajectory list expires.
         else:
             endutc = startutc + timedelta(seconds=segmentsize)
         # Calculate END angle for trajectory segment.
-        az, alt = targetobj.az_alt_degrees(
+        az, alt = targetobj.AzAltDegrees(
             time=datetime2_ts(endutc)
         )  # Needs to be Skyfield time!
         if self.motor_name == "altitude":
@@ -1193,7 +1205,7 @@ class MotorControl(AttributeMaster):
         #               This is slightly more precise, but has more segments to pass to the microcontroller.
         if (
             self.parameters.use_dynamic_trajectory_periods
-            and not targetobj.is_fixed_point()
+            and not targetobj.IsFixedPoint()
         ):  # Cannot solve dynamic trajectories for fixed points!
             # We have the 'fixed time period' trajectory extent already calculated.
             # Maximise the time period for this extent so that we don't need to pass as many segments to the microcontroller.
@@ -1206,7 +1218,7 @@ class MotorControl(AttributeMaster):
                 nextutc = startutc + timedelta(
                     seconds=segmentsize
                 )  # Timestamp of the larger segment size.
-                az, alt = targetobj.az_alt_degrees(
+                az, alt = targetobj.AzAltDegrees(
                     time=datetime2_ts(nextutc)
                 )  # Needs to be Skyfield time!
                 if self.motor_name == "altitude":
@@ -1266,7 +1278,7 @@ class MotorControl(AttributeMaster):
         if (
             endangle >= self.min_observation_angle and endangle <= self.max_angle
         ):  # We're still within range. *!*
-            Mctl.Write(line)
+            self.microcontroller.write(line)
             self.last_sent_trajectory_key = (
                 self.trajectory_valid_until
             )  # Cache the trajectory calculation, if the same calculation is triggered, we can re-use the earlier copy for speed.
@@ -1287,3 +1299,50 @@ class MotorControl(AttributeMaster):
                 + "): Trajectory is now complete.",
                 terminal=False,
             )
+
+
+def last_reported_alt_az(
+    warning_flags: WarningFlags = WarningFlags(),
+) -> Tuple[float, float]:
+    """Retrieve the current physical position of the camera.
+    Returns values based upon the data stored in the MotorControl objects."""
+    az_degree = 0.0
+    alt_degree = 0.0
+    for i in MotorControl.AllMotors:
+        warning_flag_name = (
+            "LastReportedAltAz_Stale_" + i.motor_name
+        )  # Which warning message are we considering?
+        if i.status_mctl_timestamp is not None:
+            td = abs(now_utc() - i.status_mctl_timestamp).total_seconds()
+            if (
+                td > 20
+            ):  # Position is > 20 seconds old. Expect an update more regularly than this.
+                # Only issue the warning message once, don't keep repeating it.
+                if warning_flags.first_warning_flag(warning_flag_name):
+                    main_log.log(
+                        "last_reported_alt_az(",
+                        i.motor_name,
+                        ") position ",
+                        deg_3dp(i.current_angle),
+                        "deg is stale.",
+                        td,
+                        "s since",
+                        i.status_mctl_timestamp,
+                        "UTC",
+                        terminal=False,
+                    )
+            # Reset so that warning will be reissued if the condition arises again.
+            else:
+                warning_flags.reset_warning_flag(warning_flag_name)
+        else:
+            main_log.log(
+                "last_reported_alt_az(",
+                i.motor_name,
+                ") StatusMctlTimestamp is None.",
+                terminal=False,
+            )
+        if i.motor_name == "azimuth":
+            az_degree = i.current_angle
+        elif i.motor_name == "altitude":
+            alt_degree = i.current_angle
+    return alt_degree, az_degree

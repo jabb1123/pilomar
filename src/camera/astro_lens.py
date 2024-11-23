@@ -1,3 +1,5 @@
+"""This module contains the AstroLens class which is used to represent the lens being used by the telescope."""
+
 from oscommand import OSCommand
 from utils.params import Parameters
 
@@ -16,15 +18,13 @@ class AstroLens:
         vertical_fov,
         aperture=2.8,
         logger=None,
-        parameters=None,
+        parameters: Parameters = None,
     ):
         self.set_logger(
             logger
         )  # CamLog # Handle to the class that handles logging and error tracing.
         self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
         self.os_cmd = self.oscommand.execute
-        self.camera_window = None
-        self.error_window = None
         self.parameters: Parameters = (
             parameters  # Must define parameter file before using instance.
         )
@@ -32,9 +32,11 @@ class AstroLens:
             length  # The length of the lense WITHOUT any multiplier effect.
         )
         self.length = length  # 'focal length' of the lens.
-        self.equiv_length = (
-            self.length * 5.6
-        )  # From https://www.seeedstudio.com/blog/2020/06/18/a-complete-guide-to-help-you-choose-lenses-for-your-raspberry-pi-high-quality-camera-m/ 35mm equivalent focal length (?) (AKA the Crop Factor for the sensor?
+        # pylint: disable=line-too-long
+        # From https://www.seeedstudio.com/blog/2020/06/18/a-complete-guide-to-help-you-choose-lenses-for-your-raspberry-pi-high-quality-camera-m/
+        # pylint: enable=line-too-long
+        # 35mm equivalent focal length (?) (AKA the Crop Factor for the sensor?
+        self.equiv_length = self.length * 5.6
         self.fov_horizontal = horizontal_fov
         self.fov_vertical = vertical_fov
         self.fov = min(

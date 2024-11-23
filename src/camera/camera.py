@@ -20,11 +20,8 @@ import os  # OS Command execution.
 import random
 
 # Import required libraries
-import time  # sleep functionality for pauses in execution.
 from datetime import datetime, timedelta, timezone
 from typing import List  # random number generator.
-
-import cv2  # openCV for image file handling.
 
 # from pidng.core import RPICAM2DNG # DNG data extraction from RPi camera RAW images. From https://github.com/schoolpost/pidng Needs to be 3.4.6 version. Later versions are not compatible.
 import numpy as np  # Fast array handling
@@ -36,14 +33,14 @@ from camera.image import (  # Pilomar's IMAGE BUFFER handler (combines numpy, Op
     pilomarkeogram,
 )
 from gpio.micro import Microcontroller
+from motor.control import last_reported_alt_az
 from oscommand import OSCommand  # Pilomar's OS command executor.
-from pilomar import ask_yes_no, is_int, last_reported_alt_az, text_to_int
 from session.status import SessionStatus
 from utils.disk import DiskMonitor
 from utils.files.folder import FolderHandler
 from utils.logfile import LogFile
+from utils.math_func import is_int, text_to_int
 from utils.params import Parameters
-from utils.text.display import ColorDisplay
 from utils.text.human_readable import human_readable_seconds
 from utils.text.textcolor import (  # Basic colour and cursor control codes for terminal displays.
     KeyboardScanner,
@@ -98,7 +95,6 @@ class AstroCamera:
         trackingexposure=5.0,
         logger=None,
         parameters=None,
-        imagesimulator=None,
     ):
         self.set_logger(
             logger
@@ -111,12 +107,6 @@ class AstroCamera:
         self.plot_relative_alt_az = None  # Can be handle to PlotRelativeAltAz calculation. Must match PlotRelativeAltAz() signature.
         self.keyboard: KeyboardScanner = (
             None  # Can declare a keyboard scanner (TextColor keyboard scanner instance).
-        )
-        self.error_window: ColorDisplay = (
-            None  # Can declare an error window (TextColor library) to copy error messages to.
-        )
-        self.camera_window: ColorDisplay = (
-            None  # Can declare a camera window (TextColor library) to copy camera events to.
         )
         self.storage_monitor: DiskMonitor = (
             None  # Can declare a storage monitor class here.
@@ -276,8 +266,8 @@ class AstroCamera:
             "aurora",
             "meteor",
         ]:  # Don't generate preview images for meteors or aurora.
-            if self.camera_window is not None:
-                self.camera_window.print(
+            if self.parameters.camera_window is not None:
+                self.parameters.camera_window.print(
                     now_hour_minute_sec()
                     + " No preview's generated for "
                     + self.object_type
@@ -290,7 +280,7 @@ class AstroCamera:
                 terminal=False,
             )
         elif not self.parameters.generate_preview:
-            if self.camera_window is not None:
+            if self.parameters.camera_window is not None:
                 print(
                     now_hour_minute_sec()
                     + " Preview generation is disabled in parameters."
@@ -308,8 +298,8 @@ class AstroCamera:
             "aurora",
         ]:  # No need to perform drift tracking for these targets.
             # Don't track for fixed targets or fast moving targets.
-            if self.camera_window is not None:
-                self.camera_window.print(
+            if self.parameters.camera_window is not None:
+                self.parameters.camera_window.print(
                     now_hour_minute_sec()
                     + " No tracking performed for "
                     + self.object_type
@@ -617,7 +607,7 @@ class AstroCamera:
                     "To make these values permanent please edit lens_horizontal_fov and lens_vertical_fov values in the parameters file."
                 )
             )
-            print(TextColor.red("(" + parameter_file_name + ")"))
+            print(TextColor.red("(" + self.parameters.param_filename + ")"))
 
     def set_image_type(self, imagetype):
         """Validate and set the ImageType attribute.
@@ -673,8 +663,10 @@ class AstroCamera:
         )
         self.capture_end = None  # Timestamp when image capture completed. Used to detect camera hanging.
         self.batch_count = 0  # How many photos taken in the current observation batch?
-        if self.camera_window is not None:
-            self.camera_window.print(now_hour_minute_sec() + " astrocamera.Reset")
+        if self.parameters.camera_window is not None:
+            self.parameters.camera_window.print(
+                now_hour_minute_sec() + " astrocamera.Reset"
+            )
 
     def capture_start_age(self):
         """Return a timedelta object showing how long ago the last image capture began.
@@ -736,8 +728,10 @@ class AstroCamera:
                         + str(round(self.capture_start_age_seconds(), 1))
                         + "s is too long. The camera may have hung. Consider power cycling the RPi."
                     )
-                    if self.camera_window is not None:
-                        self.camera_window.print(now_hour_minute_sec() + " " + line)
+                    if self.parameters.camera_window is not None:
+                        self.parameters.camera_window.print(
+                            now_hour_minute_sec() + " " + line
+                        )
                     self.log(
                         "astrocamera.CaptureStart", self.capture_start, terminal=False
                     )
@@ -936,7 +930,7 @@ class AstroCamera:
             self.parameters.use_live_location
         ):  # Use the live target location rather than the last reported camera position for image processing.
             centre_az, centre_alt = (
-                self.target.AzAltDegrees()
+                self.target.az_alt_degrees()
             )  # What is the alt/az location of the centre of the image?
         else:  # Use the last reported camera position. Deprecated.
             centre_alt, centre_az = (
@@ -1031,13 +1025,12 @@ class AstroCamera:
                     i - top_y
                 ) / rowspan  # How thick is the haze? Increasing in thickness towards the horizon.
                 new_value = []
-                for j in range(
-                    len(thinnest_value)
-                ):  # Calculate strength of each color channel in turn. BGR.
-                    tV = (
-                        (thickest_value[j] - thinnest_value[j]) * gradient_point
-                    ) + thinnest_value[j]
-                    new_value.append(int(tV))
+                # Calculate strength of each color channel in turn. BGR.
+                for j, thinnest_val in enumerate(thinnest_value):
+                    thin_val = (
+                        (thickest_value[j] - thinnest_val) * gradient_point
+                    ) + thinnest_val
+                    new_value.append(int(thin_val))
                 fieldimg[i, :] = np.array(new_value).astype(np.uint16)
 
         # TODO: Add some random noise to the pattern. +/- Thinnest value at random to the entire image.
@@ -1304,13 +1297,13 @@ class AstroCamera:
                     "astrocamera.CaptureSetFull(): Return code:", retc, terminal=False
                 )
                 if retc != 0:  # Non zero return code. Did something go wrong?
-                    if self.camera_window is not None:
-                        self.camera_window.print(
+                    if self.parameters.camera_window is not None:
+                        self.parameters.camera_window.print(
                             now_hour_minute_sec() + " Return code " + str(retc),
                             fg=TextColor.YELLOW,
                         )
-                    if self.error_window is not None:
-                        self.error_window.print(
+                    if self.parameters.error_window is not None:
+                        self.parameters.error_window.print(
                             now_hour_minute_sec()
                             + " capture returned code "
                             + str(retc),
@@ -1363,20 +1356,20 @@ class AstroCamera:
                         level="warning",
                         terminal=False,
                     )
-                    if self.camera_window is not None:
-                        self.camera_window.print(
+                    if self.parameters.camera_window is not None:
+                        self.parameters.camera_window.print(
                             now_hour_minute_sec() + " Motors reset during exposure."
                         )  # Just the filename.
-                    if self.error_window is not None:
-                        self.error_window.print(
+                    if self.parameters.error_window is not None:
+                        self.parameters.error_window.print(
                             now_hour_minute_sec() + " Motors reset during exposure."
                         )  # Just the filename.
                     rejectimage = True  # We should reject this image.
             if (
                 not tempfile
             ):  # Display the filename if it's permanent, ignore the tempfile.
-                if self.camera_window is not None:
-                    self.camera_window.print(
+                if self.parameters.camera_window is not None:
+                    self.parameters.camera_window.print(
                         now_hour_minute_sec() + " " + outputfile.split("/")[-1]
                     )  # Just the jpg filename.
             if rejectimage:  # There was reason to reject the image for some cause.
@@ -1454,8 +1447,8 @@ class AstroCamera:
                         cmd = "rm " + dngname
                         self.os_cmd(cmd, output="log")
                     else:
-                        if self.camera_window is not None:
-                            self.camera_window.print(
+                        if self.parameters.camera_window is not None:
+                            self.parameters.camera_window.print(
                                 now_hour_minute_sec() + " " + dngname.split("/")[-1]
                             )  # Just the dng filename.
                 elif (
@@ -1468,8 +1461,8 @@ class AstroCamera:
                         "astrocamera.CaptureSetFull(): FITS file should have been generated too.",
                         terminal=False,
                     )
-                    if self.camera_window is not None:
-                        self.camera_window.print(
+                    if self.parameters.camera_window is not None:
+                        self.parameters.camera_window.print(
                             now_hour_minute_sec() + " " + fitsname.split("/")[-1]
                         )  # Just the dng filename.
             if tempfile:  # Delete the temporary file.
@@ -1494,7 +1487,7 @@ class AstroCamera:
                         "(",
                         str(pc_complete),
                         "%), Disc:",
-                        str(int(self.storage_monitor.FreeMegaBytes())),
+                        str(int(self.storage_monitor.free_mega_bytes())),
                         "Mb, ETA:",
                         str(dt_eta).split(" ")[1].split(".")[0],
                         terminal=terminal,
@@ -1599,13 +1592,13 @@ class AstroCamera:
                     "astrocamera.CaptureSetFast(): Return code:", retc, terminal=False
                 )
                 if retc != 0:  # Non zero return code. Did something go wrong?
-                    if self.camera_window is not None:
-                        self.camera_window.print(
+                    if self.parameters.camera_window is not None:
+                        self.parameters.camera_window.print(
                             now_hour_minute_sec() + " Return code " + str(retc),
                             fg=TextColor.YELLOW,
                         )
-                    if self.error_window is not None:
-                        self.error_window.print(
+                    if self.parameters.error_window is not None:
+                        self.parameters.error_window.print(
                             now_hour_minute_sec()
                             + " capture returned code "
                             + str(retc),
@@ -1658,20 +1651,20 @@ class AstroCamera:
                         level="warning",
                         terminal=False,
                     )
-                    if self.camera_window is not None:
-                        self.camera_window.print(
+                    if self.parameters.camera_window is not None:
+                        self.parameters.camera_window.print(
                             now_hour_minute_sec() + " Motors reset during exposure."
                         )  # Just the filename.
-                    if self.error_window is not None:
-                        self.error_window.print(
+                    if self.parameters.error_window is not None:
+                        self.parameters.error_window.print(
                             now_hour_minute_sec() + " Motors reset during exposure."
                         )  # Just the filename.
                     rejectimage = True  # We should reject this image.
             if (
                 not tempfile
             ):  # Display the filename if it's permanent, ignore the tempfile.
-                if self.camera_window is not None:
-                    self.camera_window.print(
+                if self.parameters.camera_window is not None:
+                    self.parameters.camera_window.print(
                         now_hour_minute_sec() + " " + outputfile.split("/")[-1]
                     )  # Just the jpg filename.
             if rejectimage:  # There was reason to reject the image for some cause.
@@ -1719,7 +1712,7 @@ class AstroCamera:
                         "(",
                         str(pc_complete),
                         "%), Disc:",
-                        str(int(self.storage_monitor.FreeMegaBytes())),
+                        str(int(self.storage_monitor.free_mega_bytes())),
                         "Mb, ETA:",
                         str(dt_eta).split(" ")[1].split(".")[0],
                         terminal=terminal,
@@ -1743,7 +1736,7 @@ class AstroCamera:
                         TextColor.cursorup() + TextColor.cursorup()
                     )  # Stay on the same line for the CaptureSet message to the terminal.
             if (
-                self.storage_monitor is not None and not self.storage_monitor.DiscOK()
+                self.storage_monitor is not None and not self.storage_monitor.disc_ok()
             ):  # Check there is enough disc space to continue.
                 # Out of free space, stop!
                 self.log(
@@ -2099,40 +2092,40 @@ class AstroCamera:
         new_key = new_option.split(" ")[0]  # What is the option key we are setting?
         # Split all the existing options into a list.
         option_list_entries = self.camera_options.split("-")
-        for OLE in option_list_entries:
-            OLE = "-" + OLE  # Add the lost '-' tag back to each entry.
+        for ole in option_list_entries:
+            ole = "-" + ole  # Add the lost '-' tag back to each entry.
         found = False
         # If the option is already in the list, update it to the new value.
-        for OLE in option_list_entries:
-            if OLE.split(" ")[0] == new_key:
+        for ole in option_list_entries:
+            if ole.split(" ")[0] == new_key:
                 found = True
-                OLE = new_option
+                ole = new_option
                 break
         if not found:  # If the option is NOT in the list, add it now.
             option_list_entries.append(new_option)
         # Construct the new version of the option list ready for returning.
         self.camera_options = ""
-        for OLE in option_list_entries:
-            self.camera_options += OLE
+        for ole in option_list_entries:
+            self.camera_options += ole
         self.log(
             "astrocamera.AddCameraOption: New list:",
             self.camera_options,
             terminal=False,
         )
 
-    def del_camera_option(self, DelOption):
+    def del_camera_option(self, del_option):
         """Remove an option from the camera option list."""
-        self.log("astrocamera.DelCameraOption:", DelOption, terminal=False)
-        del_key = DelOption.split(" ")[0]  # What is the option key we are setting?
+        self.log("astrocamera.DelCameraOption:", del_option, terminal=False)
+        del_key = del_option.split(" ")[0]  # What is the option key we are setting?
         # Split all the existing options into a list.
         option_list_entries = self.camera_options.split("-")
-        for OLE in option_list_entries:
-            OLE = "-" + OLE  # Add the lost '-' tag back to each entry.
+        for ole in option_list_entries:
+            ole = "-" + ole  # Add the lost '-' tag back to each entry.
         # Construct the new version of the option list ready for returning but ignore the deleted option.
         self.camera_options = ""
-        for OLE in option_list_entries:
-            if OLE.split(" ")[0] != del_key:
-                self.camera_options += OLE
+        for ole in option_list_entries:
+            if ole.split(" ")[0] != del_key:
+                self.camera_options += ole
         self.log(
             "astrocamera.DelCameraOption: New list:",
             self.camera_options,
@@ -2224,7 +2217,7 @@ class AstroCamera:
         result = self.capture_set(
             file_root=file_root,
             batch_size=batch_size,
-            camera_options=camera_options,
+            camera_command=camera_options,
             terminal=terminal,
             cleanup=False,
         )

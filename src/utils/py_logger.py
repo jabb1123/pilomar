@@ -40,6 +40,8 @@ class PyLogger(object):
 
 
 class ColoredFormatter(logging.Formatter):
+    """A custom formatter to add colors to log messages."""
+
     # Define color codes for different log levels
     COLORS = {
         "DEBUG": "\033[92m",  # Green for DEBUG

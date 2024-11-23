@@ -1,16 +1,14 @@
 import os
 from datetime import datetime, timedelta, timezone
-from skyfield.api import Time, Timescale, utc
+from skyfield.api import Time, Timescale
 import pytz
 
 from utils.text.human_readable import clean_datetime_string, source_code
 
-clock_offset = None
 
-
-def ts_to_datetime(tsvalue: object) -> float:
+def ts_to_datetime(tsvalue: Time) -> float:
     """Convert skyfield time value into datetime value."""
-    dtvalue = tsvalue.utc_datßetime()
+    dtvalue = tsvalue.utc_datetime()
     return dtvalue
 
 
@@ -84,7 +82,7 @@ def dts_to_datetime(utcvalue) -> datetime:
             utcvalue = utcvalue.split(".")[0]  # Remove decimal seconds.
         dt = datetime.strptime(utcvalue, "%Y-%m-%d %H:%M:%S")
         dt = dt.replace(tzinfo=pytz.UTC)  # Add UTC timezone.
-    except:
+    except TypeError:
         dt = None
     return dt
 
@@ -106,16 +104,15 @@ def utc_string_to_datetime(utcvalue) -> datetime:
             utcvalue += "Z"  # Add missing 'Z' timezone marker.
         dt = datetime.strptime(utcvalue, "%Y-%m-%dT%H:%M:%SZ")
         dt = dt.replace(tzinfo=pytz.UTC)  # Add UTC timezone.
-    except:
+    except TypeError:
         dt = None
     return dt
 
 
-def set_time_offset(starttime=None):
+def set_time_offset(starttime=None, clock_offset=None):
     """Given a UTC format datetime string, set the clocks to that time.
     eg 2023-06-23T04:00:00
     This actually calculates a timeoffset which is then applied by all clocks."""
-    global clock_offset
     if starttime is not None:  # Offset given.
         # Convert string into datetime type.
         dt = utc_string_to_datetime(starttime)  # Convert to datetime type.
@@ -132,9 +129,10 @@ def set_time_offset(starttime=None):
             )
     else:  # Reset the clock offset.
         clock_offset = None
+    return clock_offset
 
 
-def now_utc(real=False) -> datetime:  # Many references.
+def now_utc(real=False, clock_offset=None) -> datetime:  # Many references.
     """Get system clock as UTC (timezone aware)
     Microcontroller and Skyfield are operated in UTC vales.
     All clock-times used in this program use the UTC timestamped clock.
@@ -162,9 +160,6 @@ def source_date() -> datetime:
             "SourceDate() failed"
         ) from e  # Continue with regular exception handling.
     return d
-
-
-print("Current time is:", now_utc(), " UTC, offset is", clock_offset, "seconds.")
 
 
 def utc_time_stamp() -> str:

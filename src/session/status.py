@@ -1,22 +1,22 @@
+"""This module contains the classes that handle the observation session."""
+
 # --------------------
 # Observation session
 # --------------------
 
 import threading
 import time
+from typing import List
 from camera.targets.target import AstroTarget
 from circuitpython.code import StringToBool
+from gpio.micro import Microcontroller
+from motor.control import MotorControl
 from pilomar import (
     ACCEPTABLECONTROLLERVERSIONS,
-    OSW_TEXT_BAD,
-    OSW_TEXT_BG,
-    OSW_TEXT_FG,
-    OSW_TEXT_GOOD,
-    OSW_TEXT_POOR,
     VERSION,
     get_position_ages,
-    SessionWindow,
 )
+from utils.logfile import LogFile
 from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL
 from utils.text.human_readable import (
@@ -24,7 +24,12 @@ from utils.text.human_readable import (
     human_readable_bytes,
     human_readable_seconds,
 )
-from utils.time_funcs import hms_from_stamp, now_hour_minute_sec, now_utc
+from utils.time_funcs import (
+    hms_from_stamp,
+    now_hour_minute_sec,
+    now_utc,
+    utc_string_to_datetime,
+)
 from utils.timer import Timer
 
 
@@ -33,45 +38,55 @@ class SessionStatus(AttributeMaster):
     This can export all the status information to a file so that a remote process can also monitor the status.
     These are the variables that handle a single loop in the ObservationRun routine."""
 
-    def __init__(self, logger=None):
-        """Initialize status fields."""
+    def __init__(
+        self,
+        logger: LogFile = None,
+        parameters: Parameters = None,
+        microcontroller: Microcontroller = None,
+        motor_controls: List[MotorControl] = None,
+    ):
+        super().__init__()
         self._file_names = []
-        self.set_logger(
-            logger
-        )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
+        # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
+        self.set_logger(logger)
         self.program_start_time = now_utc()  # When the program starts.
-        self.target: AstroTarget = (
-            None  # No target yet. This gets set to a valid target object when the target is selected.
-        )
-        self.debug_mode = (
-            Parameters.debug_mode
-        )  # Initialize the debug mode flat for the entire session.
-        self.autonomous_control = (
-            False  # Is the Microcontroller controlling its own movements?
-        )
-        self.remote_control = (
-            False  # Will the Microcontroller accept remote control (from here)?
-        )
-        self.clock_synchronised = (
-            False  # Has the Microcontroller synchronised the clock?
-        )
-        self._observation_running = False  # Set to TRUE when observation is running. Resets if not confirmed regularly. Check via ObservationRunning() method.
-        self.mctl_rx_errors = (
-            0  # How many messages has the Microcontroller rejected? (Checksum errors)
-        )
-        self.mctl_rx_bytes = 0  # How many bytes has the Microcontroller received?
-        self.mctl_tx_bytes = 0  # How many bytes has the Microcontroller sent?
-        self.mctl_exception_count = (
-            0  # How many exceptions has the Microcontroller handled?
-        )
-        self.trajectory_safety_flushes = 0  # How many times has the microcontroller flushed a valid trajectory because of a communication break?
-        self.camera_tx_count = 0  # Number of messages SENT from RPi to Camera
-        self.camera_rx_count = 0  # Number of messages RECEIVED by RPi from Camera
-        self.mctl_life_seconds = (
-            0  # How many seconds has the Microcontroller been running for?
-        )
-        self.mctl_write_drops = 0  # How many messages were dropped from send buffer on Microcontroller due to overflow?
-        self.motor_control_mode = "idle"  # What mode are we in? 'idle'/'remote'/'trajectory'. This controls the responses to some automated status messages.
+        # No target yet. This gets set to a valid target object when the target is selected.
+        self.target: AstroTarget = None
+        # Reference to the microcontroller object.
+        self.mctl = microcontroller
+        self.motor_controllers: List[MotorControl] = motor_controls
+        # Initialize the debug mode flat for the entire session.
+        self.debug_mode = parameters.debug_mode
+        # Is the Microcontroller controlling its own movements?
+        self.autonomous_control = False
+        # Will the Microcontroller accept remote control (from here)?
+        self.remote_control = False
+        # Has the Microcontroller synchronised the clock?
+        self.clock_synchronised = False
+        # Set to TRUE when observation is running. Resets if not confirmed regularly. Check via ObservationRunning() method.
+        self._observation_running = False
+        # How many messages has the Microcontroller rejected? (Checksum errors)
+        self.mctl_rx_errors = 0
+        # How many bytes has the Microcontroller received?
+        self.mctl_rx_bytes = 0
+        # How many bytes has the Microcontroller sent?
+        self.mctl_tx_bytes = 0
+        # How many exceptions has the Microcontroller handled?
+        self.mctl_exception_count = 0
+        # Reference to the parameters object.
+        self.parameters: Parameters = parameters
+        # How many times has the microcontroller flushed a valid trajectory because of a communication break?
+        self.trajectory_safety_flushes = 0
+        # Number of messages SENT from RPi to Camera
+        self.camera_tx_count = 0
+        # Number of messages RECEIVED by RPi from Camera
+        self.camera_rx_count = 0
+        # How many seconds has the Microcontroller been running for?
+        self.mctl_life_seconds = 0
+        # How many messages were dropped from send buffer on Microcontroller due to overflow?
+        self.mctl_write_drops = 0
+        # What mode are we in? 'idle'/'remote'/'trajectory'. This controls the responses to some automated status messages.
+        self.motor_control_mode = "idle"
         # Define the different motor control modes. idle, direct, trajectory.
         self.mc_mdict = {
             "idle": {"description": "motors at rest.", "trajectory": False},
@@ -85,37 +100,39 @@ class SessionStatus(AttributeMaster):
             },
         }
         self.maintain_trajectory = None
-        self.set_motor_control_mode(
-            self.motor_control_mode
-        )  # Updates self.maintain_trajectory
-        self.terminate_mctl_handler = (
-            False  # Set to TRUE to cause MctlHandler loop to terminate.
-        )
-        self.controller_version = "unknown"  # The microcontroller should report its software version number and store it here.
-        self.time_diff = None  # Timedelta between remote clock and local clock (includes messaging delays).
+        # Updates self.maintain_trajectory
+        self.set_motor_control_mode(self.motor_control_mode)
+        # Set to TRUE to cause MctlHandler loop to terminate.
+        self.terminate_mctl_handler = False
+        # The microcontroller should report its software version number and store it here.
+        self.controller_version = "unknown"
+        # Timedelta between remote clock and local clock (includes messaging delays).
+        self.time_diff = None
 
     def reset(self):
-        self.autonomous_control = False  # Is the Microcontroller controlling its own movements? eg Trajectories.
-        self.remote_control = False  # Will the Microcontroller accept remote control (from here)? eg GoTo, Tune etc.
-        self.clock_synchronised = (
-            False  # Has the Microcontroller synchronised the clock?
-        )
-        self.mctl_rx_errors = (
-            0  # How many messages has the Microcontroller rejected? (Checksum errors)
-        )
-        self.mctl_rx_bytes = 0  # How many bytes has the Microcontroller received?
-        self.mctl_tx_bytes = 0  # How many bytes has the Microcontroller sent?
-        self.mctl_exception_count = (
-            0  # How many exceptions has the Microcontroller handled?
-        )
-        self.mctl_life_seconds = (
-            0  # How many seconds has the Microcontroller been running for?
-        )
-        self.mctl_write_drops = 0  # How many messages were dropped from send buffer on Microcontroller due to overflow?
-        self.motor_control_mode = "idle"  # What mode are we in? 'idle'/'remote'/'autonomous'. This controls the responses to some automated status messages.
-        self.set_motor_control_mode(
-            self.motor_control_mode
-        )  # Updates self.maintain_trajectory
+        """Reset the status fields."""
+        # Is the Microcontroller controlling its own movements? eg Trajectories.
+        self.autonomous_control = False
+        # Will the Microcontroller accept remote control (from here)? eg GoTo, Tune etc.
+        self.remote_control = False
+        # Has the Microcontroller synchronised the clock?
+        self.clock_synchronised = False
+        # How many messages has the Microcontroller rejected? (Checksum errors)
+        self.mctl_rx_errors = 0
+        # How many bytes has the Microcontroller received?
+        self.mctl_rx_bytes = 0
+        # How many bytes has the Microcontroller sent?
+        self.mctl_tx_bytes = 0
+        # How many exceptions has the Microcontroller handled?
+        self.mctl_exception_count = 0
+        # How many seconds has the Microcontroller been running for?
+        self.mctl_life_seconds = 0
+        # How many messages were dropped from send buffer on Microcontroller due to overflow?
+        self.mctl_write_drops = 0
+        # What mode are we in? 'idle'/'remote'/'autonomous'. This controls the responses to some automated status messages.
+        self.motor_control_mode = "idle"
+        # Updates self.maintain_trajectory
+        self.set_motor_control_mode(self.motor_control_mode)
 
     def set_motor_control_mode(self, mode):
         """Change the control mode of the motors.
@@ -124,7 +141,7 @@ class SessionStatus(AttributeMaster):
         - If it's in trajectory mode then the system will automatically start feeding trajectory segments to the motor.
         - If it's not in trajectory mode, then the system will flush existing trajectory segments from the motor.
         Unrecognised modes fail-safe to 'idle'."""
-        PMT = self.maintain_trajectory
+        pmt = self.maintain_trajectory
         if mode in self.mc_mdict:
             self.log(
                 "sessionstatus:SetMotorControlMode("
@@ -151,22 +168,20 @@ class SessionStatus(AttributeMaster):
                 + ") is not recognised. Setting to idle.",
                 level="error",
             )
-            self.motor_control_mode = "idle"  # Turn off motors just in case.
-            self.maintain_trajectory = self.mc_mdict["idle"][
-                "trajectory"
-            ]  # Turn off trajectory just in case.
-        if (
-            PMT and PMT != self.maintain_trajectory
-        ):  # We've just stopped maintaining the trajectory. Clear out any existing entries.
+            # Turn off motors just in case.
+            self.motor_control_mode = "idle"
+            # Turn off trajectory just in case.
+            self.maintain_trajectory = self.mc_mdict["idle"]["trajectory"]
+        # We've just stopped maintaining the trajectory. Clear out any existing entries.
+        if pmt and pmt != self.maintain_trajectory:
             self.log(
                 "sessionstatus.SetMotorControlMode(",
                 mode,
                 ") clearing trajectory from motors.",
                 terminal=False,
             )
-            Mctl.Write(
-                "clear trajectory"
-            )  # Send immediate instruction to wipe any existing trajectory from the motors.
+            # Send immediate instruction to wipe any existing trajectory from the motors.
+            self.mctl.write("clear trajectory")
 
     def check_motor_status(self, line):
         """Check the Microcontroller's status message.
@@ -177,17 +192,20 @@ class SessionStatus(AttributeMaster):
         #   motor status 20210409090939 azimuth n 20210409090939 0 48000 180.0 y
             0     1           2          3    4     5          6   7     8   9
         """
-        lineitems = line.split(" ")  # Split out all the elements of the line.
-        motorname = lineitems[3]  # Extract motor name.
+        # Split out all the elements of the line.
+        lineitems = line.split(" ")
+        # Extract motor name.
+        motorname = lineitems[3]
         foundit = False
-        for i in MotorControls:
-            if i.MotorName == motorname:
+        for i in self.motor_controllers:
+            if i.motor_name == motorname:
                 foundit = True
-                i.ReceiveStatus(line)  # Update motor status information.
-        self.check_trajectory(
-            line, self.target
-        )  # Check observation is active and keep trajectory up-to-date if needed.
-        if not foundit:  # The motor name was not recognised.
+                # Update motor status information.
+                i.receive_status(line)
+        # Check observation is active and keep trajectory up-to-date if needed.
+        self.check_trajectory(line, self.target)
+        # The motor name was not recognised.
+        if not foundit:
             self.log(
                 "sessionstatus.CheckMotorStatus did not recognise the motor name (",
                 motorname,
@@ -208,7 +226,7 @@ class SessionStatus(AttributeMaster):
         7: Flush count
         8: Code indicating the reason the message was sent."""
         lineitems = line.split(" ")
-        remotetime = MctlStringToDatetime(
+        remotetime = utc_string_to_datetime(
             lineitems[2]
         )  # What does the remote system report as the time?
         self.time_diff = now_utc() - remotetime  # What's the time difference?
@@ -228,11 +246,11 @@ class SessionStatus(AttributeMaster):
         if not self.clock_synchronised:  # Clock has not yet been synchronised.
             # Synchronise clocks.
             line = "set time " + clean_datetime_string(str(now_utc()))
-            Mctl.Write(line)
+            self.mctl.write(line)
         if self.clock_synchronised:
-            temp = "Synchronised"
+            _ = "Synchronised"
         else:
-            temp = "Unsynchronised"
+            _ = "Unsynchronised"
 
     def check_comms_stats(self, line):
         """Check the Microcontroller's comms status message for stats.
@@ -261,33 +279,38 @@ class SessionStatus(AttributeMaster):
         3: self.motor_name + ' '
         4: BoolToString(self.trajectory.Valid) + ' ' # TrajectoryValid
         5: self.trajectory.ValidUntilString() + ' '
-        6: str(len(self.trajectory.TrajectoryList)) + ' '
+        6: str(len(self.trajectory.trajectory_list)) + ' '
         7: str(self.current_position) + ' '
         8: str(self.current_angle) + ' '
-        9: BoolToString(self.motor_configured) + ' ' # MotorConfigured"""
+        9: BoolToString(self.motor_configured) + ' ' # motor_configured"""
         lineitems = line.split(" ")
         motorname = lineitems[3]
         # This should only send a trajectory update IF we're TRACKING something!
         if self.maintain_trajectory:
             foundit = False
-            for i in MotorControls:
-                if i.MotorName == motorname:
+            for i in self.motor_controllers:
+                if i.motor_name == motorname:
                     foundit = True
-                    i.TrajectoryEntries = int(lineitems[6])
-                    i.TrajectoryValid = StringToBool(lineitems[4])
-                    i.TrajectoryValidUntil = MctlStringToDatetime(lineitems[5])
-                    duration = i.TrajectoryValidUntil - now_utc()
-                    # self.log('sessionstatus.CheckTrajectory: Examining', i.MotorName, ', Entries', i.TrajectoryEntries, ', ValidUntil', i.TrajectoryValidUntil, ', Valid',i.TrajectoryValid, ', duration',duration.total_seconds(), 's, Window', Parameters.trajectory_window, 's, ClkSync', self.clock_synchronised,terminal=False)
+                    i.trajectory_entries = int(lineitems[6])
+                    i.trajectory_valid = StringToBool(lineitems[4])
+                    i.trajectory_valid_until = utc_string_to_datetime(lineitems[5])
+                    duration = i.trajectory_valid_until - now_utc()
+                    # self.log('sessionstatus.CheckTrajectory: Examining', i.motor_name, '
+                    # , Entries', i.trajectory_entries, ', ValidUntil', i.trajectory_valid_until, '
+                    # , Valid',i.trajectory_valid, ', duration',duration.total_seconds(), 's, Window'
+                    # , Parameters.trajectory_window, 's, ClkSync', self.clock_synchronised,terminal=False)
                     if (
-                        duration.total_seconds() < Parameters.trajectory_window
+                        duration.total_seconds() < self.parameters.trajectory_window
                         and self.clock_synchronised
                     ):  # We need to add time to the trajectory plan.
                         self.log(
                             "sessionstatus.CheckTrajectory: Decided to extend.",
                             terminal=False,
                         )
-                        i.ExtendTrajectory(targetobj)
-                    # else: self.log('sessionstatus.CheckTrajectory: Decided not to extend. Valid for',duration.total_seconds(),"s, Minimum",Parameters.trajectory_window,"s",self.clock_synchronised,terminal=False)
+                        i.extend_trajectory(targetobj)
+                    # else: self.log('sessionstatus.CheckTrajectory:
+                    # Decided not to extend. Valid for',duration.total_seconds(),"s,
+                    # Minimum",Parameters.trajectory_window,"s",self.clock_synchronised,terminal=False)
             if not foundit:  # The motor name was not recognised.
                 self.log(
                     "sessionstatus.CheckTrajectory did not recognise the motor name (",
@@ -301,22 +324,26 @@ class SessionStatus(AttributeMaster):
                 terminal=False,
             )
 
-    def check_controller_started(self, line):
-        Mctl.MctlRestarted()
-        for i in MotorControls:
+    def check_controller_started(self, _):
+        """Microcontroller reports a restart. Trigger chain of updates."""
+        self.mctl.mctl_restarted()
+        for i in self.motor_controllers:
             i.Restarted()  # Need to mark that the motor is nolonger configured.
         self.log(
             "sessionstatus:CheckControllerStarted(): Microcontroller reports restart.",
             terminal=False,
         )
-        ErrorWindow.print(now_hour_minute_sec() + " Microcontroller reports restart.")
+        self.parameters.error_window.print(
+            now_hour_minute_sec() + " Microcontroller reports restart."
+        )
 
     def check_goto_rejected(self, line):
+        """A goto command was rejected by the microcontroller."""
         self.log(
             "sessionstatus:MctlHandler(): Microcontroller rejected goto command.",
             terminal=False,
         )
-        ErrorWindow.print(
+        self.parameters.error_window.print(
             now_hour_minute_sec() + " Microcontroller rejected goto command: " + line
         )
 
@@ -326,9 +353,9 @@ class SessionStatus(AttributeMaster):
         foundit = False
         lineitems = line.split(" ")
         motorname = lineitems[2]  # Which motor?
-        for i in MotorControls:
-            if i.MotorName == motorname:
-                i.TuneComplete(line)
+        for i in self.motor_controllers:
+            if i.motor_name == motorname:
+                i.tune_complete(line)
                 foundit = True
         if not foundit:  # The motor name was not recognised.
             self.log(
@@ -339,8 +366,11 @@ class SessionStatus(AttributeMaster):
             )
 
     def unrecognised_message(self, line):
+        """Handle unrecognised message from microcontroller."""
         self.log("sessionstatus:UnrecognisedMessage():", line, terminal=False)
-        ErrorWindow.print(now_hour_minute_sec() + " Unrecognised message: " + line)
+        self.parameters.error_window.print(
+            now_hour_minute_sec() + " Unrecognised message: " + line
+        )
 
     def valid_controller_version(self):
         """Return TRUE if controller version is known and acceptable.
@@ -396,7 +426,7 @@ class SessionStatus(AttributeMaster):
                         ACCEPTABLECONTROLLERVERSIONS,
                         terminal=True,
                     )
-                    ErrorWindow.print(
+                    self.parameters.error_window.print(
                         now_hour_minute_sec()
                         + " Controller version "
                         + compversion
@@ -434,9 +464,9 @@ class SessionStatus(AttributeMaster):
         heartbeat = Timer(
             30, skip=True
         )  # Send a heartbeat signal to the microcontroller every 30 seconds.
-        Mctl.Write(
-            "# rpi version " + VERSION
-        )  # Tell the microcontroller what version of software is running. *Q* Remove '#' when microcontroller software updated. Aug.2023
+        # Tell the microcontroller what version of software is running. *Q* Remove '#' when
+        # microcontroller software updated. Aug.2023
+        self.mctl.write("# rpi version " + VERSION)
         try:
             while True:  # Repeat until told to stop.
                 if self.terminate_mctl_handler:
@@ -453,9 +483,9 @@ class SessionStatus(AttributeMaster):
                         terminal=False,
                     )
                     break
-                if len(Mctl.Lines) > 0:  # Something to handle.
+                if len(self.mctl.lines) > 0:  # Something to handle.
                     line = (
-                        Mctl.Read()
+                        self.mctl.read()
                     )  # Pull next available message from microcontroller.
                     # Are all the same messages received, processed, logged or ignored in the same way?
                     if len(line) > 0:  # Data to process.
@@ -515,17 +545,18 @@ class SessionStatus(AttributeMaster):
                 if (
                     heartbeat.due()
                 ):  # Microcontroller will panic and flush trajectories if comms goes silent for too long.
-                    Mctl.Write("# heartbeat")  # Prove we're still alive.
+                    self.mctl.write("# heartbeat")  # Prove we're still alive.
                     self.log("sessionstatus.MctlHandler(): Heartbeat", terminal=False)
         except Exception as e:  # Message handler failed.
             self.log("sessionstatus.MctlHandler: Failed!", level="error")
-            MainLog.ReportException(
+            self.logger.report_exception(
                 e, comment="MctlHandler failed."
             )  # Trap all the exception information in the main log file.
         self.terminate_mctl_handler = False  # Reset the termination flag.
         self.log("sessionstatus.MctlHandler(): End.", terminal=False)
 
     def time_diff_secs(self):
+        """Return the time difference between the remote clock and the local clock in seconds."""
         # Convert self.time_diff into an absolute number of seconds.
         # self.time_diff format is "d, h:m:s" or "h:m:s"
         result = 0
@@ -537,235 +568,326 @@ class SessionStatus(AttributeMaster):
         """Display status from Microcontroller"""
         # Microcontroller communications
         nowutc = now_utc()  # Store current time.
-        SessionWindow.clear(immediate=False)
-        SessionWindow.field_value("RQ", len(Mctl.Lines))  # Messages: Rx queued
-        SessionWindow.field_value("RT", Mctl.LinesReceived)  # Messages: Rx total
-        SessionWindow.field_value("TQ", len(Mctl.WriteQueue))  # Messages: Tx queued
-        SessionWindow.field_value("TT", Mctl.LinesSent)  # Messages: Tx total
-        SessionWindow.field_value("SR", Mctl.ResetAttempts)  # Reset attempts
-        SessionWindow.range_field_color(
+        self.parameters.session_window.clear(immediate=False)
+        self.parameters.session_window.field_value(
+            "RQ", len(self.mctl.lines)
+        )  # Messages: Rx queued
+        self.parameters.session_window.field_value(
+            "RT", self.mctl.lines_received
+        )  # Messages: Rx total
+        self.parameters.session_window.field_value(
+            "TQ", len(self.mctl.write_queue)
+        )  # Messages: Tx queued
+        self.parameters.session_window.field_value(
+            "TT", self.mctl.lines_sent
+        )  # Messages: Tx total
+        self.parameters.session_window.field_value(
+            "SR", self.mctl.reset_attempts
+        )  # Reset attempts
+        self.parameters.session_window.range_field_color(
             "SR", lowlow=-100, low=-10, high=1, highhigh=100
         )  # Anything >= 1 is a POOR value.
-        SessionWindow.field_value("DF", Mctl.DeviceFailure)  # Device failure flag
-        if Mctl.DeviceFailure:
-            SessionWindow.field_color("DF", fg=OSW_TEXT_BAD)
+        self.parameters.session_window.field_value(
+            "DF", self.mctl.device_failure
+        )  # Device failure flag
+        if self.mctl.device_failure:
+            self.parameters.session_window.field_color(
+                "DF", fg=self.parameters.text_bad
+            )
         else:
-            SessionWindow.field_color("DF", fg=OSW_TEXT_GOOD)
-        SessionWindow.field_value(
-            "LR", str(Mctl.LastRxTime).split(".")[0].split(" ")[1]
+            self.parameters.session_window.field_color(
+                "DF", fg=self.parameters.text_good
+            )
+        self.parameters.session_window.field_value(
+            "LR", str(self.mctl.last_rx_time).split(".", maxsplit=1)[0].split(" ")[1]
         )  # Last message received.
-        SessionWindow.field_value(
-            "BX", human_readable_bytes(Mctl.BytesReceived)
+        self.parameters.session_window.field_value(
+            "BX", human_readable_bytes(self.mctl.bytes_received)
         )  # RPi measure of bytes received.
-        SessionWindow.field_value(
-            "TX", human_readable_bytes(Mctl.BytesSent)
+        self.parameters.session_window.field_value(
+            "TX", human_readable_bytes(self.mctl.bytes_sent)
         )  # RPi measure of bytes sent.
-        SessionWindow.field_value("RE", Mctl.RxErrors)  # RPi measure of receive errors.
-        SessionWindow.range_field_color(
+        self.parameters.session_window.field_value(
+            "RE", self.mctl.rx_errors
+        )  # RPi measure of receive errors.
+        self.parameters.session_window.range_field_color(
             "RE", lowlow=-100, low=-10, high=1, highhigh=100
         )  # Anything >= 1 is a POOR value.
         if self.mctl_life_seconds > 0:  # Microcontroller comms stats, including rate.
             rbps = int(self.mctl_rx_bytes / self.mctl_life_seconds)
             tbps = int(self.mctl_tx_bytes / self.mctl_life_seconds)
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "MRX", human_readable_bytes(self.mctl_rx_bytes)
             )  # Microcontroller measure of bytes received.
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "MRXR", human_readable_bytes(rbps) + "/s"
             )  # receive rate.
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "MTX", human_readable_bytes(self.mctl_tx_bytes)
             )  # Microcontroller measure of bytes sent.
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "MTXR", human_readable_bytes(tbps) + "/s"
             )  # send rate.
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "TD", self.mctl_write_drops
             )  # Microcontroller transmit drop count.
         else:  # Microcontroller comms stats, excluding rate.
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "MRX", human_readable_bytes(self.mctl_rx_bytes)
             )  # Microcontroller measure of bytes received.
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "TRX", human_readable_bytes(self.mctl_tx_bytes)
             )  # Microcontroller measure of bytes sent.
-        SessionWindow.field_value(
+        self.parameters.session_window.field_value(
             "R2", self.mctl_rx_errors
         )  # Microcontroller receive errors.
-        SessionWindow.range_field_color(
+        self.parameters.session_window.range_field_color(
             "R2", lowlow=-100, low=-10, high=1, highhigh=100
         )  # Anything >= 1 is a POOR value.
-        SessionWindow.field_value(
+        self.parameters.session_window.field_value(
             "AC", self.autonomous_control
         )  # Flag to show microcontroller allows autonomous control.
         if self.autonomous_control:
-            SessionWindow.field_color("AC", fg=OSW_TEXT_GOOD)
+            self.parameters.session_window.field_color(
+                "AC", fg=self.parameters.text_good
+            )
         else:
-            SessionWindow.field_color("AC", fg=OSW_TEXT_POOR)
-        SessionWindow.field_value(
+            self.parameters.session_window.field_color(
+                "AC", fg=self.parameters.text_poor
+            )
+        self.parameters.session_window.field_value(
             "RCL", self.remote_control
         )  # Flag to show microcontroller allows remote control.
         if self.remote_control:
-            SessionWindow.field_color("RCL", fg=OSW_TEXT_GOOD)
+            self.parameters.session_window.field_color(
+                "RCL", fg=self.parameters.text_good
+            )
         else:
-            SessionWindow.field_color("RCL", fg=OSW_TEXT_BAD)
-        SessionWindow.field_value(
+            self.parameters.session_window.field_color(
+                "RCL", fg=self.parameters.text_bad
+            )
+        self.parameters.session_window.field_value(
             "CS", self.clock_synchronised
         )  # Flag to show that microcontroller flag is synchronised.
         if self.clock_synchronised:
-            SessionWindow.field_color("CS", fg=OSW_TEXT_GOOD)
+            self.parameters.session_window.field_color(
+                "CS", fg=self.parameters.text_good
+            )
         else:
-            SessionWindow.field_color("CS", fg=OSW_TEXT_BAD)
-        SessionWindow.field_value(
-            "FR", Mctl.ForcedRestarts
+            self.parameters.session_window.field_color(
+                "CS", fg=self.parameters.text_bad
+            )
+        self.parameters.session_window.field_value(
+            "FR", self.mctl.forced_restarts
         )  # Count of FORCED restarts triggered by RPi.
-        SessionWindow.range_field_color(
+        self.parameters.session_window.range_field_color(
             "FR", lowlow=-100, low=-10, high=1, highhigh=100
         )  # Anything >= 1 is a POOR value.
-        SessionWindow.field_value(
-            "RR", Mctl.RemoteRestarts
+        self.parameters.session_window.field_value(
+            "RR", self.mctl.remote_restarts
         )  # Count of REMOTE restarts triggered by microcontroller.
-        SessionWindow.range_field_color(
+        self.parameters.session_window.range_field_color(
             "RR", lowlow=-100, low=-10, high=1, highhigh=100
         )  # Anything >= 1 is a POOR value.
-        SessionWindow.field_value(
+        self.parameters.session_window.field_value(
             "ALIVE", human_readable_seconds(self.mctl_life_seconds)
         )  # How long since last microcontroller restart.
-        SessionWindow.field_value(
+        self.parameters.session_window.field_value(
             "MTSF", self.trajectory_safety_flushes
         )  # How many times has the microcontroller flushed valid trajectorys due to comms problems?
-        SessionWindow.field_value(
+        self.parameters.session_window.field_value(
             "EXCEPT", self.mctl_exception_count
         )  # How many code exceptions have been reported by the microcontroller.
         if self.mctl_exception_count > 0:
-            SessionWindow.field_color(
-                "EXCEPT", fg=OSW_TEXT_POOR
+            self.parameters.session_window.field_color(
+                "EXCEPT", fg=self.parameters.text_poor
             )  # The microcontroller has handled some exceptions in the code.
         else:
-            SessionWindow.field_color(
-                "EXCEPT", fg=OSW_TEXT_GOOD
+            self.parameters.session_window.field_color(
+                "EXCEPT", fg=self.parameters.text_good
             )  # The microcontroller has not encountered any code exceptions.
         if self.trajectory_safety_flushes > 0:
-            SessionWindow.field_color("MTSF", fg=OSW_TEXT_BAD)
+            self.parameters.session_window.field_color(
+                "MTSF", fg=self.parameters.text_bad
+            )
         else:
-            SessionWindow.field_color("MTSF", fg=OSW_TEXT_GOOD)
+            self.parameters.session_window.field_color(
+                "MTSF", fg=self.parameters.text_good
+            )
         if (
-            Mctl.PoweredByUsb
+            self.mctl.powered_by_usb
         ):  # There's a USB connection as well as a GPIO connection to the microcontroller. BEWARE!
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "CMODE", "GPIO & USB!"
             )  # What type of connection/power is provided to the microcontroller?
-            SessionWindow.field_color("CMODE", fg=OSW_TEXT_POOR)
+            self.parameters.session_window.field_color(
+                "CMODE", fg=self.parameters.text_poor
+            )
         else:  # Just a GPIO connection to the microcontroller. RELAX!
-            SessionWindow.field_value(
+            self.parameters.session_window.field_value(
                 "CMODE", "GPIO"
             )  # What type of connection/power is provided to the microcontroller?
-            SessionWindow.field_color("CMODE", fg=OSW_TEXT_GOOD)
+            self.parameters.session_window.field_color(
+                "CMODE", fg=self.parameters.text_good
+            )
         # Mark the age of the last reported camera positions, warn if the data is getting stale.
         az_age, alt_age = get_position_ages()
         if az_age > 60:
-            azafg = OSW_TEXT_BAD
+            azafg = self.parameters.text_bad
         elif az_age > 20:
-            azafg = OSW_TEXT_POOR
+            azafg = self.parameters.text_poor
         else:
-            azafg = OSW_TEXT_FG
+            azafg = self.parameters.text_fg
         if alt_age > 60:
-            altafg = OSW_TEXT_BAD
+            altafg = self.parameters.text_bad
         elif alt_age > 20:
-            altafg = OSW_TEXT_POOR
+            altafg = self.parameters.text_poor
         else:
-            altafg = OSW_TEXT_FG
-        SessionWindow.field_value(
-            "CAZA", "(" + str(az_age) + "s)", fg=azafg, bg=OSW_TEXT_BG
+            altafg = self.parameters.text_fg
+        self.parameters.session_window.field_value(
+            "CAZA", "(" + str(az_age) + "s)", fg=azafg, bg=self.parameters.text_bg
         )  # Age of camera reported position.
-        SessionWindow.field_value(
-            "CALTA", "(" + str(alt_age) + "s)", fg=altafg, bg=OSW_TEXT_BG
+        self.parameters.session_window.field_value(
+            "CALTA", "(" + str(alt_age) + "s)", fg=altafg, bg=self.parameters.text_bg
         )  # Age of camera reported position.
-        SessionWindow.field_value(
+        self.parameters.session_window.field_value(
             "CLKDIF", str(self.time_diff_secs()) + "s"
         )  # Time difference/delay between RPi and Microcontroller.
-        for i in MotorControls:  # Report trajectory information for each motor.
-            if i.MotorName == "azimuth":
+        for (
+            i
+        ) in self.motor_controllers:  # Report trajectory information for each motor.
+            if i.motor_name == "azimuth":
                 fnp = "Z"
             else:
                 fnp = "L"
-            SessionWindow.field_value(fnp + "C", i.MotorConfigured)
-            if i.MotorConfigured:
-                SessionWindow.field_color(fnp + "C", fg=OSW_TEXT_GOOD)
-            else:
-                SessionWindow.field_color(fnp + "C", fg=OSW_TEXT_POOR)
-            SessionWindow.field_value(
-                fnp + "A", "{:07.3f}".format(i.CurrentAngle) + DEGREE_SYMBOL
-            )
-            if Parameters.use_dynamic_trajectory_periods:
-                SessionWindow.field_value(fnp + "MODE", "Dynamic trajectory")
-            else:
-                SessionWindow.field_value(fnp + "MODE", "Fixed trajectory")
-            if i.AxisSpeed is None:
-                SessionWindow.field_value(fnp + "DPS", "0.0" + DEGREE_SYMBOL)
-            else:
-                SessionWindow.field_value(
-                    fnp + "DPS", str(i.AxisSpeed)[:6] + DEGREE_SYMBOL
+            self.parameters.session_window.field_value(fnp + "C", i.motor_configured)
+            if i.motor_configured:
+                self.parameters.session_window.field_color(
+                    fnp + "C", fg=self.parameters.text_good
                 )
-            SessionWindow.field_value(fnp + "D", i.TrajectoryEntries)
-            if i.TrajectoryEntries > 0:
-                SessionWindow.field_color(fnp + "D", fg=OSW_TEXT_GOOD)
             else:
-                SessionWindow.field_color(fnp + "D", fg=OSW_TEXT_POOR)
+                self.parameters.session_window.field_color(
+                    fnp + "C", fg=self.parameters.text_poor
+                )
+            self.parameters.session_window.field_value(
+                fnp + "A", f"{i.current_angle:07.3f}" + DEGREE_SYMBOL
+            )
+            if self.parameters.use_dynamic_trajectory_periods:
+                self.parameters.session_window.field_value(
+                    fnp + "MODE", "Dynamic trajectory"
+                )
+            else:
+                self.parameters.session_window.field_value(
+                    fnp + "MODE", "Fixed trajectory"
+                )
+            if i.axis_speed is None:
+                self.parameters.session_window.field_value(
+                    fnp + "DPS", "0.0" + DEGREE_SYMBOL
+                )
+            else:
+                self.parameters.session_window.field_value(
+                    fnp + "DPS", str(i.axis_speed)[:6] + DEGREE_SYMBOL
+                )
+            self.parameters.session_window.field_value(fnp + "D", i.trajectory_entries)
+            if i.trajectory_entries > 0:
+                self.parameters.session_window.field_color(
+                    fnp + "D", fg=self.parameters.text_good
+                )
+            else:
+                self.parameters.session_window.field_color(
+                    fnp + "D", fg=self.parameters.text_poor
+                )
             if self.motor_control_mode == "trajectory":
-                SessionWindow.field_value(fnp + "T", i.OnTarget)
-                if i.OnTarget:
-                    SessionWindow.field_color(fnp + "T", fg=OSW_TEXT_GOOD)
+                self.parameters.session_window.field_value(fnp + "T", i.on_target)
+                if i.on_target:
+                    self.parameters.session_window.field_color(
+                        fnp + "T", fg=self.parameters.text_good
+                    )
                 else:
-                    SessionWindow.field_color(fnp + "T", fg=OSW_TEXT_POOR)
-                if i.TrajectoryValidUntil is not None:
+                    self.parameters.session_window.field_color(
+                        fnp + "T", fg=self.parameters.text_poor
+                    )
+                if i.trajectory_valid_until is not None:
                     temphms = hms_from_stamp(
-                        i.TrajectoryValidUntil, dateaware=True
+                        i.trajectory_valid_until, dateaware=True
                     )  # Show HH:MM:SS unless it's another day, then show DD HH:MM
                     tempsec = (
-                        i.TrajectoryValidUntil - nowutc
+                        i.trajectory_valid_until - nowutc
                     ).total_seconds()  # How long does the trajectory last (seconds)?
                     if (
-                        tempsec > Parameters.trajectory_window
+                        tempsec > self.parameters.trajectory_window
                     ):  # Valid far enough into the future.
-                        SessionWindow.field_value(
-                            fnp + "U", temphms, fg=OSW_TEXT_GOOD, bg=OSW_TEXT_BG
+                        self.parameters.session_window.field_value(
+                            fnp + "U",
+                            temphms,
+                            fg=self.parameters.text_good,
+                            bg=self.parameters.text_bg,
                         )
                         temp = "(" + human_readable_seconds(tempsec) + ")"
-                        SessionWindow.field_value(
-                            fnp + "RM", temp, fg=OSW_TEXT_FG, bg=OSW_TEXT_BG
+                        self.parameters.session_window.field_value(
+                            fnp + "RM",
+                            temp,
+                            fg=self.parameters.text_fg,
+                            bg=self.parameters.text_bg,
                         )
                     elif tempsec > 0:  # Running out soon, needs extending.
-                        SessionWindow.field_value(
-                            fnp + "U", temphms, fg=OSW_TEXT_POOR, bg=OSW_TEXT_BG
+                        self.parameters.session_window.field_value(
+                            fnp + "U",
+                            temphms,
+                            fg=self.parameters.text_poor,
+                            bg=self.parameters.text_bg,
                         )
                         temp = "(" + human_readable_seconds(tempsec) + ")"
-                        SessionWindow.field_value(
-                            fnp + "RM", temp, fg=OSW_TEXT_POOR, bg=OSW_TEXT_BG
+                        self.parameters.session_window.field_value(
+                            fnp + "RM",
+                            temp,
+                            fg=self.parameters.text_poor,
+                            bg=self.parameters.text_bg,
                         )
                     else:  # Already run out.
-                        SessionWindow.field_value(
-                            fnp + "U", temphms, fg=OSW_TEXT_BAD, bg=OSW_TEXT_BG
+                        self.parameters.session_window.field_value(
+                            fnp + "U",
+                            temphms,
+                            fg=self.parameters.text_bad,
+                            bg=self.parameters.text_bg,
                         )
                         temp = "(" + human_readable_seconds(-1 * tempsec) + ")"
-                        SessionWindow.field_value(
-                            fnp + "RM", temp, fg=OSW_TEXT_BAD, bg=OSW_TEXT_BG
+                        self.parameters.session_window.field_value(
+                            fnp + "RM",
+                            temp,
+                            fg=self.parameters.text_bad,
+                            bg=self.parameters.text_bg,
                         )
                 else:  # No trajectory data yet.
                     temp = human_readable_seconds(0)
-                    SessionWindow.field_value(
-                        fnp + "U", temp, fg=OSW_TEXT_POOR, bg=OSW_TEXT_BG
+                    self.parameters.session_window.field_value(
+                        fnp + "U",
+                        temp,
+                        fg=self.parameters.text_poor,
+                        bg=self.parameters.text_bg,
                     )
-                    SessionWindow.field_value(
-                        fnp + "RM", "(" + temp + ")", fg=OSW_TEXT_POOR, bg=OSW_TEXT_BG
+                    self.parameters.session_window.field_value(
+                        fnp + "RM",
+                        "(" + temp + ")",
+                        fg=self.parameters.text_poor,
+                        bg=self.parameters.text_bg,
                     )
             else:  # Trajectories not used for this target. Don't show validity.
-                SessionWindow.field_value(
-                    fnp + "T", "Fixed", fg=OSW_TEXT_GOOD, bg=OSW_TEXT_BG
-                )  # OnTarget does not apply for stationary targets.
-                SessionWindow.field_value(
-                    fnp + "U", "--:--:--", fg=OSW_TEXT_GOOD, bg=OSW_TEXT_BG
+                self.parameters.session_window.field_value(
+                    fnp + "T",
+                    "Fixed",
+                    fg=self.parameters.text_good,
+                    bg=self.parameters.text_bg,
+                )  # on_target does not apply for stationary targets.
+                self.parameters.session_window.field_value(
+                    fnp + "U",
+                    "--:--:--",
+                    fg=self.parameters.text_good,
+                    bg=self.parameters.text_bg,
                 )  # Trajectory not needed, so no expiry.
-                SessionWindow.field_value(
-                    fnp + "RM", "n/a", fg=OSW_TEXT_GOOD, bg=OSW_TEXT_BG
+                self.parameters.session_window.field_value(
+                    fnp + "RM",
+                    "n/a",
+                    fg=self.parameters.text_good,
+                    bg=self.parameters.text_bg,
                 )  # Trajectory not needed, so no expiry.

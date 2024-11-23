@@ -188,7 +188,7 @@ class DiskMonitor:  # 2 references.
         returnlist = []
         newentry = ""
         insidequotes = False
-        for i, l in enumerate(origline):
+        for _, l in enumerate(origline):
             character = l  # Check each character in turn.
             if character == '"':
                 insidequotes = (
@@ -557,7 +557,7 @@ class DiskMonitor:  # 2 references.
                 "is recognised",
                 terminal=False,
             )
-        # validdevnames = ['/dev/sda1','/dev/sdb1']
+        validdevnames = ["/dev/sda1", "/dev/sdb1"]
         if (
             devname in self.usb_scan_list
         ):  # Safety check. Don't run commands with values we don't trust.
