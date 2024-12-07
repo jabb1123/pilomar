@@ -5,6 +5,8 @@ import pytz
 
 from utils.text.human_readable import clean_datetime_string, source_code
 
+CLOCK_OFFSET = None  # Time offset for the system clock.
+
 
 def ts_to_datetime(tsvalue: Time) -> float:
     """Convert skyfield time value into datetime value."""
@@ -109,7 +111,7 @@ def utc_string_to_datetime(utcvalue) -> datetime:
     return dt
 
 
-def set_time_offset(starttime=None, clock_offset=None):
+def set_time_offset(starttime=None):
     """Given a UTC format datetime string, set the clocks to that time.
     eg 2023-06-23T04:00:00
     This actually calculates a timeoffset which is then applied by all clocks."""
@@ -120,7 +122,7 @@ def set_time_offset(starttime=None, clock_offset=None):
             td = dt - datetime.now(
                 timezone.utc
             )  # What's the difference between the clocks.
-            clock_offset = td.total_seconds()  # Store offset as total seconds.
+            CLOCK_OFFSET = td.total_seconds()  # Store offset as total seconds.
         else:  # Didn't convert.
             print(
                 "SetTimeOffset(",
@@ -128,11 +130,11 @@ def set_time_offset(starttime=None, clock_offset=None):
                 ") Failed to translate into valid datetime. Not changed.",
             )
     else:  # Reset the clock offset.
-        clock_offset = None
-    return clock_offset
+        CLOCK_OFFSET = None
+    return CLOCK_OFFSET
 
 
-def now_utc(real=False, clock_offset=None) -> datetime:  # Many references.
+def now_utc(real=False) -> datetime:  # Many references.
     """Get system clock as UTC (timezone aware)
     Microcontroller and Skyfield are operated in UTC vales.
     All clock-times used in this program use the UTC timestamped clock.
@@ -142,8 +144,8 @@ def now_utc(real=False, clock_offset=None) -> datetime:  # Many references.
     real=False means that any time offset is applied, making the clock run at some other point in time.
     """
     dt = datetime.now(timezone.utc)  # Offset supported.
-    if not real and clock_offset is not None:  # Can apply time offset.
-        dt = dt + timedelta(seconds=clock_offset)
+    if not real and CLOCK_OFFSET is not None:  # Can apply time offset.
+        dt = dt + timedelta(seconds=CLOCK_OFFSET)
     return dt
 
 

@@ -109,6 +109,7 @@ import glob  # file system.
 import json  # json file handling.
 import math  # Math and trig functions.
 import os  # OS Command execution.
+import pathlib
 import sys
 
 # import sep # This is used by astroalign, it is only imported here to flush out any problems with the package. (It has suffered from the classic 'numpy.ndarray size changed' in the past.)
@@ -152,7 +153,7 @@ from oscommand import OSCommand  # Pilomar's OS command executor.
 from pilomarcelestrak import Celestrack  # Pilomar's CELESTRAK satellite data handler.
 from session.list import SessionList
 from session.status import SessionStatus  # Pilomar's session handling.
-from utils.disk import DiskMonitor, DiskType  # Pilomar's disc storage monitor.
+from utils.files.disk import DiskMonitor, DiskType  # Pilomar's disc storage monitor.
 from utils.files import FolderHandler  # File handling routines.
 from utils.logfile import LogFile  # Pilomar's logging class.
 from utils.math_func import (
@@ -165,11 +166,10 @@ from utils.math_func import (
     dms_to_angle,
     hms_to_angle,
     interpolate,
-    pandas_float,
 )
 from utils.menus import OptionMenu, ProcedureMenu  # Basic menu handlers.
 from utils.params import AttributeMaster, Parameters
-from utils.statics import DEGREE_SYMBOL, SYMBOLS
+from utils.statics import DEGREE_SYMBOL, SYMBOLS, VERSION
 
 # Basic colour character graphics for window display on terminal.
 from utils.text.display import ColorDisplay
@@ -190,6 +190,7 @@ from utils.text.textcolor import (  # Basic colour and cursor control codes for 
     TextColor,
 )
 from utils.time_funcs import (
+    CLOCK_OFFSET,
     datetime2_ts,
     hms_from_stamp,
     now_hour_minute_sec,
@@ -213,16 +214,11 @@ elif gpio.GPIO_DRIVER == "GPIOD":  # Bookworm GPIOD handlers needed for IO.
     outputpin = gpio.OutputPinGPIO
     GPIOCleanup = gpio.cleanup_gpio
 else:
-    raise ImportError(
-        "Could not identify a suitable GPIO driver for this installation."
-    )
+    pass
+    # raise ImportError(
+    #     "Could not identify a suitable GPIO driver for this installation."
+    # )
 print("Got through imports")
-
-VERSION = "1.1.0"  # Shared with microcontroller. # Make sure the microcontroller accepts any new version number.
-# print("Version:",VERSION)
-ACCEPTABLECONTROLLERVERSIONS = [
-    "1.0"
-]  # Microcontroller versions that this will work with. Ignore patch level.
 
 
 def os_version():
@@ -235,7 +231,7 @@ def os_version():
     versionid = None
     versioncodename = None
     ostype = None
-    for line in os_cmd("cat /etc/os-release"):
+    for line in os_command.execute("cat /etc/os-release"):
         if len(line) > 0:
             elements = line.split("=")
             if elements[0] == "VERSION_ID":
@@ -244,14 +240,14 @@ def os_version():
                 versioncodename = elements[1]
             elif elements[0] == "ID":
                 ostype = elements[1]
-    osbits = int(os_cmd("getconf LONG_BIT")[0])  # Check 32 vs 64 bit O/S
-    osproc = os_cmd("uname -m")[0]
+    osbits = int(os_command.execute("getconf LONG_BIT")[0])  # Check 32 vs 64 bit O/S
+    osproc = os_command.execute("uname -m")[0]
     return versionid, versioncodename, ostype, osbits, osproc
 
 
 def r_pi_model():
     """Calculate a label for the model of RPI in use."""
-    lines = os_cmd("cat /sys/firmware/devicetree/base/model")
+    lines = os_command.execute("cat /sys/firmware/devicetree/base/model")
     rpimodel = "Raspberry Pi"
     for line in lines:
         if len(line) > 0:
@@ -269,22 +265,6 @@ def r_pi_model():
         1
     ]  # Pull the '4' out of "RPi 4 B 1.4" format response.
     return rpimodel, rpinum
-
-
-RPIMODEL, RPiNum = r_pi_model()
-
-RASPISTILL_SYSTEMS = [
-    "wheezy",
-    "jessie",
-    "stretch",
-    "buster",
-]  # These all came with raspistill for camera support.
-SUPPORTED_SYSTEMS = [
-    "3/buster/32",
-    "4/buster/32",
-    "4/bookworm/64",
-    "5/bookworm/64",
-]  # The software is designed to run under these hardware/os combinations.
 
 
 def restart_required():
@@ -318,8 +298,8 @@ def now_local(real=False) -> datetime:  # Many references.
     dt = utc_to_local(
         now_utc(real=real)
     )  # Offset supported, Convert to local timezone.
-    if not real and clock_offset is not None:  # Can apply time offset.
-        dt = dt + timedelta(seconds=clock_offset)
+    if not real and CLOCK_OFFSET is not None:  # Can apply time offset.
+        dt = dt + timedelta(seconds=CLOCK_OFFSET)
     return dt
 
 
@@ -335,91 +315,6 @@ def local_to_utc(dt: datetime) -> datetime:
 # ///////////////////////////////////////////////////////////////////////////////////
 # Trigonometry functions.
 # ///////////////////////////////////////////////////////////////////////////////////
-
-
-def alt_az_to_xyz(
-    alt: float, az: float, distance: float = 1.0
-) -> Tuple[float, float, float]:
-    """Convert alt,az angles to XYZ coordinates. Based upon originlab definition on web.
-    X and Y web definitions are swapped to match alignment in Pilomar space."""
-    if not type(alt) in [int, float, np.float64]:
-        main_log.log(
-            "AltAzToXYZ: Received bad alt datatype", alt, type(alt), level="error"
-        )
-    if not type(az) in [int, float, np.float64]:
-        main_log.log(
-            "AltAzToXYZ: Received bad az datatype", az, type(az), level="error"
-        )
-    try:
-        y = distance * math.cos(math.radians(alt)) * math.cos(math.radians(az))
-        x = distance * math.cos(math.radians(alt)) * math.sin(math.radians(az))
-        z = distance * math.sin(math.radians(alt))
-    except Exception as e:
-        main_log.raise_exception(
-            e, comment="AltAzToXYZ"
-        )  # Trap all the exception information in the main log file.
-    return x, y, z
-
-
-def xyz_to_alt_az(x: float, y: float, z: float) -> Tuple[float, float]:
-    """Convert 3D coordinates into altitude and azimuth."""
-    if not type(x) in [int, float, np.float64]:
-        main_log.log("XYZToAltAz: Received bad x datatype", x, type(x), level="error")
-    if not type(y) in [int, float, np.float64]:
-        main_log.log("XYZToAltAz: Received bad y datatype", y, type(y), level="error")
-    if not type(z) in [int, float, np.float64]:
-        main_log.log("XYZToAltAz: Received bad z datatype", z, type(z), level="error")
-    try:
-        r = math.sqrt(x * x + y * y)
-        alt = math.degrees(math.atan2(z, r))
-        az = math.degrees(math.atan2(x, y)) % 360
-    except Exception as e:
-        main_log.raise_exception(
-            e, comment="XYZToAltAz"
-        )  # Trap all the exception information in the main log file.
-    return alt, az
-
-
-def relative_alt_az(star_alt, star_az, look_at_alt, look_at_az):
-    """Calculate the angles of a star relative to some look-at position.
-    There will be some wonderfully clever maths to do this cleanly, quickly and precisely.
-    But this was developed with trial and error, and it works well enough for me and is modifiable as required.
-    """
-    plot_x, plot_y, plot_z = alt_az_to_xyz(
-        star_alt, star_az
-    )  # Place star on celestial sphere (unit 1)
-
-    # Swing round to LOOK-AT Azimuth.
-    new_y = plot_y * math.cos(math.radians(-1 * look_at_az)) - plot_x * math.sin(
-        math.radians(-1 * look_at_az)
-    )  # 0degrees is due north on Y axis. 90degrees is due east on X axis.
-    new_x = plot_x * math.cos(math.radians(-1 * look_at_az)) + plot_y * math.sin(
-        math.radians(-1 * look_at_az)
-    )
-    plot_x = new_x
-    plot_y = new_y
-
-    # Drop down to LOOK-AT Altitude.
-    new_y = plot_y * math.cos(math.radians(-1 * look_at_alt)) - plot_z * math.sin(
-        math.radians(-1 * look_at_alt)
-    )  # 0degrees is due north on Y axis. 90degrees is straight up on Z axis.
-    new_z = plot_z * math.cos(math.radians(-1 * look_at_alt)) + plot_y * math.sin(
-        math.radians(-1 * look_at_alt)
-    )
-    plot_y = new_y
-    plot_z = new_z
-
-    plot_star_alt, plot_star_az = xyz_to_alt_az(
-        plot_x, plot_y, plot_z
-    )  # Convert from an x,y,z location back into Alt/Az combination.
-    # Clip result to +/- 180Degrees because we're relative to the 'centre' of the map we're drawing.
-    plot_star_az = plot_star_az % 360
-    if plot_star_az > 180:
-        plot_star_az -= 360
-    plot_star_alt = plot_star_alt % 360
-    if plot_star_alt > 180:
-        plot_star_alt -= 360
-    return plot_star_alt, plot_star_az
 
 
 def calculate_vector(from_x, from_y, to_x, to_y):
@@ -456,28 +351,6 @@ def convert_arcseconds_to_pixels(arcseconds):
     """Convert an arcsecond value into a pixel count.
     Used for calculating the size of objects in an image."""
     return arcseconds * camera_in_use.pixels_per_fov_degree_width / 3600
-
-
-def plot_relative_alt_az(plot_star_alt, plot_star_az, height, width):
-    """Given a relative altitude and azimuth, return the X,Y co-ordinates on the image of dimensions (height*width)
-    plot_star_alt = +/- degrees from the centre of the image.
-    plot_star_az = +/- degrees from the centre of the image.
-    height = pixel height of the image.
-    width = pixel width of the image.
-    applydistortion = Position will be modified to simulate lens distortion."""
-    # Convert relative AltAz to a location on an image.
-    try:
-        temp_star_x = int(
-            (width / 2) + (plot_star_az * camera_in_use.pixels_per_fov_degree_width)
-        )  # Raw position
-        temp_star_y = int(
-            (height / 2) - (plot_star_alt * camera_in_use.pixels_per_fov_degree_height)
-        )  # SUBTRACT rather than ADD because Y axis in image counts down from the top, whereas ALTITUDE counts up from the bottom.
-    except Exception as e:
-        main_log.raise_exception(
-            e, comment="plot_relative_alt_az"
-        )  # Trap all the exception information in the main log file.
-    return temp_star_x, temp_star_y
 
 
 def az_alt_text(az, alt, symbol=None) -> str:
@@ -569,33 +442,6 @@ def recheck_disc():
     return True
 
 
-def verify_folder(fn):
-    """Check that all directorys in the list exist.
-    If they don't create them."""
-    result = False
-    try:
-        if fn[-1:] == "/":
-            fn = fn[:-1]  # Remove trailing directory separator if found.
-        if os.path.isdir(fn):  # Directory exists already.
-            main_log.log("VerifyFolder: Found", fn, terminal=False)
-        else:
-            main_log.log("VerifyFolder: Missing", fn, terminal=False)
-            cmd = "mkdir " + fn  # Create the directory.
-            os_cmd(cmd)
-            cmd = (
-                "chown pi:pi " + fn
-            )  # Make sure that the directory's owner is the pi user.
-            os_cmd(cmd)
-            cmd = "chmod +w " + fn  # Make sure there is write access to the directory.
-            os_cmd(cmd)
-            result = True
-    except Exception as e:
-        main_log.report_exception(
-            e, comment="VerifyFolder"
-        )  # Trap all the exception information in the main log file.
-    return result
-
-
 def define_session_folders(campaign_name, exposure=None):
     """Given a campaign name, generate the hierarchy of folders for this specific observation session.
     /home/pi/pilomar/
@@ -642,10 +488,10 @@ def detect_raspistill(canenable=False, candisable=False):
     )  # Or use /dev/null ? We don't need this file.
     # Remove any earlier copy of the file.
     tempcmd = "rm " + filename
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     tempcmd = "raspistill -o " + filename  # Simple command to test the camera.
     main_log.log("DetectRaspistill:", tempcmd, terminal=False)
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     if os.path.exists(filename):  # file exists so assume camera is available.
         tempresult = True
     else:  # file doesn't exist, so assume camera is unavailable.
@@ -673,7 +519,7 @@ def detect_raspistill(canenable=False, candisable=False):
                     "When the camera is available, you can re-enable it from the Camera Tools menu.",
                     level="warning",
                 )
-    templist = os_cmd("rm " + filename)  # Cleanup. Ignore errors.
+    templist = os_command.execute("rm " + filename)  # Cleanup. Ignore errors.
     main_log.log("DetectRaspistill:", tempresult, terminal=False)
     return tempresult
 
@@ -692,12 +538,12 @@ def detect_libcamera(canenable=False, candisable=False):
     )  # Or use /dev/null ? We don't need this file.
     # Remove any earlier copy of the file.
     tempcmd = "rm " + filename
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     tempcmd = (
         "libcamera-still --output " + filename + " --nopreview --timeout 10"
     )  # Simple command to test the camera.
     main_log.log("DetectLibcamera:", tempcmd, terminal=False)
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     if os.path.exists(filename):  # file exists so assume camera is available.
         tempresult = True
     else:  # file doesn't exist, so assume camera is unavailable.
@@ -725,7 +571,7 @@ def detect_libcamera(canenable=False, candisable=False):
                     "When the camera is available, you can re-enable it from the Camera Tools menu.",
                     level="warning",
                 )
-    templist = os_cmd("rm " + filename)  # Cleanup. Ignore errors.
+    templist = os_command.execute("rm " + filename)  # Cleanup. Ignore errors.
     main_log.log("DetectLibcamera:", tempresult, terminal=False)
     return tempresult
 
@@ -768,7 +614,7 @@ def calibrate_fov_menu():
             session.target.name, camera_in_use.exposure_seconds
         )  # This assigns folder names for all the image types.
         document_session()
-        drift_tracker.Reset()
+        drift_tracker.reset()
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -897,7 +743,7 @@ def initiate_mctl():
         TextColor.text_box(linelist, fg=TextColor.WHITE, bg=TextColor.RED)
         print("")
         print(TextColor.yellow("pilomar processes currently running:-"))
-        os_cmd("ps -ef | grep pilomar", output="terminal")
+        os_command.execute("ps -ef | grep pilomar", output="terminal")
         print(TextColor.yellow("This copy of the pilomar is pid", os.getpid()))
         main_log.raise_exception(
             e, comment="initiate_mctl:Exception"
@@ -978,194 +824,7 @@ def dictionary_loader(filename):
     return dictionary
 
 
-def b_vto_bgr(BV):
-    """Convert a B-V color value from Hipparcos catalog to an approximate BGR color code.
-    B-V     R G B (hex)
-    -0.33   706ffe
-    -0.3    519ffe
-    -0.02   bfd0ff
-    0.3     cdfdff
-    0.58    eeffdf
-    0.81    ffff7f
-    1.40    fe7f7d
-    """
-    r = g = b = 255
-    # List of sample B-V values and their approximate R,G,B equivalents. Found online.
-    color_points = [
-        (-0.33, [0x70, 0x6F, 0xFE]),
-        (-0.3, [0x51, 0x9F, 0xFE]),
-        (-0.02, [0xBF, 0xD0, 0xFF]),
-        (0.3, [0xCD, 0xFD, 0xFF]),
-        (0.58, [0xEE, 0xFF, 0xDF]),
-        (0.81, [0xFF, 0xFF, 0x7F]),
-        (1.4, [0xFE, 0x7F, 0x7D]),
-    ]
-
-    def b_vrange(BV):
-        # Given a B-V value, pick the pair of color_points that will be used to calculate the RGB equivalent.
-        fromi = 0
-        toi = 1  # If BV is too low, we use the lowest pair of entries. (We will extrapolate a value)
-        try:
-            for i, cp in enumerate(color_points):  # Consider each sample point in turn.
-                if BV >= cp[0]:  # Above lower threshold of this sample point.
-                    fromi = i  # Interpolation starts with this lower entry.
-                    toi = i + 1  # Interpolation ends with the next entry.
-            if toi >= len(
-                color_points
-            ):  # If BV is too high, we are off the end of the list, so use the highest pair of entries.
-                toi = len(color_points) - 1
-                fromi = toi - 1
-        except Exception as e:
-            main_log.log("BVRange:", str(BV), "failed:", str(e), level="error")
-            fromi = 0
-            toi = 1
-        return fromi, toi
-
-    def b_vd_x(fromi, toi):
-        # Span of BV values from LOWER to UPPER sample limits.
-        try:
-            result = color_points[toi][0] - color_points[fromi][0]
-        except Exception as e:
-            main_log.log(
-                "BVdX:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def b_vd_r(fromi, toi):
-        # Span of BLUE channel values from LOWER to UPPER sample limits.
-        try:
-            result = color_points[toi][1][0] - color_points[fromi][1][0]
-        except Exception as e:
-            main_log.log(
-                "BVdR:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def b_vd_g(fromi, toi):
-        # Span of GREEN channel values from LOWER to UPPER sample limits.
-        try:
-            result = color_points[toi][1][1] - color_points[fromi][1][1]
-        except Exception as e:
-            main_log.log(
-                "BVdG:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def b_vd_b(fromi, toi):
-        try:
-            result = color_points[toi][1][2] - color_points[fromi][1][2]
-        except Exception as e:
-            main_log.log(
-                "BVdB:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def bv_interpolate(BV, fromi, toi):
-        try:
-            bv_proportion = (BV - color_points[fromi][0]) / b_vd_x(
-                fromi, toi
-            )  # Position of our point between the two reference points. This is the scale applied to R,G,B channels.
-            r = round(
-                (bv_proportion * b_vd_r(fromi, toi)) + color_points[fromi][1][0], 0
-            )  # Scale RED channel relative to the BV position.
-            r = max(0, r)  # Colour channel values must be 0-255
-            r = min(255, r)
-            g = round(
-                (bv_proportion * b_vd_g(fromi, toi)) + color_points[fromi][1][1], 0
-            )  # Scale GREEN channel relative to the BV position.
-            g = max(0, g)
-            g = min(255, g)
-            b = round(
-                (bv_proportion * b_vd_b(fromi, toi)) + color_points[fromi][1][2], 0
-            )  # Scale BLUE channel relative to the BV position.
-            b = max(0, b)
-            b = min(255, b)
-        except Exception as e:
-            main_log.log(
-                "BVInterpolate:",
-                str(BV),
-                str(fromi),
-                str(toi),
-                "failed:",
-                str(e),
-                level="error",
-            )
-            r = b = g = 255
-        return (int(b), int(g), int(r))
-
-    try:
-        fromi, toi = b_vrange(
-            BV
-        )  # Which pair of sample colour points do we interpolate from?
-        b, g, r = bv_interpolate(BV, fromi, toi)
-    except Exception as e:
-        main_log.log("BVtoBGR:", str(BV), "failed:", str(e), level="warning")
-        b = g = r = 255
-    return (b, g, r)
-
-
 # -----------------------------------------------------------------------------------------------------
-
-
-def hip_color(bv):
-    """Return b,g,r values for the color of any star given its B-V value from the hipparcos catalog."""
-    bv = pandas_float(bv)  # Make sure it's a float, trap NaN values.
-    try:
-        if is_float(bv):  # Some entries are BLANK in Hipparcos data set.
-            color_bv = float(bv)
-            b, g, r = b_vto_bgr(color_bv)
-            # Make all the stars quite bright, so rescale the values to 128 - 255.
-            b = int(b / 2) + 127
-            g = int(g / 2) + 127
-            r = int(r / 2) + 127
-        else:
-            main_log.log(
-                "HipColor:",
-                str(bv),
-                "isn't float, setting (255,255,255)",
-                terminal=False,
-            )
-            b = g = r = 255
-    except Exception as e:
-        main_log.log("HipColor:", str(bv), "failed:", str(e), level="warning")
-        b = g = r = 255
-    return (b, g, r)
-
-
-def magnitude2_radius(mag, dimmest, brightest=-6, radius_max=20):
-    """Calculate star radius based upon a sliding scale of magnitudes.
-    Returns a scaled 'radius' and a 'ratio' for dimming colours based upon the magnitude of the item.
-    dimmest = High value magnitude (dimmest star to represent). (Radius 1)
-    brightest = Low value magnitude (brightest star to represent). (Radius 10)
-    NOTE: If you are tempted to alter this, test it carefully first. Magnitudes run negatively!
-    """
-    rmag = min(mag, dimmest)  # Magnitudes are inverted!
-    rmag = max(rmag, brightest)  # Magnitudes are inverted!
-    span = dimmest - brightest  # Span of magnitudes to be handled.
-    offset = rmag - brightest  # Start point on magnitude scale.
-    ratio = round(
-        (radius_max - 1) * (offset / span), 0
-    )  # How far along the magnitude scale is this item?
-    radius = int(radius_max - ratio)  # Convert to a radius.
-    brightnessratio = float(offset) / float(
-        span
-    )  # How far along the brightest - dimmest scale are we?
-    brightnessratio = 1.0 - (
-        brightnessratio / 2
-    )  # Invert the scale and make sure we don't dim below 50% so stuff stays visible.
-    return radius, brightnessratio
-
-
-def dim_channel(channel, ratio):
-    """simple multiplier for single color channel."""
-    channel = channel * ratio
-    channel = max(channel, 0)  # Cannot be < 0
-    channel = min(channel, 255)  # Cannot be > 255
-    return int(channel)
 
 
 def generate_ngc_dataframe(ngc_dict: dict):
@@ -1345,20 +1004,6 @@ def comet_data_age():
                     terminal=True,
                 )
     return filedays
-
-
-def skyfield_now(real=False):
-    """Return skyfield format current time.
-    Available as a method so that offsets or other features can be added if needed.
-    if clock_offset is set, that many seconds are added to the result. Allowing you to run the program against other dates/times.
-    if real == True, then the Clockoffset is not applied, giving the true CPU time."""
-    global clock_offset
-    result = ts.now()  # Now. # *Q* Offset supported.
-    if not real and clock_offset is not None:  # Can apply time offset.
-        dt = ts_to_datetime(result)
-        dt = +timedelta(seconds=clock_offset)
-        result = datetime2_ts(dt)
-    return result
 
 
 def choose_messier(prechosen=None, sizewarning=True):
@@ -6352,7 +5997,7 @@ def shutdown_camera():
             ]
             TextColor.text_box(lines, fg=TextColor.RED, bg=TextColor.BLACK)
             # Record the process stack to the log file just in case there's something useful there.
-            lines = os_cmd("ps -ef")
+            lines = os_command.execute("ps -ef")
             cam_log.log("ps -ef\n", terminal=False)
             for line in lines:
                 cam_log.log(line.strip() + "\n", terminal=False)
@@ -6857,7 +6502,7 @@ def generate_preview_movie(folder=None, filename=None):
         + "' -vf scale='iw/2:ih/2' "
         + avifilename
     )
-    os_cmd(cmd)
+    os_command.execute(cmd)
     print(TextColor.yellow("Generated"), avifilename)
     main_log.log(
         "GeneratePreviewAvi: Completed animation of observation previews.",
@@ -6885,7 +6530,7 @@ def generate_light_movie(folder=None, filename=None):
         + "' -vf scale='iw/2:ih/2' "
         + avifilename
     )
-    os_cmd(cmd)
+    os_command.execute(cmd)
     print(TextColor.yellow("Generated"), avifilename)
     main_log.log(
         "GenerateLightAvi: Completed animation of observation light images.",
@@ -6916,18 +6561,6 @@ def report_observation_errors():
             print("\t" + TextColor.orange(ln))
         cam_log.error_list = []  # Empty the list. We've reported it now.
     return True
-
-
-def get_position_ages():
-    """Return the age of the position measurements of each motor.
-    Returns values in rounded whole seconds."""
-    AzAge = AltAge = 0
-    for i in motor_contollers:
-        if i.motor_name == "azimuth":
-            AzAge = i.PositionAge()
-        else:
-            AltAge = i.PositionAge()
-    return AzAge, AltAge
 
 
 def incomplete_observation_check():
@@ -7459,7 +7092,7 @@ def observation_run():
             fg=OSW_TEXT_GOOD,
             bg=OSW_TEXT_BG,
         )  # Which folder is the observation data saved in.
-        if clock_offset is not None:  # The clock is not running in realtime.
+        if CLOCK_OFFSET is not None:  # The clock is not running in realtime.
             observation_status_window.field_value(
                 "CLOCK",
                 str(now_utc()).split("+")[0],
@@ -7888,7 +7521,7 @@ def observation_run():
                     + folder_handler.get_path("session")
                 )
                 if (
-                    clock_offset is not None
+                    CLOCK_OFFSET is not None
                 ):  # Warn that tracking clock is not running in realtime.
                     print(
                         TextColor.red(
@@ -8350,7 +7983,7 @@ def show_parameters():  # For menu
 def edit_parameters():  # For menu
     # global Parameters
     params.save_attributes(params.param_filename)  # Save current values.
-    os_cmd(
+    os_command.execute(
         "cp "
         + params.param_filename
         + " "
@@ -8367,7 +8000,7 @@ def edit_parameters():  # For menu
 
 
 def edit_target_history():  # For menu
-    os_cmd(
+    os_command.execute(
         "cp "
         + HistoryJsonFile
         + " "
@@ -9194,25 +8827,25 @@ def about():
     main_log.log("RPi processor:", OS_processor)
     main_log.log("RPi systemkey:", OS_systemkey)
 
-    for line in os_cmd("cat /sys/firmware/devicetree/base/model"):
+    for line in os_command.execute("cat /sys/firmware/devicetree/base/model"):
         if len(line) > 0:
             main_log.log("Firmware:", line, terminal=True)
-    for line in os_cmd("cat /etc/os-release"):
+    for line in os_command.execute("cat /etc/os-release"):
         if len(line) > 0:
             main_log.log("OS release:", line, terminal=True)
-    for line in os_cmd("cat /proc/version"):
+    for line in os_command.execute("cat /proc/version"):
         if len(line) > 0:
             main_log.log("OS version:", line, terminal=True)
-    for line in os_cmd("cat /proc/cpuinfo"):
+    for line in os_command.execute("cat /proc/cpuinfo"):
         if len(line) > 0:
             main_log.log("CPU info:", line, terminal=True)
-    for line in os_cmd("vcgencmd get_mem arm"):
+    for line in os_command.execute("vcgencmd get_mem arm"):
         if len(line) > 0:
             main_log.log("CPU memory allocation:", line, terminal=True)
-    for line in os_cmd("vcgencmd get_mem gpu"):
+    for line in os_command.execute("vcgencmd get_mem gpu"):
         if len(line) > 0:
             main_log.log("GPU memory allocation:", line, terminal=True)
-    for line in os_cmd("uptime"):
+    for line in os_command.execute("uptime"):
         if len(line) > 0:
             main_log.log("Uptime:", line, terminal=True)
     # Print program ID
@@ -9574,7 +9207,6 @@ if __name__ == "__main__":
     # Dictionary of 'toggles' so that warnings do not repeat too often.
     resume_observation = False  # Set this to TRUE to automatically load the previous observation and resume.
     StartupClock = None  # No initial datetime set for start of program. Means we use the current system clock.
-    clock_offset = None  # Number of seconds to apply to clocks to make the program appear to run in a different period of time.  Use with caution.
 
     # During an observation run we need to interrupt the processing. Python doesn't do this natively and
     # <ctrl-c> will stop the program brutally, so we use the curses library to provide a keyboard scanner.
@@ -9585,7 +9217,8 @@ if __name__ == "__main__":
     # Identify the program and version to the user.
     print(TextColor.yellow(source_code() + " " + str(source_date())))
 
-    ProjectRoot = os.path.dirname("/home/pi/pilomar")  # Root directory of the project.
+    ProjectRoot = os.path.join(os.getcwd(), "..")  # Root directory of the project.
+    print("Project root:", ProjectRoot)
 
     RELOAD_DATA = False  # Set to True to reload the data files.
 
@@ -9594,9 +9227,7 @@ if __name__ == "__main__":
     # Main log file.
     LogFileName = logdir + "/" + ProgramTitle + "_" + utc_time_stamp() + ".log"
     print("Main log to", LogFileName)
-    main_log = LogFile(
-        LogFileName, clockoffset=clock_offset
-    )  # Create a MAIN log file object.
+    main_log = LogFile(LogFileName)  # Create a MAIN log file object.
 
     # Camera log file.
     CamLogFileName = (
@@ -9604,7 +9235,7 @@ if __name__ == "__main__":
     )
     print("Camera log to", CamLogFileName)
     cam_log = LogFile(
-        CamLogFileName, clockoffset=clock_offset
+        CamLogFileName
     )  # Create a CAMERA specific log file. (This runs in separate thread, unsure if logging would be thread-safe.)
 
     main_log.log("Python version:", sys.version, terminal=False)
@@ -9612,18 +9243,143 @@ if __name__ == "__main__":
         "Main: RELOAD_DATA", RELOAD_DATA, terminal=False
     )  # Record that 'reload' has been triggered.
 
+    run_args = sys.argv[1:]  # Ignore 1st argument which is this program name.
+    argument_dict = {}  # Convert the runtime arguments into a dictionary.
+    # Dictionary is in the format...
+    #  {'--argument1':{0:'value1', 1:'value2', 2:'value3', 'cs':'value1,value2,value3'},
+    #   '--argument2':{0:'value1', 1:'value2', 2:'value3', 'cs':'value1,value2,value3'}}
+    optcount = 0
+    argument = ""
+    if len(run_args) > 0:  # Arguments given.
+        for arg in run_args:  # Run through all the arguments entered at runtime.
+            if arg[:2] == "--":  # Found an argument name.
+                argument = arg  # Note that this is the argument name we're working on.
+                argument_dict[arg] = {
+                    "all": ""
+                }  # Make fresh entry for this argument and its options.
+                optcount = 0  # Index of any options that follow.
+            else:
+                argument_dict[argument][
+                    optcount
+                ] = arg  # Add an option to the argument entry in the dictionary.
+                cs = argument_dict[argument][
+                    "all"
+                ]  # Get existing comma separated list of options.
+                if cs != "":
+                    cs += ","  # comma separate entries.
+                cs += arg.strip()  # Append this option.
+                while ",," in cs:
+                    cs = cs.replace(",,", ",")  # Make sure no repeated separators.
+                argument_dict[argument][
+                    "all"
+                ] = cs  # Get existing comma separated list of options.
+                optcount += 1
+
+    # List of parameters that can be used in set_controls.
+    # These are pulled from the runtime arguments and used to construct the set_controls call.
+    control_dict = {
+        "--shutter": {"Attribute": "ExposureTime", "Default": 5000, "Type": int},
+        "--gain": {"Attribute": "AnalogueGain", "Default": 1.0, "Type": float},
+        "--analoggain": {"Attribute": "AnalogueGain", "Default": 1.0, "Type": float},
+    }
+
+    # For speed ....
+    #           --gain 1 --awbgains 1,1 --immediate
+
+    # Create the dictionary of control settings for the camera.
+    controls_to_apply = {}
+    for argument, elementdict in argument_dict.items():
+        if argument in control_dict:  # We should use this argument.
+            CDE = control_dict[argument]  # Get the entry.
+            CDV = CDE["Default"]  # There's a default value if no options are given.
+            CDT = CDE["Type"]  # What datatype to use for options.
+            if 0 in elementdict:  # User specified options that we should use.
+                option = elementdict[0]  # Get the first option.
+                if (
+                    "Translate" in CDE and option in CDE["Translate"]
+                ):  # We can directly translate the options.
+                    option = CDE["Translate"][option]  # Use translation.
+                if CDT == float:  # Option must be float datatype.
+                    CDV = float(option)
+                elif CDT == int:  # Option must be int datatype
+                    CDV = int(float(option))  # Protect from 'float' values.
+                else:
+                    CDV = option  # Use the option as is.
+            controls_to_apply[CDE["Attribute"]] = (
+                CDV  # Add the option to the control list.
+            )
+    # Add any unspecified controls.
+    controls_to_apply["NoiseReductionMode"] = (
+        libcamera.controls.draft.NoiseReductionModeEnum.Off
+    )  # Turn off on-chip noise reduction routines.
+    if "--shutter" not in argument_dict:  # Shutter speed not given, so go for AE auto.
+        controls_to_apply["AeEnable"] = True  # Turn on Automatic Exposure mode.
+    else:
+        # For raw data we need to disable the auto-exposure and gains. This will speed up image capture significantly for long exposures.
+        controls_to_apply["HdrMode"] = 0  # Turn off HDR processing.
+        controls_to_apply["AeEnable"] = False  # Turn off Automatic Exposure mode.
+        controls_to_apply["AwbEnable"] = False  # Turn off auto white balance.
+        if "ColourGains" not in controls_to_apply:
+            controls_to_apply["ColourGains"] = (
+                1,
+                1,
+            )  # No colour gains. # Will be applied later if specified.
+        if "AnalogueGain" not in controls_to_apply:
+            controls_to_apply["AnalogueGain"] = 1  # No analogue gain.
+
+    if "--tuning-file" in argument_dict:
+        tuning = Picamera2.load_tuning_file(argument_dict["--tuning-file"][0])
+    else:
+        # tuning = Picamera2.load_tuning_file("imx477_noir.json")
+        tuning = Picamera2.load_tuning_file("imx477.json")
+    picam2 = Picamera2(tuning=tuning)
+
+    # Image dimensions
+    width = 4056
+    if "--width" in argument_dict:
+        width = int(argument_dict["--width"][0])
+    height = 3040
+    if "--height" in argument_dict:
+        height = int(argument_dict["--height"][0])
+
+    # Image quality (for jpg)
+    quality = 100
+    if "--quality" in argument_dict:
+        quality = int(argument_dict["--quality"][0])
+
+    # Sensor data format.
+    sensor_format = "SBGGR12"
+    if "--format" in argument_dict:
+        sensor_format = argument_dict["--format"][0]
+
+    # Filenames
+    jpgfilename = argument_dict.get("--output", {0: "output.fits"})[0]
+    jpgfilename = jpgfilename.replace(
+        ".fits", ".jpg"
+    )  # In case user puts wrong filetype.
+    fitsfilename = jpgfilename.replace(".jpg", ".fits")
+    jsonfilename = jpgfilename.replace(".jpg", ".json")
+
+    # Red/Blue gains.
+    redgain = 1.0
+    bluegain = 1.0
+    if "--awbgains" in argument_dict:
+        csl = argument_dict["--awbgains"]["all"].split(
+            ","
+        )  # Get all options as comma-separated-list (no whitespace).
+        redgain = float(csl[0])  # red channel
+        bluegain = float(csl[1])  # blue channel
+
     main_log.log("Startup parameters:", run_args, terminal=False)
     HistoryJsonFile = (
         ProjectRoot + "/data/" + ProgramTitle + "_sessions.json"
     )  # Chosen observation targets and settings are stored in this file.
 
-    OSCommand = OSCommand(main_log.log)  # Create OS Command executor.
-    os_cmd = (
-        OSCommand.execute
-    )  # Shortcut point to the execution method which returns the output.
+    os_command = OSCommand(main_log)  # Create OS Command executor.
     osCmdCode = (
-        OSCommand.execute_code
+        os_command.execute_code
     )  # Shortcut point to the execution method which returns the termination code.
+    RPIMODEL, RPiNum = r_pi_model()
 
     OS_id, OS_name, OS_type, OS_bits, OS_processor = os_version()
     OS_systemkey = RPiNum + "/" + OS_name + "/" + str(OS_bits)
@@ -9695,7 +9451,7 @@ if __name__ == "__main__":
         + ProgramTitle
         + "_*.log' -mtime +2 -print"
     )
-    linelist = os_cmd(cmd)
+    linelist = os_command.execute(cmd)
     for line in linelist:
         if len(line) > 0:
             print(TextColor.orange("Deleting", line))
@@ -9708,7 +9464,7 @@ if __name__ == "__main__":
         + "_*.log' -mtime +2 -delete"
     )
     print(cmd)  # Show the user the command being executed.
-    os_cmd(cmd)
+    os_command.execute(cmd)
     print("Done.")
 
     # Log details about the environment.
@@ -10495,8 +10251,8 @@ if __name__ == "__main__":
         logger=main_log,
     )
     motor_contollers: List[MotorControl] = (
-        MotorControl.AllMotors
-    )  #  Alias for the list of ALL defined motors held in the motorcontrol class.
+        MOTOR_CONTROL_LIST  #  Alias for the list of ALL defined motors held in the motorcontrol class.
+    )
 
     # Assign filename for the 'observation running' flag file.
     # Thie file indicates that an observation started, but has not yet cleanly finished.

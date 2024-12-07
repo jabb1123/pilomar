@@ -40,7 +40,7 @@ class AttributeMaster:  # A parent class containing some common methods that oth
         """Set up link to logging class and shortcuts to common methods."""
         # The logging methods default to 'consumers' which will just silently eat any parameters passed.
         self.logger: LogFile = logger  # Logger instance.
-        self.log = self._null_logger  # No log method.
+        self.log: LogFile = self._null_logger  # No log method.
         # Cannot report exception details to logfile.
         self.report__exception = self._null_logger
         self.raise_exception = self._null_logger  # Cannor report and raise exception.

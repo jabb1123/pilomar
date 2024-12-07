@@ -135,8 +135,7 @@ class AstroSensor:
         self.set_logger(
             logger
         )  # CamLog # Handle to the class that handles logging and error tracing.
-        self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
-        self.os_cmd = self.oscommand.execute
+        self.os_command = OSCommand(logger=logger)  # Create OS command executor.
         self.parameters: Parameters = (
             parameters  # Must declare the parameter file before you can use the instance.
         )
@@ -302,7 +301,7 @@ class AstroSensor:
             # According to raspberry pi forum, these can be ignored.
             # The output is not displayed, however pilomar logs it in case other errors occur in the future.
             self.log(cmd, terminal=False)
-            self.os_cmd(cmd)
+            self.os_command.execute(cmd)
             self.on_chip_cleanup = (
                 False  # raspistill feature. Libcamera does it through the command line.
             )
@@ -348,7 +347,7 @@ class AstroSensor:
             # According to raspberry pi forum, these can be ignored.
             # The output is logged but not displayed in case other errors occur in the future.
             self.log(cmd, terminal=False)
-            self.os_cmd(cmd)
+            self.os_command.execute(cmd)
             self.on_chip_cleanup = (
                 True  # Raspistill feature, libcamera does it through the command line.
             )

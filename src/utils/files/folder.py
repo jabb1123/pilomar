@@ -74,10 +74,7 @@ class FolderHandler(AttributeMaster):
             raise Exception(
                 "folderhandler.__init__(" + str(projectroot) + ") does not exist."
             )
-        self.oscommand = OSCommand(logger=logger.log)  # Create OS command executor.
-        self.os_cmd = (
-            self.oscommand.execute
-        )  # Point to the chosen Execute method for os commands.
+        self.os_command = OSCommand(logger=logger)  # Create OS command executor.
         self.folder_list = {}  # Initial empty list of folders and attributes.
         self.project_root = projectroot  # The base of all folders. Only folders beneath this level are created/modified.
         if parameters.use_usb_storage and USBDiscMonitor.DriveAvailable:
@@ -331,6 +328,34 @@ class FolderHandler(AttributeMaster):
                 mode=0o777, parents=True, exist_ok=True
             )  # Create folder and all parent folders if missing.
         except Exception as e:
-            self.logger.ReportException(
+            self.logger.report_exception(
                 e, command="folderhandler.CreateFolderByPath"
             )  # Trap all the exception information in the main log file.
+
+    def verify_folder(self, fn):
+        """Check that all directorys in the list exist.
+        If they don't create them."""
+        result = False
+        try:
+            if fn[-1:] == "/":
+                fn = fn[:-1]  # Remove trailing directory separator if found.
+            if os.path.isdir(fn):  # Directory exists already.
+                self.log.log("VerifyFolder: Found", fn, terminal=False)
+            else:
+                self.log.log("VerifyFolder: Missing", fn, terminal=False)
+                cmd = "mkdir " + fn  # Create the directory.
+                self.os_command.execute(cmd)
+                cmd = (
+                    "chown pi:pi " + fn
+                )  # Make sure that the directory's owner is the pi user.
+                self.os_command.execute(cmd)
+                cmd = (
+                    "chmod +w " + fn
+                )  # Make sure there is write access to the directory.
+                self.os_command.execute(cmd)
+                result = True
+        except Exception as e:
+            self.log.report_exception(
+                e, comment="VerifyFolder"
+            )  # Trap all the exception information in the main log file.
+        return result

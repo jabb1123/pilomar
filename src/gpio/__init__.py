@@ -16,28 +16,26 @@ from enum import Enum
 GPIO_DRIVER = None
 
 try:
-    import RPi.GPIO as gpio_driver  # Handling IO signals. If available.
-    import gpio_module
-
-    InputPinGPIO = gpio_module.InputPinGPIO
-    OutputPinGPIO = gpio_module.OutputPinGPIO
-    cleanup_gpio = gpio_module.cleanup_gpio
-
-    GPIO_DRIVER = "GPIO"
-except ModuleNotFoundError:
-    pass
-
-try:
     import gpiod as gpio_driver  # Handling IO signals. If available.
     import gpiod_module
-
-    InputPinGPIO = gpiod_module.InputPinGPIO
-    OutputPinGPIO = gpiod_module.OutputPinGPIO
-    cleanup_gpio = gpiod_module.cleanup_gpio
+    from gpiod_module import InputPinGPIO
+    from gpiod_module import OutputPinGPIO
+    from gpiod_module import cleanup_gpio
 
     GPIO_DRIVER = "GPIOD"
 except ModuleNotFoundError:
     print("No GPIO driver available.")
+
+try:
+    import RPi.GPIO as gpio_driver  # Handling IO signals. If available.
+    import gpio_module
+    from gpio_module import InputPinGPIO
+    from gpio_module import OutputPinGPIO
+    from gpio_module import cleanup_gpio
+
+    GPIO_DRIVER = "GPIO"
+except ModuleNotFoundError:
+    pass
 
 
 class GPIOPull(Enum):

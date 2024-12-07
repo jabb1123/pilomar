@@ -14,13 +14,17 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # Import required libraries
-import subprocess  # Threadsafe os command execution with access to command output.
+import subprocess
+
+from utils.logfile import (
+    LogFile,
+)  # Threadsafe os command execution with access to command output.
 
 
 class OSCommand:
     """object to execute OS commands."""
 
-    def __init__(self, logger=None):
+    def __init__(self, logger: LogFile = None):
         self.log = logger  # Must be a reference to a .Log() style method.
         self.last_error = None
         self.return_code = 0
@@ -36,7 +40,7 @@ class OSCommand:
         This should be thread safe.
         """
         if self.log is not None:
-            self.log(cmd, terminal=False)
+            self.log.log(cmd, terminal=False)
         self.last_error = None
         returncode = 0  # Assume success.
         try:
@@ -47,29 +51,29 @@ class OSCommand:
             self.last_error = e
             returncode = e.returncode
             if self.log is not None:
-                self.log(
+                self.log.log(
                     "OSCommand:.execute(" + cmd + ") returned " + str(e), terminal=False
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.execute("
                     + cmd
                     + ") returned returncode "
                     + str(e.returncode),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.execute(" + cmd + ") returned output " + str(e.output),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.execute(" + cmd + ") returned cmd " + str(e.cmd),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.execute(" + cmd + ") returned stdout " + str(e.stdout),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.execute(" + cmd + ") returned stderr " + str(e.stderr),
                     terminal=False,
                 )
@@ -111,36 +115,36 @@ class OSCommand:
         except subprocess.CalledProcessError as e:
             self.last_error = e
             if self.log is not None:
-                self.log(
+                self.log.log(
                     "OSCommand:.ExecuteCode(" + cmd + ") returned " + str(e),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.ExecuteCode("
                     + cmd
                     + ") returned returncode "
                     + str(e.returncode),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.ExecuteCode("
                     + cmd
                     + ") returned output "
                     + str(e.output),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.ExecuteCode(" + cmd + ") returned cmd " + str(e.cmd),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.ExecuteCode("
                     + cmd
                     + ") returned stdout "
                     + str(e.stdout),
                     terminal=False,
                 )
-                self.log(
+                self.log.log(
                     "OSCommand:.ExecuteCode("
                     + cmd
                     + ") returned stderr "

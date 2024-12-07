@@ -2,6 +2,27 @@
 # Utility functions.
 # ///////////////////////////////////////////////////////////////////////////////////
 
+VERSION = "1.1.0"  # Shared with microcontroller. # Make sure the microcontroller accepts any new version number.
+# print("Version:",VERSION)
+ACCEPTABLECONTROLLERVERSIONS = [
+    "1.0"
+]  # Microcontroller versions that this will work with. Ignore patch level.
+
+RASPISTILL_SYSTEMS = [
+    "wheezy",
+    "jessie",
+    "stretch",
+    "buster",
+]  # These all came with raspistill for camera support.
+
+SUPPORTED_SYSTEMS = [
+    "3/buster/32",
+    "4/buster/32",
+    "4/bookworm/64",
+    "5/bookworm/64",
+]  # The software is designed to run under these hardware/os combinations.
+
+
 # Special characters.
 # The terminal will need to be UTF-8 too. If not, these will look corrupted.
 SYMBOLS = {

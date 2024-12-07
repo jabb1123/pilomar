@@ -1,6 +1,7 @@
 """This module contains the AstroLens class which is used to represent the lens being used by the telescope."""
 
 from oscommand import OSCommand
+from utils.logfile import LogFile
 from utils.params import Parameters
 
 
@@ -17,14 +18,13 @@ class AstroLens:
         horizontal_fov,
         vertical_fov,
         aperture=2.8,
-        logger=None,
+        logger: LogFile = None,
         parameters: Parameters = None,
     ):
         self.set_logger(
             logger
         )  # CamLog # Handle to the class that handles logging and error tracing.
-        self.oscommand = OSCommand(logger=logger.Log)  # Create OS command executor.
-        self.os_cmd = self.oscommand.execute
+        self.os_command = OSCommand(logger=logger)  # Create OS command executor.
         self.parameters: Parameters = (
             parameters  # Must define parameter file before using instance.
         )
@@ -69,7 +69,7 @@ class AstroLens:
             self
         )  # Add this instance to the global list of all defined lenses.
 
-    def set_logger(self, logger):
+    def set_logger(self, logger: LogFile):
         """Set up link to logging class and shortcuts to common methods."""
         # The logging methods default to 'consumers' which will just silently eat any parameters passed.
         self.logger = logger  # Logger instance.
@@ -79,13 +79,13 @@ class AstroLens:
         )  # Cannot report exception details to logfile.
         self.raise_exception = self._null_logger  # Cannor report and raise exception.
         if hasattr(logger, "Log"):
-            self.log = logger.Log  # Log method.
+            self.log = logger  # Log method.
         if hasattr(logger, "ReportException"):
             self.report_exception = (
-                logger.ReportException
+                logger.report_exception
             )  # Report exception details to logfile.
         if hasattr(logger, "RaiseException"):
-            self.raise_exception = logger.RaiseException  # Report and raise exception.
+            self.raise_exception = logger.raise_exception  # Report and raise exception.
         self.log("AstroLens.set_logger: Linked to this log file.", terminal=False)
 
     def _null_logger(self, *args, **kwargs):
