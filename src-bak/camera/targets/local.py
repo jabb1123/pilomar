@@ -2,7 +2,8 @@ import os
 import pandas
 from skyfield.data import hipparcos  # Hipparcos star catalog.
 from skyfield.api import load  # Skyfield data loader.
-from utils.math_func import pandas_float
+from pilomar import b_vto_bgr
+from utils.math_func import pandas_float, is_float
 from utils.logfile import LogFile
 from utils.math_func import angle_to_dms, angle_to_hms
 from utils.params import AttributeMaster
