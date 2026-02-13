@@ -8,14 +8,10 @@ import threading
 import time
 from typing import List
 from camera.targets.target import AstroTarget
-from circuitpython.code import StringToBool
+from utils.conversion import string_to_bool
 from gpio.micro import Microcontroller
-from motor.control import MotorControl
-from pilomar import (
-    ACCEPTABLECONTROLLERVERSIONS,
-    VERSION,
-    get_position_ages,
-)
+from motor.control import MotorControl, get_position_ages
+from utils.version import ACCEPTABLECONTROLLERVERSIONS, VERSION
 from utils.logfile import LogFile
 from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL
@@ -230,9 +226,9 @@ class SessionStatus(AttributeMaster):
             lineitems[2]
         )  # What does the remote system report as the time?
         self.time_diff = now_utc() - remotetime  # What's the time difference?
-        self.clock_synchronised = StringToBool(lineitems[3])
-        self.autonomous_control = StringToBool(lineitems[4])
-        self.remote_control = StringToBool(lineitems[5])
+        self.clock_synchronised = string_to_bool(lineitems[3])
+        self.autonomous_control = string_to_bool(lineitems[4])
+        self.remote_control = string_to_bool(lineitems[5])
         self.mctl_life_seconds = int(lineitems[6])
         if (
             len(lineitems) > 7
@@ -292,7 +288,7 @@ class SessionStatus(AttributeMaster):
                 if i.motor_name == motorname:
                     foundit = True
                     i.trajectory_entries = int(lineitems[6])
-                    i.trajectory_valid = StringToBool(lineitems[4])
+                    i.trajectory_valid = string_to_bool(lineitems[4])
                     i.trajectory_valid_until = utc_string_to_datetime(lineitems[5])
                     duration = i.trajectory_valid_until - now_utc()
                     # self.log('sessionstatus.CheckTrajectory: Examining', i.motor_name, '
@@ -731,7 +727,7 @@ class SessionStatus(AttributeMaster):
                 "CMODE", fg=self.parameters.text_good
             )
         # Mark the age of the last reported camera positions, warn if the data is getting stale.
-        az_age, alt_age = get_position_ages()
+        az_age, alt_age = get_position_ages(self.motor_controllers)
         if az_age > 60:
             azafg = self.parameters.text_bad
         elif az_age > 20:

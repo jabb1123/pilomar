@@ -3,9 +3,10 @@ import os
 import time
 from typing import Tuple
 from camera.targets.target import AstroTarget
-from circuitpython.code import BoolToString, StringToBool
+from utils.conversion import bool_to_string, string_to_bool
 from gpio.micro import Microcontroller
-from pilomar import text_to_int, verify_folder
+from utils.math_func import text_to_int
+from utils.files import verify_folder
 from utils.math_func import deg_3dp
 from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL
@@ -902,7 +903,7 @@ class MotorControl(AttributeMaster):
         13: Reason. Code explaining WHY the status message was sent.
         """
         lineitems = line.split(" ")
-        configuredflag = StringToBool(lineitems[9])  # Is the motor configured?
+        configuredflag = string_to_bool(lineitems[9])  # Is the motor configured?
         if configuredflag != self.motor_configured:
             self.log(
                 "motorcontrol.ReceiveStatus(",
@@ -918,10 +919,10 @@ class MotorControl(AttributeMaster):
             self.previous_angle = self.current_angle  # Store previous position.
             self.current_angle = float(lineitems[8])
             self.store_recovery_angle()  # Record the latest position of the motor for restart/recovery later.
-            self.trajectory_valid = StringToBool(lineitems[4])
+            self.trajectory_valid = string_to_bool(lineitems[4])
             self.trajectory_valid_until = utc_string_to_datetime(lineitems[5])
             self.trajectory_entries = int(lineitems[6])
-            self.on_target = StringToBool(lineitems[10])  # Is the motor on target?
+            self.on_target = string_to_bool(lineitems[10])  # Is the motor on target?
         else:
             self.log(
                 "motorcontrol.ReceiveStatus(",
@@ -1013,10 +1014,10 @@ class MotorControl(AttributeMaster):
             str(self.parameters.motor_status_delay) + " "
         )  # Field 12: Set timer delay for sending motor status back to the RPi.
         line += (
-            BoolToString(self.parameters.fault_sensitive) + " "
+            bool_to_string(self.parameters.fault_sensitive) + " "
         )  # Field 13: When 'y' the microcontroller will respect the DRV8825 fault pin to block movement.
         line += (
-            BoolToString(self.optimise_moves) + " "
+            bool_to_string(self.optimise_moves) + " "
         )  # Field 14: When 'y' the microcontroller can take shortcuts for large moves.
         line += (
             str(self.limit_angle) + " "
@@ -1031,7 +1032,7 @@ class MotorControl(AttributeMaster):
             self.mode_signals + " "
         )  # Field 20 Steppermotor mode signals for microstepping.
         line += (
-            BoolToString(self.parameters.slew_enabled) + " "
+            bool_to_string(self.parameters.slew_enabled) + " "
         )  # Field 21 SlewEnabled flat. (Can motor make FULL STEP moves during large position changes)
         line += (
             self.slew_signals + " "
@@ -1346,3 +1347,22 @@ def last_reported_alt_az(
         elif i.motor_name == "altitude":
             alt_degree = i.current_angle
     return alt_degree, az_degree
+
+
+def get_position_ages(motor_controllers):
+    """Return the age of the position measurements of each motor.
+    Returns values in rounded whole seconds.
+    
+    Args:
+        motor_controllers: List of MotorControl instances
+        
+    Returns:
+        Tuple of (AzAge, AltAge) in seconds
+    """
+    AzAge = AltAge = 0
+    for i in motor_controllers:
+        if i.motor_name == "azimuth":
+            AzAge = i.PositionAge()
+        else:
+            AltAge = i.PositionAge()
+    return AzAge, AltAge

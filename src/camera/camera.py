@@ -29,7 +29,7 @@ import numpy as np  # Fast array handling
 from camera.astro_lens import AstroLens
 from camera.astro_sensor import AstroSensor
 from camera.image import (  # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
-    pilomarimage,
+    PilomarImage,
     pilomarkeogram,
 )
 from gpio.micro import Microcontroller
@@ -40,7 +40,15 @@ from utils.disk import DiskMonitor
 from utils.files.folder import FolderHandler
 from utils.logfile import LogFile
 from utils.math_func import is_int, text_to_int
+from utils.coordinates import (
+    alt_az_to_xyz,
+    xyz_to_alt_az,
+    relative_alt_az,
+    plot_relative_alt_az,
+    calculate_vector,
+)
 from utils.params import Parameters
+from utils.text.display import ask_yes_no
 from utils.text.human_readable import human_readable_seconds
 from utils.text.textcolor import (  # Basic colour and cursor control codes for terminal displays.
     KeyboardScanner,
@@ -99,12 +107,9 @@ class AstroCamera:
         self.set_logger(
             logger
         )  # self.log # Handle to the class that handles logging and error tracing.
-        self.os_command = OSCommand(logger=logger.Log)  # Create OS command executor.
+        self.os_command = OSCommand(logger=logger.log)  # Create OS command executor.
         self.os_cmd = self.os_command.execute
         # Helper functions and attributes, should be set in calling program.
-        self.image_simulator = None  # Can be handle to image simulation procedure. Must match CreateTargetImage() signature.
-        self.relative_alt_az = None  # Can be handle to RelativeAltAz calculation. Must match RelativeAltAz() signature.
-        self.plot_relative_alt_az = None  # Can be handle to PlotRelativeAltAz calculation. Must match PlotRelativeAltAz() signature.
         self.keyboard: KeyboardScanner = (
             None  # Can declare a keyboard scanner (TextColor keyboard scanner instance).
         )
@@ -144,7 +149,7 @@ class AstroCamera:
         self.last_image_date_time = None  # When was the latest image taken? # *Q* How widely is this attribute used?
         self.last_jpg = None  # The filename of the last jpg taken (if saved)
         self.preview_jpg = None  # The filename of the last preview image generated.
-        self.image = pilomarimage(
+        self.image = PilomarImage(
             name="camera", logger=self.logger
         )  # pilomarimage instance for handling OpenCV image buffer.
         self.capture_start = (
@@ -480,13 +485,13 @@ class AstroCamera:
             "astrocamera.CalibrateFov: Consider last captured image", terminal=False
         )
         if (
-            self.image.ImageExists()
+            self.image.image_exists()
         ):  # There's an image in the buffer, what large objects are in there?
             dia_min = 50  # Smallest diameter objects to list.
             dia_max = 600  # Largest diameter objects to list.
             area_min = math.pi * ((dia_min / 2) ** 2)
             area_max = math.pi * ((dia_max / 2) ** 2)
-            bc_count, bc_list = self.image.CountStars(
+            bc_count, bc_list = self.image.count_stars(
                 minval=area_min, maxval=area_max
             )  # Count objects with large pixel areas (100-600 pixel radius).
         else:  # No objects identified.
@@ -657,7 +662,7 @@ class AstroCamera:
         self.last_image_date_time = None  # When was the latest image taken?
         self.lastjpg = None  # The filename of the last jpg taken (if saved)
         self.previewjpg = None  # The filename of the last preview image generated.
-        self.image.Clear()  # openCV image buffer. Loaded explicitly when needed.
+        self.image.clear()  # openCV image buffer. Loaded explicitly when needed.
         self.capture_start = (
             None  # Timestamp when image capture started. Used to detect camera hanging.
         )
@@ -842,26 +847,26 @@ class AstroCamera:
         Return combined image."""
         height = self.sensor.pixel_height  # Image dimensions.
         width = self.sensor.pixel_width
-        curtain_image = pilomarimage(
+        curtain_image = PilomarImage(
             name="auroracurtain", logger=self.logger
         )  # Create empty image.
         auroracolors = [
-            pilomarimage.BGR("LightGreen"),
-            pilomarimage.BGR("DarkGreen"),
-            pilomarimage.BGR("Cyan"),
-            pilomarimage.BGR("HotPink"),
+            PilomarImage.bgr("LightGreen"),
+            PilomarImage.bgr("DarkGreen"),
+            PilomarImage.bgr("Cyan"),
+            PilomarImage.bgr("HotPink"),
         ]
         for i, ac in enumerate(auroracolors):  # Dim all the colors.
-            auroracolors[i] = curtain_image.DimColor(
+            auroracolors[i] = curtain_image.dim_color(
                 ac, 0.2
             )  # Reduce color intensity to nnn%
         fieldimg = srcimg.copy().astype(
             np.uint16
         )  # Black image, datatype large enough for multiple layers to be combined.
-        curtain_image.New(height, width, imagetype="bgr", datatype=np.uint8)
-        if curtain_image.ImageMissing():
+        curtain_image.new(height, width, imagetype="bgr", datatype=np.uint8)
+        if curtain_image.image_missing():
             self.log(
-                "astrocamera.FakeAurora: fakeimage.New() failed.",
+                "astrocamera.FakeAurora: fakeimage.new() failed.",
                 level="error",
                 terminal=True,
             )
@@ -886,13 +891,13 @@ class AstroCamera:
             cornerlist.append((corner[0], y))
         for i, color in enumerate(auroracolors):  # Poll through the colors.
             curtaincolor = color  # Select color for this layer.
-            curtain_image.New(
+            curtain_image.new(
                 height, width, imagetype="bgr", datatype=np.uint8
             )  # Empty the buffer for each curtain.
             for j in range(1, len(cornerlist)):
-                curtain_image.FillPolygon(cornerlist, color=curtaincolor)
+                curtain_image.fill_polygon(cornerlist, color=curtaincolor)
             fieldimg = np.add(
-                fieldimg, curtain_image.ImageBuffer
+                fieldimg, curtain_image.image_buffer
             )  # Apply the curtain object on top of the base image.
             # Reduce height of all corners for next color.
             cornerlist = [
@@ -942,10 +947,10 @@ class AstroCamera:
             centre_az,
             terminal=False,
         )
-        rel_alt, rel_az = self.relative_alt_az(
+        rel_alt, rel_az = relative_alt_az(
             0, centre_az, centre_alt, centre_az
         )  # Image pixel height of horizon. (Thickest pollution level).
-        _, horizon_y = self.plot_relative_alt_az(
+        _, horizon_y = plot_relative_alt_az(
             rel_alt, rel_az, self.sensor.pixel_height, self.sensor.pixel_width
         )  # Covert to pixel height.
         self.log(
@@ -955,10 +960,10 @@ class AstroCamera:
             horizon_y,
             terminal=False,
         )
-        rel_alt, rel_az = self.relative_alt_az(
+        rel_alt, rel_az = relative_alt_az(
             pollution_max_alt, centre_az, centre_alt, centre_az
         )  # Image pixel height of pollution upper limit. (Thinnest pollution level)
-        _, top_y = self.plot_relative_alt_az(
+        _, top_y = plot_relative_alt_az(
             rel_alt, rel_az, self.sensor.pixel_height, self.sensor.pixel_width
         )  # Covert to pixel height.
         self.log(
@@ -1056,31 +1061,31 @@ class AstroCamera:
             ")",
             terminal=False,
         )
-        fakeimage = pilomarimage(name="fakephoto", logger=self.logger)
+        fakeimage = PilomarImage(name="fakephoto", logger=self.logger)
         height = self.sensor.pixel_height
         width = self.sensor.pixel_width
-        fakeimage.New(height, width, imagetype="bgr", datatype=np.uint8)
-        if fakeimage.ImageMissing():
+        fakeimage.new(height, width, imagetype="bgr", datatype=np.uint8)
+        if fakeimage.image_missing():
             self.log(
-                "astrocamera.FakePhoto: fakeimage.New() failed.",
+                "astrocamera.FakePhoto: fakeimage.new() failed.",
                 level="error",
                 terminal=True,
             )
-        # fakeimage.ImageBuffer,starcount,starlist = CreateTargetImage(color=True,MinMagnitude=self.parameters.target_min_magnitude,astrotime=astrotime) # Use CreateTargetImage to make fake photo.
-        fakeimage.ImageBuffer, starcount, starlist = self.image_simulator(
+        # fakeimage.image_buffer,starcount,starlist = CreateTargetImage(color=True,MinMagnitude=self.parameters.target_min_magnitude,astrotime=astrotime) # Use CreateTargetImage to make fake photo.
+        fakeimage.image_buffer, starcount, starlist = self.image_simulator(
             color=True,
             MinMagnitude=self.parameters.target_min_magnitude,
             astrotime=astrotime,
         )  # Use CreateTargetImage to make fake photo.
-        if fakeimage.ImageMissing():
+        if fakeimage.image_missing():
             self.log(
                 "astrocamera.FakePhoto: ImageSimulator() failed.",
                 level="error",
                 terminal=True,
             )
         if self.parameters.fake_noise:  # Simulate fake image noise.
-            fakeimage.FakeNoise()
-            if fakeimage.ImageMissing():
+            fakeimage.fake_noise()
+            if fakeimage.image_missing():
                 self.log(
                     "astrocamera.FakePhoto: FakeNoise() failed.",
                     level="error",
@@ -1089,16 +1094,16 @@ class AstroCamera:
         if (
             self.parameters.fake_field
         ):  # Simulate fake electrical field noise in the image.
-            fakeimage.FakeField()
-            if fakeimage.ImageMissing():
+            fakeimage.fake_field()
+            if fakeimage.image_missing():
                 self.log(
                     "astrocamera.FakePhoto: FakeField() failed.",
                     level="error",
                     terminal=True,
                 )
         if self.parameters.fake_pollution:  # Simulate fake light pollution.
-            fakeimage.ImageBuffer = self.fake_pollution(fakeimage.ImageBuffer)
-            if fakeimage.ImageMissing():
+            fakeimage.image_buffer = self.fake_pollution(fakeimage.image_buffer)
+            if fakeimage.image_missing():
                 self.log(
                     "astrocamera.FakePhoto: FakePollution() failed.",
                     level="error",
@@ -1107,8 +1112,8 @@ class AstroCamera:
         if (
             self.object_type in ["aurora"] and self.parameters.fake_aurora
         ):  # Simulate aurora
-            fakeimage.ImageBuffer = self.fake_aurora(fakeimage.ImageBuffer)
-            if fakeimage.ImageMissing():
+            fakeimage.image_buffer = self.fake_aurora(fakeimage.image_buffer)
+            if fakeimage.image_missing():
                 self.log(
                     "astrocamera.FakePhoto: FakeAurora() failed.",
                     level="error",
@@ -1118,15 +1123,15 @@ class AstroCamera:
             self.parameters.fake_meteor
             and random.randint(0, 100) < self.parameters.fake_meteor_percent
         ):  # 2% of images get fake meteor streaks in them.
-            fakeimage.FakeMeteor()
-            if fakeimage.ImageMissing():
+            fakeimage.fake_meteor()
+            if fakeimage.image_missing():
                 self.log(
                     "astrocamera.FakePhoto: FakeMeteor() failed.",
                     level="error",
                     terminal=True,
                 )
         try:
-            fakeimage.SaveFile(outputfile)
+            fakeimage.save_file(outputfile)
         except Exception as e:
             self.log(
                 "astrocamera.FakePhoto failed to write:", outputfile, level="error"
@@ -1143,19 +1148,19 @@ class AstroCamera:
             ")",
             terminal=False,
         )
-        fakeimage = pilomarimage(name="fakedark", logger=self.logger)
+        fakeimage = PilomarImage(name="fakedark", logger=self.logger)
         height = self.sensor.pixel_height
         width = self.sensor.pixel_width
-        fakeimage.New(height, width, imagetype="bgr", datatype=np.uint8)
-        fakeimage.FillColor((0, 0, 0))  # Black.
+        fakeimage.new(height, width, imagetype="bgr", datatype=np.uint8)
+        fakeimage.fill_color((0, 0, 0))  # Black.
         if self.parameters.fake_noise:  # Simulate fake image noise.
-            fakeimage.FakeNoise()
+            fakeimage.fake_noise()
         if (
             self.parameters.fake_field
         ):  # Simulate fake electrical field noise in the image.
-            fakeimage.FakeField()
+            fakeimage.fake_field()
         try:
-            fakeimage.SaveFile(outputfile)
+            fakeimage.save_file(outputfile)
         except Exception as e:
             self.log("astrocamera.FakeDark failed to write:", outputfile, level="error")
             self.report_exception(e, comment="astrocamera.FakeDark cv2.imwrite")
@@ -1384,9 +1389,9 @@ class AstroCamera:
                 "astrocamera.CaptureSetFull(): Load image from " + outputfile,
                 terminal=False,
             )
-            self.image.LoadFile(outputfile)  # OpenCV format.
+            self.image.load_file(outputfile)  # OpenCV format.
             if (
-                self.image.ImageMissing()
+                self.image.image_missing()
             ):  # imread failed. The capture did not succeed for some reason?
                 self.log(
                     "astrocamera.CaptureSetFull(): imread of",
@@ -1428,7 +1433,7 @@ class AstroCamera:
                     if (
                         self.camera_save_jpg
                     ):  # We should save only the jpg data, stripping out any embedded additional RAW data
-                        self.image.SaveFile(
+                        self.image.save_file(
                             outputfile
                         )  # Save the JPG file, but remove the 'raw' data. This overwrites the original file generated by raspistill.
                     else:  # We're only saving the RAW data, so just delete the original jpg file.
@@ -1679,9 +1684,9 @@ class AstroCamera:
                 "astrocamera.CaptureSetFast(): Load image from " + outputfile,
                 terminal=False,
             )
-            self.image.LoadFile(outputfile)  # OpenCV format.
+            self.image.load_file(outputfile)  # OpenCV format.
             if (
-                self.image.ImageMissing()
+                self.image.image_missing()
             ):  # imread failed. The capture did not succeed for some reason?
                 self.log(
                     "astrocamera.CaptureSetFast(): imread of",
@@ -1794,7 +1799,7 @@ class AstroCamera:
             keo = pilomarkeogram(
                 "keogram", self.sensor.pixel_width, self.sensor.pixel_height
             )  # Define new Keogram instance.
-            imagehandler = pilomarimage(
+            imagehandler = PilomarImage(
                 "keogram-input", logger=self.logger
             )  # Load each image in turn.
             for i, file in enumerate(allfiles):  # Go through all the .jpg files found.
@@ -1822,12 +1827,12 @@ class AstroCamera:
                         start = dt
                     if end is None or end < dt:
                         end = dt
-                imagehandler.LoadFile(file)
-                keo.Extract(imagehandler)
+                imagehandler.load_file(file)
+                keo.extract(imagehandler)
             # Markup image.
-            keo.BuildImageBuffer()  # Load the resulting raw keogram into a pilomarimage instance. (For markup)
-            width = keo.Keogram.GetWidth()
-            height = keo.Keogram.GetHeight()
+            keo.build_image_buffer()  # Load the resulting raw keogram into a pilomarimage instance. (For markup)
+            width = keo.keogram.get_width()
+            height = keo.keogram.get_height()
             # Add altitude scale
             base_alt = altitude - (
                 self.lens.fov_vertical / 2
@@ -1841,51 +1846,51 @@ class AstroCamera:
             ceiling_alt = math.ceil(
                 top_alt
             )  # Heighest integer altitude, will be just above the top edge of the image.
-            keo.Keogram.DrawLine(
-                (width - 10, 0), (width - 10, height), color=pilomarimage.BGR("Yellow")
+            keo.keogram.draw_line(
+                (width - 10, 0), (width - 10, height), color=PilomarImage.bgr("Yellow")
             )  # Draw axis for altitude tick marks.
-            keo.Keogram.AddText(
-                "Altitude", width - 10, 40, color=pilomarimage.BGR("Yellow"), hjust="r"
+            keo.keogram.add_text(
+                "Altitude", width - 10, 40, color=PilomarImage.bgr("Yellow"), hjust="r"
             )  # Label the altitude axis.
             for a in range(floor_alt, ceiling_alt):  # Mark off each degree of altitude.
                 y = height - int(
                     height * (a - base_alt) / (top_alt - base_alt)
                 )  # Pixel height up the image for this degree marker.
-                keo.Keogram.DrawLine(
-                    (width - 50, y), (width - 10, y), color=pilomarimage.BGR("Yellow")
+                keo.keogram.draw_line(
+                    (width - 50, y), (width - 10, y), color=PilomarImage.bgr("Yellow")
                 )  # Draw tickmark for the degree marker.
-                keo.Keogram.AddText(
+                keo.keogram.add_text(
                     str(a) + "deg",
                     width - 50,
                     y,
-                    color=pilomarimage.BGR("Yellow"),
+                    color=PilomarImage.bgr("Yellow"),
                     hjust="r",
                 )  # Label the degree marker.
             if len(allfiles) > 1:  # Need at least 2 files in order to add time scale.
-                keo.Keogram.DrawLine(
+                keo.keogram.draw_line(
                     (0, height - 10),
                     (width, height - 10),
-                    color=pilomarimage.BGR("Cyan"),
+                    color=PilomarImage.bgr("Cyan"),
                 )  # Draw horizontal axis for the time scale.
-                keo.Keogram.AddText(
+                keo.keogram.add_text(
                     "<-" + str(start)[11:19],
                     10,
                     height - 130,
-                    color=pilomarimage.BGR("Cyan"),
+                    color=PilomarImage.bgr("Cyan"),
                     hjust="l",
                 )  # Mark START time.
-                keo.Keogram.AddText(
+                keo.keogram.add_text(
                     str(end)[11:19] + "->",
                     width - 10,
                     height - 130,
-                    color=pilomarimage.BGR("Cyan"),
+                    color=PilomarImage.bgr("Cyan"),
                     hjust="r",
                 )  # Mark END time.
-                keo.Keogram.AddText(
+                keo.keogram.add_text(
                     "< Time >",
                     int(width / 2),
                     height - 10,
-                    color=pilomarimage.BGR("Cyan"),
+                    color=PilomarImage.bgr("Cyan"),
                     vjust="t",
                     hjust="c",
                 )  # Label the axis.
@@ -1931,16 +1936,16 @@ class AstroCamera:
                     x = int(
                         a * pixels_per_second - x_offset
                     )  # X axis location for the tickmark.
-                    keo.Keogram.DrawLine(
+                    keo.keogram.draw_line(
                         (x, height - 10),
                         (x, height - 100),
-                        color=pilomarimage.BGR("Cyan"),
+                        color=PilomarImage.bgr("Cyan"),
                     )  # Draw tickmark.
                     text = str(floor_time + timedelta(seconds=a))[
                         11:19
                     ]  # Calculate HH:MM:SS time of the tickmark.
-                    keo.Keogram.AddText(
-                        text, x, height - 100, color=pilomarimage.BGR("Cyan"), hjust="c"
+                    keo.keogram.add_text(
+                        text, x, height - 100, color=PilomarImage.bgr("Cyan"), hjust="c"
                     )  # Label the tickmark with the HH:MM:SS time.
             # Add key/labels
             linelist = []  # Start assembling a block of text.
@@ -1950,7 +1955,7 @@ class AstroCamera:
                 linelist.append(
                     "Duration: " + human_readable_seconds((end - start).total_seconds())
                 )
-            linelist.append("Images captured: " + str(keo.SampleCount))
+            linelist.append("Images captured: " + str(keo.sample_count))
             linelist.append("Target alt: " + str(altitude) + ", az:" + str(azimuth))
             if altitude is not None:
                 linelist.append(
@@ -1961,17 +1966,17 @@ class AstroCamera:
                     + "deg"
                 )
             ypos = 50  # Text box at TOP of image.
-            keo.Keogram.AddTextBlock(
+            keo.keogram.add_text_block(
                 linelist,
                 20,
                 ypos,
                 size=1,
-                color=pilomarimage.BGR("White"),
-                bgcolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("White"),
+                bgcolor=PilomarImage.bgr("Black"),
                 border=3,
             )  # Write data.
             # Save resulting image.
-            keo.SaveFile(keogramfile)
+            keo.save_file(keogramfile)
         print("")  # Move cursor down so that the stats can be seen.
         return True
 
@@ -2024,7 +2029,7 @@ class AstroCamera:
             "files to process.",
             terminal=True,
         )
-        tempimage = pilomarimage(name="temp", logger=self.logger)
+        tempimage = PilomarImage(name="temp", logger=self.logger)
         if filecount > 0:
             for file in files:
                 print(file)
@@ -2134,7 +2139,7 @@ class AstroCamera:
 
     def contains_meteors(self, image):  # In pilomarimage
         """Return TRUE if meteors or aircraft trails are detected in an image."""
-        if len(self.image.LineDetection()) > 0:
+        if len(self.image.line_detection()) > 0:
             return True
         else:
             return False
@@ -2275,7 +2280,7 @@ class AstroCamera:
         )
         print(" ")  # Blank line for incremental counter to occupy.
         if filecount > 0:
-            tempimage = pilomarimage(name="temp", logger=self.logger)
+            tempimage = PilomarImage(name="temp", logger=self.logger)
             for i, file in enumerate(files):
                 # Check for EXIT from keyboard.
                 kcl = self.keyboard.check().lower()

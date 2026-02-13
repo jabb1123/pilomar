@@ -5,7 +5,7 @@
 import math
 
 import numpy as np
-from camera.image import pilomarimage
+from camera.image import PilomarImage
 from utils.files.folder import FolderHandler
 from utils.params import AttributeMaster, Parameters
 from utils.time_funcs import now_hour_minute_sec, now_utc, utc_time_stamp
@@ -22,12 +22,12 @@ class ImageTracker(AttributeMaster):
         )  # Inherited from attributemaster: Set up references to chosen logger (or disable if no logger defined).
         self.parameters: Parameters = parameters
 
-        self.target_image = pilomarimage(
+        self.target_image = PilomarImage(
             name="target", logger=CamLog
         )  # This will be the opencv image buffer.
         self.target_time_stamp = None  # UTC timestamp for image buffer.
 
-        self.latest_image = pilomarimage(
+        self.latest_image = PilomarImage(
             name="latest", logger=CamLog
         )  # This will be the opencv image buffer.
         self.latest_time_stamp = None  # UTC timestamp for the image buffer.
@@ -62,10 +62,10 @@ class ImageTracker(AttributeMaster):
     def reset(self):
         """Reset image cache and related data."""
         self.log("ImageTracker.Reset: Begin", terminal=False)
-        self.target_image.Clear()
+        self.target_image.clear()
         self.target_time_stamp = None
         self.target_star_match_list = []
-        self.latest_image.Clear()
+        self.latest_image.clear()
         self.latest_time_stamp = None
         self.latest_star_match_list = []
         self.latest_star_count = 0
@@ -101,13 +101,13 @@ class ImageTracker(AttributeMaster):
         ):  # If we don't know the timestamp of the image, use the current clock.
             timestamp = now_utc()  # Assume current clock time.
         self.target_time_stamp = timestamp
-        self.target_image.LoadBuffer(cvimagebuffer)
-        self.target_image.ChangeType("grayscale")
+        self.target_image.load_buffer(cvimagebuffer)
+        self.target_image.change_type("grayscale")
         self.log(
             "ImageTracker.SetTargetImage: About to measure contrast.", terminal=False
         )
         contrast_m, contrast_s = (
-            self.target_image.MeasureContrast()
+            self.target_image.measure_contrast()
         )  # Calculate contrast for latest image.
         self.log(
             "ImageTracker.SetTargetImage: Contrast measures",
@@ -117,13 +117,13 @@ class ImageTracker(AttributeMaster):
         )
         self.log(
             "ImageTracker.SetTargetImage: Prepared image: type",
-            str(type(self.target_image.ImageBuffer)),
+            str(type(self.target_image.image_buffer)),
             "shape",
-            self.target_image.GetHeight(),
+            self.target_image.get_height(),
             "x",
-            self.target_image.GetWidth(),
+            self.target_image.get_width(),
             "depth",
-            self.target_image.GetDepth(),
+            self.target_image.get_depth(),
             terminal=False,
         )
         self.dx = None
@@ -148,29 +148,29 @@ class ImageTracker(AttributeMaster):
                 "ImageTracker.SetTargetImage: Did not receive StarCount or StarList. Calculating them from image.",
                 terminal=False,
             )
-            _, _ = self.target_image.CountStars()
+            _, _ = self.target_image.count_stars()
         else:  # StarCount and StarList already available, just use those.
             self.log(
                 "ImageTracker.SetTargetImage: Received StarCount and StarList. Not recalculating them.",
                 terminal=False,
             )
-            self.target_image.StarCount = starcount
-            self.target_image.StarList = starlist
+            self.target_image.star_count = starcount
+            self.target_image.star_list = starlist
         self.log(
             "ImageTracker.SetTargetImage: Counted",
-            self.target_image.StarCount,
+            self.target_image.star_count,
             "stars.",
             terminal=False,
         )
         # No need to clean up the image. It was generated to match the standardised image already.
         # Save target image for reference.
-        filename = FolderHandler.PrepFile(
-            "tracking", "TargetTrackingImage_" + UtcTimeStamp() + ".jpg"
+        filename = FolderHandler.prep_file(
+            "tracking", "TargetTrackingImage_" + utc_time_stamp() + ".jpg"
         )
         self.parameters.camera_window.print(
             now_hour_minute_sec() + " " + filename.split("/")[-1]
         )  # Note the filename that's been generated.
-        self.target_image.SaveFile(filename)
+        self.target_image.save_file(filename)
         # Calculate the transformation between TARGET and LATEST images.
         self.log(
             "ImageTracker.SetTargetImage: Calling FindTransform...", terminal=False
@@ -196,7 +196,7 @@ class ImageTracker(AttributeMaster):
         self.dy = None
         self.rotation = None  # Measured rotation between images.
         self.measureddelta = None
-        if self.target_image.ImageMissing() or self.latest_image.ImageMissing():
+        if self.target_image.image_missing() or self.latest_image.image_missing():
             pass  # No images to compare. Skip this.
         else:  # Two images available to compare.
             try:  # The transform object is a numpy structure, if the transform calculation fails you can get weird problems that I couldn't always detect cleanly.
@@ -204,34 +204,34 @@ class ImageTracker(AttributeMaster):
                 # Sometimes it returned a NoneType that I couldn't test for (numpy array peculiarity), and sometimes it returned an empty array.
                 self.log(
                     "ImageTracker.FindTransformImage: TargetImage: type",
-                    str(type(self.target_image.ImageBuffer)),
+                    str(type(self.target_image.image_buffer)),
                     "shape",
-                    self.target_image.GetHeight(),
+                    self.target_image.get_height(),
                     "x",
-                    self.target_image.GetWidth(),
+                    self.target_image.get_width(),
                     "depth",
-                    self.target_image.GetDepth(),
+                    self.target_image.get_depth(),
                     "len[0]",
-                    len(self.target_image.ImageBuffer[0]),
+                    len(self.target_image.image_buffer[0]),
                     "(2 = (x,y), else image)",
                     "datatype",
-                    str(self.target_image.ImageBuffer.dtype),
+                    str(self.target_image.image_buffer.dtype),
                     terminal=False,
                 )
                 self.log(
                     "ImageTracker.FindTransformImage: LatestImage: type",
-                    str(type(self.latest_image.ImageBuffer)),
+                    str(type(self.latest_image.image_buffer)),
                     "shape",
-                    self.latest_image.GetHeight(),
+                    self.latest_image.get_height(),
                     "x",
-                    self.latest_image.GetWidth(),
+                    self.latest_image.get_width(),
                     "depth",
-                    self.latest_image.GetDepth(),
+                    self.latest_image.get_depth(),
                     "len[0]",
-                    len(self.latest_image.ImageBuffer[0]),
+                    len(self.latest_image.image_buffer[0]),
                     "(2 = (x,y), else image)",
                     "datatype",
-                    str(self.latest_image.ImageBuffer.dtype),
+                    str(self.latest_image.image_buffer.dtype),
                     terminal=False,
                 )
                 self.log(
@@ -241,8 +241,8 @@ class ImageTracker(AttributeMaster):
                 # If find_transform fails, it reports that the input images are not supported, but this is a generic error for ANY failure at all.
                 # Check the astroalign source code online and dig deeper... I've seen where _find_sources() fails due to 'sep' package versioning problems.
                 transform, (LSL, TSL) = astroalign.find_transform(
-                    source=self.latest_image.ImageBuffer,
-                    target=self.target_image.ImageBuffer,
+                    source=self.latest_image.image_buffer,
+                    target=self.target_image.image_buffer,
                 )  # In Astroalign terms, this is source=LatestImage, target=TargetImage...
                 self.target_star_match_list = TSL
                 self.latest_star_match_list = LSL
@@ -388,16 +388,16 @@ class ImageTracker(AttributeMaster):
         Otherwise the existing values from the imagetracker instance are used."""
         self.log("ImageTracker.SaveTrackingAnalysis: Begin", terminal=False)
         if isinstance(latestlist, type(None)):
-            latestlist = self.latest_image.StarList
+            latestlist = self.latest_image.star_list
         if isinstance(targetlist, type(None)):
-            targetlist = self.target_image.StarList
-        height = SensorInUse.PixelHeight
-        width = SensorInUse.PixelWidth
-        NewImageBuffer = pilomarimage(
+            targetlist = self.target_image.star_list
+        height = sensor_in_use.pixel_height
+        width = sensor_in_use.pixel_width
+        new_image_buffer = PilomarImage(
             name="trackinganalysis", logger=CamLog
         )  # Color full frame blank image.
-        NewImageBuffer.New(height, width, imagetype="bgr", datatype=np.uint8)
-        NewImageBuffer.FillColor(pilomarimage.BGR("Black"))
+        new_image_buffer.new(height, width, imagetype="bgr", datatype=np.uint8)
+        new_image_buffer.fill_color(PilomarImage.bgr("Black"))
         # Match lists must be the same length.
         if (
             type(self.latest_star_match_list) != type(None)
@@ -412,8 +412,8 @@ class ImageTracker(AttributeMaster):
                 tx = int(tstar[0])  # Target star X
                 ty = int(tstar[1])  # Target star Y
                 if self.valid_star_values(tstar):
-                    NewImageBuffer.DrawCircle(
-                        tx, ty, 15, pilomarimage.BGR("Green"), thickness=2
+                    new_image_buffer.draw_circle(
+                        tx, ty, 15, PilomarImage.bgr("Green"), thickness=2
                     )  # Green circle around matched Target stars.
                 else:
                     self.log(
@@ -423,8 +423,8 @@ class ImageTracker(AttributeMaster):
                         terminal=True,
                     )
                 if self.valid_star_values(lstar):
-                    NewImageBuffer.DrawCircle(
-                        lx, ly, 15, pilomarimage.BGR("Red"), thickness=2
+                    new_image_buffer.draw_circle(
+                        lx, ly, 15, PilomarImage.bgr("Red"), thickness=2
                     )  # Red circle around matched Latest stars.
                 else:
                     self.log(
@@ -434,19 +434,19 @@ class ImageTracker(AttributeMaster):
                         terminal=True,
                     )
                 if self.valid_star_values(tstar) and self.valid_star_values(lstar):
-                    NewImageBuffer.DrawLine(
+                    new_image_buffer.draw_line(
                         (lx, ly),
                         (tx, ty),
-                        color=pilomarimage.BGR("White"),
+                        color=PilomarImage.bgr("White"),
                         arrowpixels=20,
                     )  # Green circle around matched Target stars.
-                NewImageBuffer.DrawDumbbell(
+                new_image_buffer.draw_dumbbell(
                     (lx, ly),
                     (tx, ty),
                     20,
-                    pilomarimage.BGR("Red"),
-                    pilomarimage.BGR("Green"),
-                    pilomarimage.BGR("Yellow"),
+                    PilomarImage.bgr("Red"),
+                    PilomarImage.bgr("Green"),
+                    PilomarImage.bgr("Yellow"),
                     arrow=True,
                 )
         else:  # Lists don't agree, so don't try to map them.
@@ -463,20 +463,20 @@ class ImageTracker(AttributeMaster):
                 now_hour_minute_sec() + " drift analysis image not done."
             )  # Note analysis not done.
         # Superimpose all the TARGET stars. (Stars we expect to see)
-        if self.target_image.StarList is not None:
-            for i, star in enumerate(self.target_image.StarList):
+        if self.target_image.star_list is not None:
+            for i, star in enumerate(self.target_image.star_list):
                 if self.valid_star_values(star):
                     starx = int(star[0])
                     stary = int(star[1])
                     magtext = "(" + str(starx) + "," + str(stary) + ")"
-                    NewImageBuffer.DrawCircle(
-                        starx, stary, 5, color=pilomarimage.BGR("Green")
+                    new_image_buffer.draw_circle(
+                        starx, stary, 5, color=PilomarImage.bgr("Green")
                     )  # Green dot for Target stars.
                     self.mark_location(
-                        NewImageBuffer,
+                        new_image_buffer,
                         starx,
                         stary,
-                        pilomarimage.BGR("Green"),
+                        PilomarImage.bgr("Green"),
                         "[" + str(i) + "]",
                         magtext,
                     )  # Mark location, brightness ranking (Brightest -> Dimmest) and magnitude if known.
@@ -488,20 +488,20 @@ class ImageTracker(AttributeMaster):
                         terminal=True,
                     )
         # Superimpose all the LATEST stars. (Stars we actually see)
-        if self.latest_image.StarList is not None:
-            for i, star in enumerate(self.latest_image.StarList):
+        if self.latest_image.star_list is not None:
+            for i, star in enumerate(self.latest_image.star_list):
                 if self.valid_star_values(star):
                     starx = int(star[0])
                     stary = int(star[1])
-                    NewImageBuffer.DrawCircle(
-                        starx, stary, 5, color=pilomarimage.BGR("Red")
+                    new_image_buffer.draw_circle(
+                        starx, stary, 5, color=PilomarImage.bgr("Red")
                     )  # Red dot for Latest stars.
                     magtext = "(" + str(starx) + "," + str(stary) + ")"
                     self.mark_location(
-                        NewImageBuffer,
+                        new_image_buffer,
                         starx,
                         stary,
-                        pilomarimage.BGR("Red"),
+                        PilomarImage.bgr("Red"),
                         "[" + str(i) + "]",
                         magtext,
                     )
@@ -514,154 +514,154 @@ class ImageTracker(AttributeMaster):
                     )
         # Add key.
         timestamp = str(now_utc()).split(".")[0] + " UTC"
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Tracking Analysis " + timestamp,
             1300,
             100,
             size=2,
-            color=pilomarimage.BGR("White"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("White"),
+            bgcolor=PilomarImage.bgr("Black"),
             thickness=2,
         )
-        NewImageBuffer.AddText(
-            str(self.target_image.StarCount) + " Target stars",
+        new_image_buffer.add_text(
+            str(self.target_image.star_count) + " Target stars",
             100,
             100,
             size=1,
-            color=pilomarimage.BGR("Green"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Green"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
-            str(self.latest_image.StarCount) + " Latest stars",
+        new_image_buffer.add_text(
+            str(self.latest_image.star_count) + " Latest stars",
             100,
             140,
             size=1,
-            color=pilomarimage.BGR("Red"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Red"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             str(len(self.latest_star_match_list)) + " Matches",
             100,
             180,
             size=1,
-            color=pilomarimage.BGR("Yellow"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Yellow"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Predict drift: " + str(self.parameters.tracking_prediction),
             100,
             240,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Match threshold: "
             + str(self.parameters.tracking_match_threshold)
             + " stars.",
             100,
             260,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Min correction: "
             + str(self.parameters.minimum_drift_correction)
             + " steps.",
             100,
             280,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Tracking interval: " + str(self.parameters.tracking_interval) + " s.",
             100,
             300,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Star radius: " + str(self.parameters.tracking_star_radius) + " px.",
             100,
             340,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Exposure: " + str(self.parameters.tracking_exposure_seconds) + " s.",
             100,
             360,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Target time: " + str(DriftTracker.TargetTimeStamp) + " UTC",
             100,
             380,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Latest time: " + str(DriftTracker.LatestTimeStamp) + " UTC",
             100,
             400,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "DX: " + str(DriftTracker.dx) + " px.",
             100,
             420,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "DY: " + str(DriftTracker.dy) + " px.",
             100,
             440,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "Rot: " + str(DriftTracker.rotation) + " deg.",
             100,
             460,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             "T.Min.Mag: " + str(DriftTracker.TargetMinMagnitude),
             100,
             480,
             size=0.5,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
 
         # Program ID in bottom right corner.
         xpos = int(width - 10)
         ypos = int(height - 10)
-        NewImageBuffer.AddText(
+        new_image_buffer.add_text(
             ProgramTitle + " " + VERSION,
             xpos,
             ypos,
-            color=pilomarimage.BGR("White"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("White"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         # Save the file.
         filename = FolderHandler.PrepFile(
-            "tracking", "TrackingAnalysis_" + UtcTimeStamp() + ".jpg"
+            "tracking", "TrackingAnalysis_" + utc_time_stamp() + ".jpg"
         )
         self.parameters.camera_window.print(
             now_hour_minute_sec() + " " + filename.split("/")[-1]
@@ -669,7 +669,7 @@ class ImageTracker(AttributeMaster):
         self.parameters.drift_window.print(
             now_hour_minute_sec() + " Drift analysis image done."
         )  # Note analysis done.
-        NewImageBuffer.SaveFile(filename)
+        new_image_buffer.save_file(filename)
         self.log("ImageTracker.SaveTrackingAnalysis: End", terminal=False)
 
     def set_latest_image(self, cvimagebuffer, timestamp=None):
@@ -695,11 +695,11 @@ class ImageTracker(AttributeMaster):
         self.log(
             "ImageTracker.SetLatestImage: About to measure contrast.", terminal=False
         )
-        self.latest_image.LoadBuffer(
+        self.latest_image.load_buffer(
             cvimagebuffer
         )  # This makes a copy of the original image rather than just creating a pointer to it.
         contrast_m, contrast_s = (
-            self.latest_image.MeasureContrast()
+            self.latest_image.measure_contrast()
         )  # Calculate contrast for latest image.
         self.log(
             "ImageTracker.SetLatestImage: Contrast measures",
@@ -707,13 +707,13 @@ class ImageTracker(AttributeMaster):
             contrast_s,
             terminal=False,
         )
-        self.latest_image.ChangeType(
+        self.latest_image.change_type(
             "grayscale"
         )  # Always convert to grayscale at this point.
         if (
             self.parameters.latest_tracking_filter is not None
         ):  # A filter script is selected for latest tracking images, process that instead of the old hardcoded filter code.
-            if self.latest_image.RunFilterScript(
+            if self.latest_image.run_filter_script(
                 self.parameters.latest_tracking_filter
             ):  # If the script succeeds or fails.
                 self.log(
@@ -732,13 +732,13 @@ class ImageTracker(AttributeMaster):
         self.log(
             "ImageTracker.SetLatestImage: Prepared image:",
             "type",
-            str(type(self.latest_image.ImageBuffer)),
+            str(type(self.latest_image.image_buffer)),
             "shape",
-            self.latest_image.GetHeight(),
+            self.latest_image.get_height(),
             "x",
-            self.latest_image.GetWidth(),
+            self.latest_image.get_width(),
             "depth",
-            self.latest_image.GetDepth(),
+            self.latest_image.get_depth(),
             terminal=False,
         )
         self.latest_time_stamp = (
@@ -748,21 +748,21 @@ class ImageTracker(AttributeMaster):
             []
         )  # Clear the list of matched stars, this is set later when the find_transform call is made.
         self.log("ImageTracker.SetLatestImage: Registered latest image", terminal=False)
-        _, _ = self.latest_image.CountStars()
+        _, _ = self.latest_image.count_stars()
         self.log(
             "ImageTracker.SetLatestImage: Counted",
-            self.latest_image.StarCount,
+            self.latest_image.star_count,
             "stars.",
             terminal=False,
         )
         # Save target image for reference.
-        filename = FolderHandler.PrepFile(
+        filename = FolderHandler.prep_file(
             "tracking", "LatestTrackingImage_" + uts + ".jpg"
         )
         self.parameters.camera_window.print(
             now_hour_minute_sec() + " " + filename.split("/")[-1]
         )  # Note the file that's being created.
-        self.latest_image.SaveFile(filename)
+        self.latest_image.save_file(filename)
 
     def predicted_transform(self, timestamp=None):
         """Estimate the image shift based upon the input images, projected forward in time.

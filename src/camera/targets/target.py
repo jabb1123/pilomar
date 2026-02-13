@@ -1,15 +1,18 @@
 import math
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from skyfield import almanac
 from skyfield.api import Angle, Star, Time, Timescale, Topos, load
 from skyfield.data import mpc  # For comet trajectory handling.
 from skyfield.magnitudelib import planetary_magnitude
 
-from camera import AstroCamera
 from camera.targets.fixed import FixedPoint
-from pilomar import plot_relative_alt_az, relative_alt_az, skyfield_now
+from utils.coordinates import plot_relative_alt_az, relative_alt_az
 from utils.logfile import LogFile
+
+if TYPE_CHECKING:
+    from camera import AstroCamera
 from utils.math_func import angle_to_hms, deg_3dp, display_degree, display_hms
 from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL, SYMBOLS
@@ -550,6 +553,8 @@ class AstroTarget(AttributeMaster):
             plot_star_az,
             self.camera_in_use.sensor.pixel_height,
             self.camera_in_use.sensor.pixel_width,
+            self.camera_in_use.pixels_per_fov_degree_height,
+            self.camera_in_use.pixels_per_fov_degree_width,
         )
         return temp_star_x, temp_star_y
 
@@ -574,6 +579,8 @@ class AstroTarget(AttributeMaster):
             plot_star_az,
             self.camera_in_use.sensor.pixel_height,
             self.camera_in_use.sensor.pixel_width,
+            self.camera_in_use.pixels_per_fov_degree_height,
+            self.camera_in_use.pixels_per_fov_degree_width,
         )
         xpos = round(self.camera_in_use.sensor.pixel_width / 2)
         ypos = round(self.camera_in_use.sensor.pixel_height / 2)

@@ -49,42 +49,42 @@ class data_point:
     def __init__(
         self, x, y, color=None, label=None, style=["dot"], xname=None, yname=None
     ):
-        self.X = x
-        self.Y = y
-        self.Color = color
-        self.Label = label
-        self.Style = style
-        self.XName = xname
-        self.YName = yname
+        self.x = x
+        self.y = y
+        self.color = color
+        self.label = label
+        self.style = style
+        self.x_name = xname
+        self.y_name = yname
 
 
 class fd_object:
     """Object to be placed in an image (for force directed graphs)."""
 
     def __init__(self):
-        self.Name = None
-        self.Type = None
-        self.Width = None  # Dimensions of object.
-        self.Height = None
-        self.InitialX = None  # Centre of object.
-        self.InitialY = None
-        self.Fixed = False
-        self.CurrentX = self.InitialX  # Centre of object.
-        self.CurrentY = self.InitialY
-        self.TargetX = self.InitialX  # Centre of object.
-        self.TargetY = self.InitialY
+        self.name = None
+        self.type = None
+        self.width = None  # Dimensions of object.
+        self.height = None
+        self.initial_x = None  # Centre of object.
+        self.initial_y = None
+        self.fixed = False
+        self.current_x = self.initial_x  # Centre of object.
+        self.current_y = self.initial_y
+        self.target_x = self.initial_x  # Centre of object.
+        self.target_y = self.initial_y
 
 
 class fd_edge:
     """Link between to objects (for force directed graphs)."""
 
     def __init__(self):
-        self.Name = None
-        self.ObjectA = None  # Handle to object at one end of the edge.
-        self.ObjectB = None  # Handle to object at the other end of the edge.
+        self.name = None
+        self.object_a = None  # Handle to object at one end of the edge.
+        self.object_b = None  # Handle to object at the other end of the edge.
 
 
-class pilomarimage:
+class PilomarImage:
 
     # Constants.
     __version__ = "0.1.0"
@@ -769,9 +769,9 @@ class pilomarimage:
     }
 
     @staticmethod
-    def BGR(colorname):
+    def bgr(colorname):
         """Return color tuple for any given name."""
-        return pilomarimage.BGRColor.get(colorname, (0, 0, 0))
+        return PilomarImage.BGRColor.get(colorname, (0, 0, 0))
 
     BGRAColor = {
         "Black": (0, 0, 0, 255),
@@ -791,28 +791,28 @@ class pilomarimage:
     }
 
     @staticmethod
-    def BGRA(colorname):
+    def bgra(colorname):
         """Return color tuple for any given name."""
-        return pilomarimage.BGRAColor.get(colorname, (0, 0, 0, 255))
+        return PilomarImage.BGRAColor.get(colorname, (0, 0, 0, 255))
 
     GRAYSCALEColor = {"White": 255, "50": 127, "Black": 0}
 
     @staticmethod
-    def GRAYSCALE(colorname):
+    def grayscale(colorname):
         """Return grayscale tuple for any given name."""
-        return pilomarimage.GRAYSCALEColor.get(colorname, 0)
+        return PilomarImage.GRAYSCALEColor.get(colorname, 0)
 
     # Define default filter scripts.
     # - You can overwrite this with your own set of scripts by assigning pilomarimage.FILTERSCRIPTS = {.....}
     # - This default script includes some example scripts to test, and also some specific scripts designed to achieve specific image enhancements.
-    # - To run a script against the current image buffer call self.RunFilterScript( filtername )
-    # -  eg self.RunFilterScript('ExampleThreshold') to run the ExampleThreshold script.
+    # - To run a script against the current image buffer call self.run_filter_script( filtername )
+    # -  eg self.run_filter_script('ExampleThreshold') to run the ExampleThreshold script.
     # The scripts consist of a series of opencv actions that you can run against the current image buffer.
     # A script contains at least 1 action. Actions are executed their sequence in the script. The result is always stored in the current image buffer.
     # Where an action supports parameters those can be defined inside each step in this script.
     # If parameters are not given, defaults will be used.
     FILTERSCRIPTS = {
-        "ExampleThreshold": {  # Example script to perform thresholding on an image. Call this with self.RunFilterScript('ExampleThreshold')
+        "ExampleThreshold": {  # Example script to perform thresholding on an image. Call this with self.run_filter_script('ExampleThreshold')
             "ThresholdStep": {
                 "method": "threshold",
                 "threshold": 100,
@@ -821,7 +821,7 @@ class pilomarimage:
                 "comment": "Use simple binary threshold to detect any pixels > 100 and consider them to be stars.",
             }  # /ThresholdStep
         },  # /ExampleThreshold
-        "ExampleDehaze": {  # Example script to remove haze from the background of an image. Call this with self.RunFilterScript('ExampleDehaze')
+        "ExampleDehaze": {  # Example script to remove haze from the background of an image. Call this with self.run_filter_script('ExampleDehaze')
             "DeHaze": {
                 "method": "dehaze",
                 "samples": 1,
@@ -829,20 +829,20 @@ class pilomarimage:
                 "comment": "Remove urban haze from the image background.",
             }  # /ExampleDehaze
         },
-        "ExampleBlur": {  # Example script to perform gaussian blurring on the image. Call this with self.RunFilterScript('ExampleBlur')
+        "ExampleBlur": {  # Example script to perform gaussian blurring on the image. Call this with self.run_filter_script('ExampleBlur')
             "BlurStep": {
                 "method": "gaussianblur",
                 "radius": 100,
                 "comment": "Apply Gaussian blur to widen remaining items",
             }  # /BlurStep
         },  # /ExampleBlur
-        "ExampleGrayscale": {  # Example script to convert an image to grayscale. Call this with self.RunFilterScript('ExampleGrayscale')
+        "ExampleGrayscale": {  # Example script to convert an image to grayscale. Call this with self.run_filter_script('ExampleGrayscale')
             "GrayStep": {
                 "method": "grayscale",
                 "comment": "Reduce an image to grayscale.",
             }  # /GrayStep
         },  # /ExampleGrayscale
-        "EnhanceClouds": {  # Enhance clouds in the image.  Call this with self.RunFilterScript('EnhanceClouds')
+        "EnhanceClouds": {  # Enhance clouds in the image.  Call this with self.run_filter_script('EnhanceClouds')
             "CloudThreshold": {
                 "method": "threshold",
                 "threshold": 100,
@@ -851,7 +851,7 @@ class pilomarimage:
                 "comment": "Use simple binary threshold to detect any pixels > 100 and consider them to be potential clouds.",
             }  # /CloudThreshold
         },  # /CloudDetection
-        "EnhanceStars": {  # Enhance stars in the image.  Call this with self.RunFilterScript('EnhanceStars')
+        "EnhanceStars": {  # Enhance stars in the image.  Call this with self.run_filter_script('EnhanceStars')
             "ToGrayscale": {  # Convert to grayscale image.
                 "method": "grayscale",
             },  # /ToGrayscale
@@ -875,7 +875,7 @@ class pilomarimage:
                 "comment": "Apply adaptive threshold to boost remaining stars.",
             },  # /BoostStars
         },  # /EnhanceStars
-        "UrbanFilter": {  # UrbanFilter script. Reduce haze and enhance stars. Call this with self.RunFilterScript('UrbanFilter')
+        "UrbanFilter": {  # UrbanFilter script. Reduce haze and enhance stars. Call this with self.run_filter_script('UrbanFilter')
             "ToGrayscale": {  # Convert to grayscale image.
                 "method": "grayscale",
             },  # /ToGrayscale
@@ -908,15 +908,15 @@ class pilomarimage:
         depth = image depth (2 = Grayscale, 3 = BGR, 4 = BGRA)
         datatype = the storage type for each cell. default uint8 = unsigned 8 bit values.
         """
-        self.Name = name
-        self.SetLogger(logger)  # Any method which supports pilomar's .Log() methods.
-        self.logDrawing = False  # Record individual drawing commands in the log file?
-        self.Font = cv2.FONT_HERSHEY_SIMPLEX
-        self.InvertHeight = False  # When set to TRUE, height pixel values are inverted, so they count UP FROM THE BOTTOM instead of DOWN FROM THE TOP.
+        self.name = name
+        self.set_logger(logger)  # Any method which supports pilomar's .Log() methods.
+        self.log_drawing = False  # Record individual drawing commands in the log file?
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.invert_height = False  # When set to TRUE, height pixel values are inverted, so they count UP FROM THE BOTTOM instead of DOWN FROM THE TOP.
         self._initialize()
-        self.ResetGraph()  # Create structures for graphing data.
+        self.reset_graph()  # Create structures for graphing data.
 
-    def OrientHeight(self, y, height=None):
+    def orient_height(self, y, height=None):
         """If InvertHeight is TRUE, invert the value of the 'y' pixel locations.
         This is good to convert a single 'y' dimension.
         If you have a tuple of (x,y) values, use OrientCoord() instead.
@@ -925,14 +925,14 @@ class pilomarimage:
         If you apply it to higher level method calls in this class you may end up applying it twice which will cancel the effect out.
         """
         if (
-            self.InvertHeight
+            self.invert_height
         ):  # Co-ordinates provided are from BOTTOM UP, convert to TOP DOWN for OpenCV.
-            if height == None:
-                height = self.GetHeight()
+            if height is None:
+                height = self.get_height()
             y = height - y  # Pixel locations count UP instead of DOWN.
         return int(y)
 
-    def OrientCoord(self, location, yloc=1, angle=0, height=None):
+    def orient_coord(self, location, yloc=1, angle=0, height=None):
         """If InvertHeight is TRUE, this returns a coordinate pair with the height dimension inverted.
         yloc says which entry in the location pair is the height one.
         This converts tuples (x,y) and (y,x) style.
@@ -944,35 +944,35 @@ class pilomarimage:
         """
         if yloc == 1:  # y location is at position 1 in the tuple, convert that.
             x = location[0]
-            y = self.OrientHeight(location[1])
+            y = self.orient_height(location[1])
             r = (x, y)
         else:  # y location is at position 0 in the tuple, convert that.
             x = location[1]
-            y = self.OrientHeight(location[0])
+            y = self.orient_height(location[0])
             r = (y, x)
         return r
 
-    def ResetGraph(self):
+    def reset_graph(self):
         """Create data structure for basic charting/graphing.
         This also clears any existing graphing data."""
-        self.Graph_DataSets = (
+        self.graph_data_sets = (
             []
         )  # DataPoint = [x,y,color,label,style] # DataSet = list of DataPoint # DataSets = list of DataSet
-        self.Graph_Title = "title"
-        self.Graph_XAxisTitle = "x axis"
-        self.Graph_YAxisTitle = "y axis"
-        self.Graph_XMinVal = None  # Lowest X value in data points.
-        self.Graph_XMaxVal = None  # Highest X value in data points.
-        self.Graph_YMinVal = None  # Lowest Y value in data points.
-        self.Graph_YMaxVal = None  # Highest Y value in data points.
-        self.Graph_XBorder = None  # Width of left/right border.
-        self.Graph_YBorder = None  # Height of top/bottom border.
-        self.Graph_XValueSpan = None  # Span of X values.
-        self.Graph_YValueSpan = None  # Span of Y values.
-        self.Graph_XTicks = None  # Value of X axis ticks.
-        self.Graph_YTicks = None  # Value of Y axis ticks.
+        self.graph_title = "title"
+        self.graph_x_axis_title = "x axis"
+        self.graph_y_axis_title = "y axis"
+        self.graph_x_min_val = None  # Lowest X value in data points.
+        self.graph_x_max_val = None  # Highest X value in data points.
+        self.graph_y_min_val = None  # Lowest Y value in data points.
+        self.graph_y_max_val = None  # Highest Y value in data points.
+        self.graph_x_border = None  # Width of left/right border.
+        self.graph_y_border = None  # Height of top/bottom border.
+        self.graph_x_value_span = None  # Span of X values.
+        self.graph_y_value_span = None  # Span of Y values.
+        self.graph_x_ticks = None  # Value of X axis ticks.
+        self.graph_y_ticks = None  # Value of Y axis ticks.
 
-    def Interpolate(self, inp1, res1, inp2, res2, inp3):
+    def interpolate(self, inp1, res1, inp2, res2, inp3):
         """Linear interpolation from 2 points."""
         inpdelta = inp2 - inp1
         resdelta = res2 - res1
@@ -982,68 +982,68 @@ class pilomarimage:
             res3 = res1  # Default to first result.
         return res3
 
-    def MapToGraph(self, xpoint, ypoint):
+    def map_to_graph(self, xpoint, ypoint):
         """Given an x/y pair, find the pixel locations on a graph image.
         xpoint and ypoint are the data values stored in the Datasets."""
         x = int(
-            self.Interpolate(
-                self.Graph_XMinVal,
-                self.Graph_XBorder,
-                self.Graph_XMaxVal,
-                self.GetWidth() - self.Graph_XBorder,
+            self.interpolate(
+                self.graph_x_min_val,
+                self.graph_x_border,
+                self.graph_x_max_val,
+                self.get_width() - self.graph_x_border,
                 xpoint,
             )
         )  # Scale it to the size of the canvas.
         y = int(
-            self.Interpolate(
-                self.Graph_YMinVal,
-                self.Graph_YBorder,
-                self.Graph_YMaxVal,
-                self.GetHeight() - self.Graph_YBorder,
+            self.interpolate(
+                self.graph_y_min_val,
+                self.graph_y_border,
+                self.graph_y_max_val,
+                self.get_height() - self.graph_y_border,
                 ypoint,
             )
         )  # Scale it to the size of the canvas.
         return x, y
 
-    def DrawXAxis(self):
+    def draw_x_axis(self):
         """Draw X axis, scale and label"""
         # Draw X scale where Y = 0 or at min Y
-        if self.Graph_YMinVal < 0 and self.Graph_YMaxVal > 0:
+        if self.graph_y_min_val < 0 and self.graph_y_max_val > 0:
             y = 0  # Where does x axis cross Y?
-        elif self.Graph_YMaxVal < 0:
-            y = self.Graph_YMaxVal
+        elif self.graph_y_max_val < 0:
+            y = self.graph_y_max_val
         else:
-            y = self.Graph_YMinVal
-        x1, y1 = self.MapToGraph(self.Graph_XMinVal, y)
-        x2, y2 = self.MapToGraph(self.Graph_XMaxVal, y)
-        self.DrawLine(
-            (x1, y1), (x2, y2), color=pilomarimage.BGRColor["Black"]
+            y = self.graph_y_min_val
+        x1, y1 = self.map_to_graph(self.graph_x_min_val, y)
+        x2, y2 = self.map_to_graph(self.graph_x_max_val, y)
+        self.draw_line(
+            (x1, y1), (x2, y2), color=PilomarImage.BGRColor["Black"]
         )  # x-axis
         # Mark scale.
-        i = self.Graph_XMinVal
-        while i <= self.Graph_XMaxVal:
+        i = self.graph_x_min_val
+        while i <= self.graph_x_max_val:
             # Mark this location and value.
-            x1, y1 = self.MapToGraph(i, y)
+            x1, y1 = self.map_to_graph(i, y)
             y2 = y1 - 20
-            self.DrawLine(
-                (x1, y1), (x1, y2), color=pilomarimage.BGRColor["Black"]
+            self.draw_line(
+                (x1, y1), (x1, y2), color=PilomarImage.BGRColor["Black"]
             )  # Tick mark.
-            self.AddText(
+            self.add_text(
                 str(round(i, 3)),
                 x1,
                 y1 - 30,
-                color=pilomarimage.BGRColor["Black"],
+                color=PilomarImage.BGRColor["Black"],
                 hjust="c",
                 vjust="t",
             )
-            i += self.Graph_XTicks
+            i += self.graph_x_ticks
         # Label the axis.
-        cx, _ = self.CenterCoordinates()
-        self.AddText(
-            self.Graph_XAxisTitle,
+        cx, _ = self.center_coordinates()
+        self.add_text(
+            self.graph_x_axis_title,
             cx,
-            int(self.Graph_YBorder / 2),
-            color=pilomarimage.BGRColor["Black"],
+            int(self.graph_y_border / 2),
+            color=PilomarImage.BGRColor["Black"],
             size=2.0,
             hjust="c",
             vjust="c",
@@ -1051,45 +1051,45 @@ class pilomarimage:
         )
         return True
 
-    def DrawYAxis(self):
+    def draw_y_axis(self):
         """Draw X axis, scale and label"""
         # Draw Y scale where X = 0 or at min X
-        if self.Graph_XMinVal < 0 and self.Graph_XMaxVal > 0:
+        if self.graph_x_min_val < 0 and self.graph_x_max_val > 0:
             x = 0  # Where does Y axis cross X?
-        elif self.Graph_XMaxVal < 0:
-            x = self.Graph_XMaxVal
+        elif self.graph_x_max_val < 0:
+            x = self.graph_x_max_val
         else:
-            x = self.Graph_XMinVal
-        x1, y1 = self.MapToGraph(x, self.Graph_YMinVal)
-        x2, y2 = self.MapToGraph(x, self.Graph_YMaxVal)
-        self.DrawLine(
-            (x1, y1), (x2, y2), color=pilomarimage.BGRColor["Black"]
+            x = self.graph_x_min_val
+        x1, y1 = self.map_to_graph(x, self.graph_y_min_val)
+        x2, y2 = self.map_to_graph(x, self.graph_y_max_val)
+        self.draw_line(
+            (x1, y1), (x2, y2), color=PilomarImage.BGRColor["Black"]
         )  # y-axis
         # Mark scale.
-        i = self.Graph_YMinVal
-        while i <= self.Graph_YMaxVal:
+        i = self.graph_y_min_val
+        while i <= self.graph_y_max_val:
             # Mark this location and value.
-            x1, y1 = self.MapToGraph(x, i)
+            x1, y1 = self.map_to_graph(x, i)
             x2 = x1 - 20
-            self.DrawLine(
-                (x1, y1), (x2, y1), color=pilomarimage.BGRColor["Black"]
+            self.draw_line(
+                (x1, y1), (x2, y1), color=PilomarImage.BGRColor["Black"]
             )  # Tick mark.
-            self.AddText(
+            self.add_text(
                 str(round(i, 3)),
                 x1 - 30,
                 y1,
-                color=pilomarimage.BGRColor["Black"],
+                color=PilomarImage.BGRColor["Black"],
                 hjust="r",
                 vjust="c",
             )
-            i += self.Graph_YTicks
+            i += self.graph_y_ticks
         # Label the axis.
-        _, cy = self.CenterCoordinates()
-        self.AddAngleText(
-            self.Graph_YAxisTitle,
-            int(self.Graph_XBorder / 2),
+        _, cy = self.center_coordinates()
+        self.add_angle_text(
+            self.graph_y_axis_title,
+            int(self.graph_x_border / 2),
             cy,
-            color=pilomarimage.BGRColor["Black"],
+            color=PilomarImage.BGRColor["Black"],
             size=2.0,
             hjust="c",
             vjust="c",
@@ -1098,21 +1098,21 @@ class pilomarimage:
         )  # Rotated. Not working smoothly yet.
         return True
 
-    def ListDataSets(self):
+    def list_data_sets(self):
         """Generate a key on the graph.
         List the names of the available data sets in the image."""
-        x = self.GetWidth() - self.Graph_XBorder + 50
-        self.AddText(
+        x = self.get_width() - self.graph_x_border + 50
+        self.add_text(
             "Datasets:-",
             x,
-            self.GetHeight() - 500,
-            color=pilomarimage.BGRColor["Black"],
+            self.get_height() - 500,
+            color=PilomarImage.BGRColor["Black"],
         )
-        for dataset in self.Graph_DataSets:
-            self.AddText(dataset.Name, x, self.PrevTextY, color=dataset.Color)
+        for dataset in self.graph_data_sets:
+            self.add_text(dataset.Name, x, self.prev_text_y, color=dataset.Color)
         return True
 
-    def Adddata_point(
+    def adddata_point(
         self,
         name,
         x,
@@ -1131,16 +1131,16 @@ class pilomarimage:
         """
         # Check that the named dataset exists.
         foundit = False
-        for dataset in self.Graph_DataSets:
+        for dataset in self.graph_data_sets:
             if dataset.Name == name:
                 foundit = True
         if foundit == False:  # Dataset does not exist yet, add it.
             dataset = DataSet(name)
-            self.Graph_DataSets.append(dataset)
+            self.graph_data_sets.append(dataset)
         # Check for tolerance limits. Don't add if too close to last entry.
         oktoadd = True
         if xtolerance != 0 or ytolerance != 0:
-            for dataset in self.Graph_DataSets:
+            for dataset in self.graph_data_sets:
                 if dataset.Name == name:
                     datapointcount = len(dataset.DataPoints)
                     if datapointcount > 0:
@@ -1151,114 +1151,126 @@ class pilomarimage:
                         ):
                             oktoadd = False  # New point is too close to old point. Don't add it.
         if oktoadd:  # Datapoint is OK to add.
-            for dataset in self.Graph_DataSets:
+            for dataset in self.graph_data_sets:
                 if dataset.Name == name:
-                    if color == None:
+                    if color is None:
                         color = dataset.Color  # Inherit color from parent dataset.
                     datapoint = data_point(x, y, color, label, style, xname, yname)
                     dataset.Add(datapoint)
         return True
 
-    def Adddata_set(self, name, color=None, style=["line"]):
+    def adddata_set(self, name, color=None, style=["line"]):
         """Create new dataset."""
         foundit = False
-        for dataset in self.Graph_DataSets:
+        for dataset in self.graph_data_sets:
             if dataset.Name == name:
                 foundit = True
         if foundit == False:  # Dataset does not exist yet, add it.
             dataset = DataSet(name, color, style)
-            self.Graph_DataSets.append(dataset)
+            self.graph_data_sets.append(dataset)
         result = not foundit
         return result
 
-    def AnalyseDataPoints(self):
+    def analyse_data_points(self):
         # Go through the graph datapoints and extract limits.
-        self.Graph_XMinVal = self.Graph_XMaxVal = self.Graph_YMinVal = (
-            self.Graph_YMaxVal
+        self.graph_x_min_val = self.graph_x_max_val = self.graph_y_min_val = (
+            self.graph_y_max_val
         ) = None
-        if len(self.Graph_DataSets) > 0:  # There are datasets to handle.
+        if len(self.graph_data_sets) > 0:  # There are datasets to handle.
             for (
                 dataset
             ) in (
-                self.Graph_DataSets
+                self.graph_data_sets
             ):  # Data point = [x,y,color,label,style] # DataSet = list of DataPoints, # DataSets = list of DataSets
                 if len(dataset.DataPoints) > 0:  # There are datapoints to handle.
                     for point in dataset.DataPoints:  # Check each point.
-                        if self.Graph_XMinVal == None or self.Graph_XMinVal > point.X:
-                            self.Graph_XMinVal = point.X
-                        if self.Graph_YMinVal == None or self.Graph_YMinVal > point.Y:
-                            self.Graph_YMinVal = point.Y
-                        if self.Graph_XMaxVal == None or self.Graph_XMaxVal < point.X:
-                            self.Graph_XMaxVal = point.X
-                        if self.Graph_YMaxVal == None or self.Graph_YMaxVal < point.Y:
-                            self.Graph_YMaxVal = point.Y
-        if self.Graph_XMinVal == None:  # No values were found.
-            self.Graph_XMinVal = -1
-            self.Graph_XMaxVal = 1
-            self.Graph_YMinVal = -1
-            self.Graph_YMaxVal = 1
+                        if (
+                            self.graph_x_min_val is None
+                            or self.graph_x_min_val > point.X
+                        ):
+                            self.graph_x_min_val = point.X
+                        if (
+                            self.graph_y_min_val is None
+                            or self.graph_y_min_val > point.Y
+                        ):
+                            self.graph_y_min_val = point.Y
+                        if (
+                            self.graph_x_max_val is None
+                            or self.graph_x_max_val < point.X
+                        ):
+                            self.graph_x_max_val = point.X
+                        if (
+                            self.graph_y_max_val is None
+                            or self.graph_y_max_val < point.Y
+                        ):
+                            self.graph_y_max_val = point.Y
+        if self.graph_x_min_val is None:  # No values were found.
+            self.graph_x_min_val = -1
+            self.graph_x_max_val = 1
+            self.graph_y_min_val = -1
+            self.graph_y_max_val = 1
         # Check that each axis does span at least a small distance.
-        if self.Graph_XMinVal == self.Graph_XMaxVal:
-            self.Graph_XMinVal -= 1
-            self.Graph_XMaxVal += 1
-        if self.Graph_YMinVal == self.Graph_YMaxVal:
-            self.Graph_YMinVal -= 1
-            self.Graph_YMaxVal += 1
+        if self.graph_x_min_val == self.graph_x_max_val:
+            self.graph_x_min_val -= 1
+            self.graph_x_max_val += 1
+        if self.graph_y_min_val == self.graph_y_max_val:
+            self.graph_y_min_val -= 1
+            self.graph_y_max_val += 1
         return True
 
-    def EstablishGraphScale(self):
+    def establish_graph_scale(self):
         """What scale to use on each axis.
         Where to place tickmarks on each axis."""
-        self.Graph_XValueSpan = self.Graph_XMaxVal - self.Graph_XMinVal
-        self.Graph_YValueSpan = self.Graph_YMaxVal - self.Graph_YMinVal
-        self.Graph_XTicks = self.Graph_XValueSpan / 10
-        self.Graph_YTicks = self.Graph_YValueSpan / 10
+        self.graph_x_value_span = self.graph_x_max_val - self.graph_x_min_val
+        self.graph_y_value_span = self.graph_y_max_val - self.graph_y_min_val
+        self.graph_x_ticks = self.graph_x_value_span / 10
+        self.graph_y_ticks = self.graph_y_value_span / 10
         return True
 
-    def PlotData(self):
+    def plot_data(self):
         """Plot the actual data points on the graph.
 
-        self.X = x
-        self.Y = y
-        self.Color = color
-        self.Label = label
-        self.Style = Style
-        self.XName = xname
-        self.YName = yname
+        self.x = x
+        self.y = y
+        self.color = color
+        self.label = label
+        self.style = Style
+        self.x_name = xname
+        self.y_name = yname
         """
-        for dataset in self.Graph_DataSets:
+        for dataset in self.graph_data_sets:
             prevx = None
             prevy = None
             for i, datapoint in enumerate(dataset.DataPoints):
-                x, y = self.MapToGraph(datapoint.X, datapoint.Y)
+                x, y = self.map_to_graph(datapoint.X, datapoint.Y)
                 r = 5
-                color = self.SafeColor(
-                    datapoint.Color, default=pilomarimage.BGRColor["Fuchsia"]
+                color = self.safe_color(
+                    datapoint.Color, default=PilomarImage.BGRColor["Fuchsia"]
                 )
                 if "line" in dataset.Style and i > 0:  # Line between points.
-                    self.DrawLine(
+                    self.draw_line(
                         (prevx, prevy),
                         (x, y),
-                        color=self.SafeColor(
-                            dataset.Color, default=pilomarimage.BGRColor["Cyan"]
+                        color=self.safe_color(
+                            dataset.Color, default=PilomarImage.BGRColor["Cyan"]
                         ),
                     )
                 if "dot" in datapoint.Style:  # Draw a small dot where the datapoint is.
-                    self.FillCircle(x, y, r, color)  # Dot on the datapoint.
+                    self.fill_circle(x, y, r, color)  # Dot on the datapoint.
                 if (
                     "point" in datapoint.Style
                 ):  # Draw a single pixel where the datapoint is.
-                    self.SetPixel(x, y, color)  # Single pixel at the datapoint.
+                    self.set_pixel(x, y, color)  # Single pixel at the datapoint.
                 prevx = x
                 prevy = y
         return True
 
-    def ExportData(self, filename):
+    def export_data(self, filename):
         """Dump the graph data."""
         ft = filename.rindex(".")
         filename = filename[:ft] + ".dat"
         self.log(
-            "pilomarimage", self.Name, ".ExportData:", str(filename), terminal=False
+            "pilomarimage", self.name, ".ExportData:", str(filename), terminal=False
         )
         with open(filename, "w") as f:
             line = "dataset.Name\t"
@@ -1269,7 +1281,7 @@ class pilomarimage:
             line += "datapoint.YName\t"
             line += "\n"
             f.write(line)
-            for dataset in self.Graph_DataSets:
+            for dataset in self.graph_data_sets:
                 for datapoint in dataset.DataPoints:
                     line = str(dataset.Name) + "\t"
                     line += str(datapoint.X) + "\t"
@@ -1281,7 +1293,7 @@ class pilomarimage:
                     f.write(line)
         return True
 
-    def PlotGraph(self, height, width, filename, export=False):
+    def plot_graph(self, height, width, filename, export=False):
         """Create very simplistic graph.
         If height/width not given, the current buffer is used.
         This is VERY crude! IF you want proper graphing capabilities then install matplotlib!
@@ -1289,86 +1301,86 @@ class pilomarimage:
         export=True means a datafile is dumped too."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".PlotGraph:",
             str(filename),
             str(export),
             terminal=False,
         )
-        self.InvertHeight = (
+        self.invert_height = (
             True  # Easier to plot graphs if HEIGHT pixels count from the bottom up.
         )
         # Find axis limits.
-        self.AnalyseDataPoints()
+        self.analyse_data_points()
         # Establish scale
-        self.EstablishGraphScale()
+        self.establish_graph_scale()
         # Establish graph space
-        self.New(height, width, "bgr")  # New BGR image.
-        self.FillColor(pilomarimage.BGRColor["White"])  # White canvas
-        self.Graph_XBorder = int(width * 0.1)
-        self.Graph_YBorder = int(height * 0.1)
-        self.DrawRectangle(
-            (self.Graph_XBorder, self.Graph_YBorder),
-            (width - self.Graph_XBorder, height - self.Graph_YBorder),
-            color=pilomarimage.BGRColor["DarkGray"],
+        self.new(height, width, "bgr")  # New BGR image.
+        self.fill_color(PilomarImage.BGRColor["White"])  # White canvas
+        self.graph_x_border = int(width * 0.1)
+        self.graph_y_border = int(height * 0.1)
+        self.draw_rectangle(
+            (self.graph_x_border, self.graph_y_border),
+            (width - self.graph_x_border, height - self.graph_y_border),
+            color=PilomarImage.BGRColor["DarkGray"],
         )
-        self.DrawXAxis()  # Draw X axis on graph.
-        self.DrawYAxis()  # Draw Y axis on graph.
-        x, y = self.CenterCoordinates()
-        self.AddText(
-            self.Graph_Title,
+        self.draw_x_axis()  # Draw X axis on graph.
+        self.draw_y_axis()  # Draw Y axis on graph.
+        x, y = self.center_coordinates()
+        self.add_text(
+            self.graph_title,
             x,
-            int(height - self.Graph_YBorder / 2),
+            int(height - self.graph_y_border / 2),
             size=3,
-            color=pilomarimage.BGRColor["Black"],
+            color=PilomarImage.BGRColor["Black"],
             thickness=3,
             hjust="c",
             vjust="c",
         )
-        self.ListDataSets()  # Add labels for the available datasets.
-        self.PlotData()  # Plot the data on the graph.
-        self.DrawGraphID()  # Write footing information onto the graph.
+        self.list_data_sets()  # Add labels for the available datasets.
+        self.plot_data()  # Plot the data on the graph.
+        self.draw_graph_id()  # Write footing information onto the graph.
         # Save the result.
-        self.SaveFile(filename)
+        self.save_file(filename)
         if export:
-            self.ExportData(filename)  # Export the data.
-        self.InvertHeight = (
+            self.export_data(filename)  # Export the data.
+        self.invert_height = (
             False  # Revert to counting height locations from the top down.
         )
         return True
 
-    def DrawGraphID(self):
+    def draw_graph_id(self):
         """Write footing information onto the graph."""
         line = " pilomarimage.PlotGraph " + str(datetime.now()).split(".")[0] + " UTC "
-        self.AddText(
+        self.add_text(
             line,
-            self.GetWidth() - 10,
+            self.get_width() - 10,
             20,
-            color=pilomarimage.BGRColor["Black"],
+            color=PilomarImage.BGRColor["Black"],
             hjust="r",
         )
         return True
 
-    def SetLogger(self, logger):
+    def set_logger(self, logger):
         """Set up link to logging class and shortcuts to common methods."""
         # The logging methods default to 'consumers' which will just silently eat any parameters passed.
         self.logger = logger  # Logger instance.
-        self.log = self._NullLogger  # No log method.
-        self.ReportException = (
-            self._NullLogger
+        self.log = self._null_logger  # No log method.
+        self.report_exception = (
+            self._null_logger
         )  # Cannot report exception details to logfile.
-        self.RaiseException = self._NullLogger  # Cannor report and raise exception.
+        self.raise_exception = self._null_logger  # Cannor report and raise exception.
         if hasattr(logger, "Log"):
             self.log = logger.Log  # Log method.
         if hasattr(logger, "ReportException"):
-            self.ReportException = (
+            self.report_exception = (
                 logger.ReportException
             )  # Report exception details to logfile.
         if hasattr(logger, "RaiseException"):
-            self.RaiseException = logger.RaiseException  # Report and raise exception.
+            self.raise_exception = logger.RaiseException  # Report and raise exception.
         # self.log("pilomarimage.SetLogger: Linked to this log file.",terminal=False)
 
-    def _NullLogger(self, *args, **kwargs):
+    def _null_logger(self, *args, **kwargs):
         """Null logger. Absorbs parameters and .log call but does nothing.
         Use this when there is no logger defined."""
         return
@@ -1377,30 +1389,30 @@ class pilomarimage:
         """Create default values for the object.
         This creates initial values for new instances, and also clears them out if you want to reset an existing one.
         """
-        self.ImageBuffer = None  # This is the actual OpenCV / Numpy image buffer.
-        self.ImageMask = (
+        self.image_buffer = None  # This is the actual OpenCV / Numpy image buffer.
+        self.image_mask = (
             None  # Array identifying which cells are occupied and which to ignore.
         )
-        self.ImageAccumulator = (
+        self.image_accumulator = (
             None  # Array of cumulative image values. (For live stacking)
         )
-        self.ImageCounter = None  # Array of how many values are accumulated into each pixel of self.ImageAccumulator. (For live stacking)
-        self.ActionList = []  # List of actions performed on the image.
-        self.CreatedTimestamp = self.NowUTC()
-        self.ModifiedTimestamp = None
-        self.StarList = []  # Was None
-        self.StarCount = 0
-        self.StarMatchList = None
-        self.HorizontalSpread = 0  # % of horizonal spread of stars.
-        self.VerticalSpread = 0  # % of vertical spread of stars.
-        self.AreaSpread = 0  # % of area spread of stars.
-        self.PenColor = None  # Default color for drawing.
-        self.PenThickness = 1  # Default pen thickness for drawing.
-        self.LineType = cv2.LINE_AA  # Default line_type for drawing.
-        self.ResizeMethod = (
+        self.image_counter = None  # Array of how many values are accumulated into each pixel of self.image_accumulator. (For live stacking)
+        self.action_list = []  # List of actions performed on the image.
+        self.created_timestamp = self.now_utc()
+        self.modified_timestamp = None
+        self.star_list = []  # Was None
+        self.star_count = 0
+        self.star_match_list = None
+        self.horizontal_spread = 0  # % of horizonal spread of stars.
+        self.vertical_spread = 0  # % of vertical spread of stars.
+        self.area_spread = 0  # % of area spread of stars.
+        self.pen_color = None  # Default color for drawing.
+        self.pen_thickness = 1  # Default pen thickness for drawing.
+        self.line_type = cv2.LINE_AA  # Default line_type for drawing.
+        self.resize_method = (
             cv2.INTER_AREA
         )  # Which sampling method is used for resizing? (3)
-        self.ResizeMethods = [
+        self.resize_methods = [
             cv2.INTER_NEAREST,  # nearest neighbor interpolation technique (0)
             cv2.INTER_LINEAR,  # bilinear interpolation (default) (1)
             cv2.INTER_AREA,  # resampling using pixel area relation (3)
@@ -1408,28 +1420,28 @@ class pilomarimage:
             cv2.INTER_LANCZOS4,
         ]  # Lanczos interpolation over 8 x 8 pixel neighborhood (4)
         # cv2.INTER_LINEAR_EXACT, cv2.INTER_NEAREST_EXACT, cv2.INTER_MAX, cv2.WARP_FILL_OUTLIERS, cv2.WARP_INVERSE_MAP] # (16) Not in this version.
-        self.NextTextY = None  # When text is printed, this holds the 'y' position of the next line of text if you want to print a block of text.
-        self.NextTextX = None  # When text is printed, this holds the 'x' position of the next line of text if you want to print a block of text.
-        self.PrevTextY = None  # When text is printed, this holds the 'y' position of the next line of text if you want to print a block of text going UPWARDS.
-        self.PrevTextX = None  # When text is printed, this holds the 'x' position of the next line of text if you want to print a block of text goind UPWARDS.
+        self.next_text_y = None  # When text is printed, this holds the 'y' position of the next line of text if you want to print a block of text.
+        self.next_text_x = None  # When text is printed, this holds the 'x' position of the next line of text if you want to print a block of text.
+        self.prev_text_y = None  # When text is printed, this holds the 'y' position of the next line of text if you want to print a block of text going UPWARDS.
+        self.prev_text_x = None  # When text is printed, this holds the 'x' position of the next line of text if you want to print a block of text goind UPWARDS.
         # Text collision avoidance...
-        self.TextList = (
+        self.text_list = (
             []
         )  # When text is printed, this holds the co-ordinates of each block of text added [[fromx,fromy,tox,toy],[fromx,fromy,tox,toy],[fromx,fromy,tox,toy],...]
-        self.AvoidTextCollisions = False  # When TRUE, new text is only created if it doesn't overlap existing text.
-        self.ExifData = (
+        self.avoid_text_collisions = False  # When TRUE, new text is only created if it doesn't overlap existing text.
+        self.exif_data = (
             {}
         )  # Empty dictionary of any associated EXIF tags loaded from an image.
 
-    def TextCollision(self, fromx, fromy, tox, toy):
+    def text_collision(self, fromx, fromy, tox, toy):
         """Return TRUE if proposed text area collides with an existing one."""
         result = False
-        if self.AvoidTextCollisions:  # Collision avoidance is active.
+        if self.avoid_text_collisions:  # Collision avoidance is active.
             fromx, tox = min(fromx, tox), max(
                 fromx, tox
             )  # Make sure FROM is less than TO
             fromy, toy = min(fromy, toy), max(fromy, toy)
-            for items in self.TextList:  # Go through existing text items.
+            for items in self.text_list:  # Go through existing text items.
                 ifx = items[0]  # Pull co-ordinates.
                 ify = items[1]
                 itx = items[2]
@@ -1446,130 +1458,136 @@ class pilomarimage:
             if (
                 not result
             ):  # Text does not collide, we'll at it to the list of allowed text.
-                self.TextList.append([fromx, fromy, tox, toy])
+                self.text_list.append([fromx, fromy, tox, toy])
         return result
 
-    def CalculateStarSpread(self):
+    def calculate_star_spread(self):
         """Calculate an approximation for the % of the frame that contains stars.
         LOW values mean that the stars are not spread out evenly across the frame.
         HIGH values mean that the stars are spread out more evenly across the frame.
         Sets % value for each axis and the total image."""
         if (
-            self.ImageExists() and len(self.StarList) > 0
+            self.image_exists() and len(self.star_list) > 0
         ):  # There's an image loaded and stars were identified.
             HMin = None  # Lowest 'X' position of a star.
             HMax = None  # Highest 'X' position of a star.
             VMin = None  # Lowest 'Y' position of a star.
             VMax = None  # Highest 'Y' position of a star.
-            for star in self.StarList:  # Each star is a list of [x, y, radius]
-                if HMin == None or HMin > star[0]:
+            for star in self.star_list:  # Each star is a list of [x, y, radius]
+                if HMin is None or HMin > star[0]:
                     HMin = star[0]
-                if HMax == None or HMax < star[0]:
+                if HMax is None or HMax < star[0]:
                     HMax = star[0]
-                if VMin == None or VMin > star[1]:
+                if VMin is None or VMin > star[1]:
                     VMin = star[1]
-                if VMax == None or VMax < star[1]:
+                if VMax is None or VMax < star[1]:
                     VMax = star[1]
-            self.HorizontalSpread = 100 * (HMax - HMin) / self.GetWidth()
-            self.VerticalSpread = 100 * (VMax - VMin) / self.GetHeight()
-            self.AreaSpread = 100 * (
-                (self.HorizontalSpread / 100) * (self.VerticalSpread / 100)
+            self.horizontal_spread = 100 * (HMax - HMin) / self.get_width()
+            self.vertical_spread = 100 * (VMax - VMin) / self.get_height()
+            self.area_spread = 100 * (
+                (self.horizontal_spread / 100) * (self.vertical_spread / 100)
             )
             result = True
         else:  # There's no image, or no stars were identified.
-            self.HorizontalSpread = self.VerticalSpread = self.AreaSpread = (
+            self.horizontal_spread = self.vertical_spread = self.area_spread = (
                 0  # No spread to measure.
             )
             result = False
         return result
 
-    def NextInterpolation(self):
+    def next_interpolation(self):
         """Move on to the next available sampling method."""
-        self.log("pilomarimage", self.Name, ".NextInterpolation()", terminal=False)
-        i = (self.ResizeMethods.index(self.ResizeMethod) + 1) % len(self.ResizeMethods)
-        self.ResizeMethod = self.ResizeMethods[i]
-        self.ActionList.append(["nextinterpolation", self.ResizeMethod])
+        self.log("pilomarimage", self.name, ".NextInterpolation()", terminal=False)
+        i = (self.resize_methods.index(self.resize_method) + 1) % len(
+            self.resize_methods
+        )
+        self.resize_method = self.resize_methods[i]
+        self.action_list.append(["nextinterpolation", self.resize_method])
 
-    def PrevInterpolation(self):
+    def prev_interpolation(self):
         """Move back to the previous available sampling method."""
-        self.log("pilomarimage", self.Name, ".PrevInterpolation()", terminal=False)
-        i = (self.ResizeMethods.index(self.ResizeMethod) - 1) % len(self.ResizeMethods)
-        self.ResizeMethod = self.ResizeMethods[i]
-        self.ActionList.append(["previnterpolation", self.ResizeMethod])
+        self.log("pilomarimage", self.name, ".PrevInterpolation()", terminal=False)
+        i = (self.resize_methods.index(self.resize_method) - 1) % len(
+            self.resize_methods
+        )
+        self.resize_method = self.resize_methods[i]
+        self.action_list.append(["previnterpolation", self.resize_method])
 
-    def NowUTC(self):
+    def now_utc(self):
         """Return system UTC timestamp."""
         return datetime.now(timezone.utc)
 
-    def Clear(self):
+    def clear(self):
         """Clear the image buffer and related attributes."""
-        self.log("pilomarimage", self.Name, ".Clear()", terminal=False)
+        self.log("pilomarimage", self.name, ".Clear()", terminal=False)
         self._initialize()
-        self.ActionList.append(["clear"])
-        self.CreatedTimestamp = self.NowUTC()
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["clear"])
+        self.created_timestamp = self.now_utc()
+        self.modified_timestamp = self.now_utc()
 
-    def LoadBuffer(self, imagebuffer):
+    def load_buffer(self, imagebuffer):
         """Import an existing OpenCV/Numpy image buffer."""
-        self.log("pilomarimage", self.Name, ".LoadBuffer()", terminal=False)
-        self.Clear()
+        self.log("pilomarimage", self.name, ".load_buffer()", terminal=False)
+        self.clear()
         if type(imagebuffer) != type(None):
-            self.ImageBuffer = imagebuffer.copy()
-            self.ModifiedTimestamp = self.NowUTC()
+            self.image_buffer = imagebuffer.copy()
+            self.modified_timestamp = self.now_utc()
         else:
             self.log(
                 "pilomarimage",
-                self.Name,
-                ".LoadBuffer(). FROM buffer is None.",
+                self.name,
+                ".load_buffer(). FROM buffer is None.",
                 terminal=False,
             )
-        return self.ImageExists()
+        return self.image_exists()
 
-    def AccumulateBuffer(self, buffer):
+    def accumulate_buffer(self, buffer):
         """Accumulate values in a buffer into a running total buffer.
         buffer is a reference to another pilomarimage instance."""
-        self.log("pilomarimage", self.Name, ".AccumulateBuffer()", terminal=False)
-        if isinstance(self.ImageAccumulator, type(None)):  # Initialize accumulator.
-            self.ImageAccumulator = np.zeros_like(
-                buffer.ImageBuffer, np.uint16
+        self.log("pilomarimage", self.name, ".AccumulateBuffer()", terminal=False)
+        if isinstance(self.image_accumulator, type(None)):  # Initialize accumulator.
+            self.image_accumulator = np.zeros_like(
+                buffer.image_buffer, np.uint16
             )  # Create array of same dimensions, but with larger storage type.
-            self.ImageCounter = np.zeros_like(
-                buffer.ImageBuffer, np.uint8
+            self.image_counter = np.zeros_like(
+                buffer.image_buffer, np.uint8
             )  # Create array of same dimensions but with uint8 storage type.
         # Now accumulate the values.
-        self.ImageAccumulator.add(self.ImageAccumulator, buffer.ImageBuffer)
-        self.ImageCount += 1
-        self.ActionList.append(["accumulatebuffer", buffer.Name])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.image_accumulator.add(self.image_accumulator, buffer.image_buffer)
+        self.image_count += 1
+        self.action_list.append(["accumulatebuffer", buffer.Name])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def ResolveAccumulator(self):
-        self.log("pilomarimage", self.Name, ".ResolveAccumulator()", terminal=False)
-        if isinstance(self.ImageAccumulator, type(None)):
+    def resolve_accumulator(self):
+        self.log("pilomarimage", self.name, ".ResolveAccumulator()", terminal=False)
+        if isinstance(self.image_accumulator, type(None)):
             print(
                 "pilomarimage.ResolveAccumulator(): ImageAccumulator is not initialised."
             )
             return False
         # Create fresh image buffer.
-        self.ImageBuffer = np.zeros_like(
-            self.ImageAccumulator, np.uint8
+        self.image_buffer = np.zeros_like(
+            self.image_accumulator, np.uint8
         )  # Create array of same dimensions, but with regular image datatype.
-        self.ImageBuffer[self.ImageCount != 0] = self.ImageAccumulator / self.ImageCount
-        self.ActionList.append(["resolveaccumulator"])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.image_buffer[self.image_count != 0] = (
+            self.image_accumulator / self.image_count
+        )
+        self.action_list.append(["resolveaccumulator"])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def GetExif(self, filename):
+    def get_exif(self, filename):
         """Given a disc file, load any EXIF tags available.
         Returns a dictionary of TAG name and value.
-        It does not populate self.ExifData dictionary."""
+        It does not populate self.exif_data dictionary."""
         # from PIL import Image as PIL_Image
         # from PIL import ExifTags as PIL_ExifTags
         with PIL_Image.open("img.jpg") as img:  # Use PIL to open the image.
             raw_data = (
                 img.getexif()
             )  # Use PIL getexif() method to extract raw exif data.
-        if raw_data == None:
+        if raw_data is None:
             raw_data = {}  # No exif data available.
         for (
             key,
@@ -1581,27 +1599,27 @@ class pilomarimage:
                 exif_data[key] = val
         return exif_data
 
-    def LoadFile(self, filename, loadexif=False):
+    def load_file(self, filename, loadexif=False):
         """Load image buffer from disc."""
-        self.log("pilomarimage", self.Name, ".LoadFile(", filename, ")", terminal=False)
+        self.log("pilomarimage", self.name, ".LoadFile(", filename, ")", terminal=False)
         self._initialize()
-        self.ImageBuffer = cv2.imread(filename, cv2.IMREAD_COLOR)
-        if self.ImageExists():
-            self.ImageMask = np.ones_like(
-                self.ImageBuffer, np.uint8
+        self.image_buffer = cv2.imread(filename, cv2.IMREAD_COLOR)
+        if self.image_exists():
+            self.image_mask = np.ones_like(
+                self.image_buffer, np.uint8
             )  # All cells are active.
-            self.ActionList.append(["load", filename])
-            self.CreatedTimestamp = self.NowUTC()
+            self.action_list.append(["load", filename])
+            self.created_timestamp = self.now_utc()
             result = True
             if loadexif:  # Also load the EXIF tags from the file.
-                self.ExifData = self.GetExif(filename)
+                self.exif_data = self.get_exif(filename)
             else:
-                self.ExifData = {}  # Empty.
+                self.exif_data = {}  # Empty.
         else:
             # File didn't load!
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".LoadFile(",
                 filename,
                 ") failed.",
@@ -1610,39 +1628,41 @@ class pilomarimage:
             result = False
         return result
 
-    def ImageFileType(self, filename):
+    def image_file_type(self, filename):
         """Given a filename, return a lower case file type."""
         return filename.split(".")[-1].lower()
 
-    def SaveFile(self, filename, quality=None):
+    def save_file(self, filename, quality=None):
         """Save image buffer to disc.
         To specify the quality for jpeg files you can use a call like this...
-            cv2.imwrite(filename,self.ImageBuffer,[int(cv2.IMWRITE_JPEG_QUALITY), 90] # 90% image quality.
+            cv2.imwrite(filename,self.image_buffer,[int(cv2.IMWRITE_JPEG_QUALITY), 90] # 90% image quality.
         Set the 'quality' input parameter when making this call to override the jpg quality to your preferred value.
         """
-        self.log("pilomarimage", self.Name, ".SaveFile(", filename, ")", terminal=False)
-        if self.ImageExists():
-            if quality != None:  # Image quality was specified.
+        self.log(
+            "pilomarimage", self.name, ".save_file(", filename, ")", terminal=False
+        )
+        if self.image_exists():
+            if quality is not None:  # Image quality was specified.
                 cv2.imwrite(
                     filename,
-                    self.ImageBuffer,
+                    self.image_buffer,
                     [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)],
                 )  # imwrite doesn't report errors very well, beware.
             else:  # Image quality can be default.
                 cv2.imwrite(
-                    filename, self.ImageBuffer
+                    filename, self.image_buffer
                 )  # imwrite doesn't report errors very well, beware.
-            self.ActionList.append(["save", filename])
+            self.action_list.append(["save", filename])
         else:
-            print("pilomarimage.SaveFile(", filename, "): No ImageBuffer.")
-        height, width = self.GetDimensions()
+            print("pilomarimage.save_file(", filename, "): No image_buffer.")
+        height, width = self.get_dimensions()
         maxdim = max(
             height, width
         )  # Which is the largest dimension? Some file formats have limits.
-        ift = self.ImageFileType(filename)  # What file type are we generating?
+        ift = self.image_file_type(filename)  # What file type are we generating?
         if ift in ["bmp"] and maxdim > 32768:  # bmp dimensions can't exceed this size.
             print(
-                "pilomarimage.SaveFile(",
+                "pilomarimage.save_file(",
                 filename,
                 "): Image dimensions exceed bmp limits.(",
                 height,
@@ -1653,7 +1673,7 @@ class pilomarimage:
             ift in ["jpg", "jpeg"] and maxdim > 65535
         ):  # jpeg dimensions can't exceed this size.
             print(
-                "pilomarimage.SaveFile(",
+                "pilomarimage.save_file(",
                 filename,
                 "): Image dimensions exceed jpeg limits.(",
                 height,
@@ -1665,21 +1685,21 @@ class pilomarimage:
         if os.path.exists(filename):
             if os.path.getsize(filename) == 0:
                 print(
-                    "pilomarimage.SaveFile(",
+                    "pilomarimage.save_file(",
                     filename,
                     "): The file exists but it is empty.",
                 )
             else:
                 result = True
         else:
-            print("pilomarimage.SaveFile(", filename, "): The file was not saved.")
+            print("pilomarimage.save_file(", filename, "): The file was not saved.")
         return result
 
-    def ClipImage(self, xstart, ystart, xend, yend):
+    def clip_image(self, xstart, ystart, xend, yend):
         """Clip the image."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".ClipImage(",
             xstart,
             ystart,
@@ -1688,22 +1708,22 @@ class pilomarimage:
             ")",
             terminal=False,
         )
-        gt = self.GetType()
+        gt = self.get_type()
         if gt == "grayscale":
-            self.ImageBuffer = self.ImageBuffer[ystart:yend, xstart:xend]
+            self.image_buffer = self.image_buffer[ystart:yend, xstart:xend]
         else:
-            self.ImageBuffer = self.ImageBuffer[ystart:yend, xstart:xend, :]
-        self.ActionList.append(["clip", xstart, ystart, xend, yend])
-        self.ModifiedTimestamp = self.NowUTC()
+            self.image_buffer = self.image_buffer[ystart:yend, xstart:xend, :]
+        self.action_list.append(["clip", xstart, ystart, xend, yend])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def ScaleImage(self, scale=None, vscale=None, hscale=None):
+    def scale_image(self, scale=None, vscale=None, hscale=None):
         """Scale the current image buffer by 'scale' ratio.
         scale is applied in both dimensions.
         vscale is applied to vertical only.
         hscale is applied to horizontal only."""
-        self.log("pilomarimage", self.Name, ".ScaleImage(", scale, ")", terminal=False)
-        if scale != None:  # Same scale in both directions.
+        self.log("pilomarimage", self.name, ".ScaleImage(", scale, ")", terminal=False)
+        if scale is not None:  # Same scale in both directions.
             vscale = scale
             hscale = scale
         if vscale <= 0.0:
@@ -1712,38 +1732,38 @@ class pilomarimage:
         if hscale <= 0.0:
             print("pilomarimage.ScaleImage(hscale", hscale, ") must be > 0.0")
             return False
-        height = int(self.ImageBuffer.shape[0] * vscale)
-        width = int(self.ImageBuffer.shape[1] * hscale)
+        height = int(self.image_buffer.shape[0] * vscale)
+        width = int(self.image_buffer.shape[1] * hscale)
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".ScaleImage: Dimensions h",
             height,
             "w",
             width,
             terminal=False,
         )
-        self.ImageBuffer = cv2.resize(
-            self.ImageBuffer, (width, height), interpolation=self.ResizeMethod
+        self.image_buffer = cv2.resize(
+            self.image_buffer, (width, height), interpolation=self.resize_method
         )  # Note RESIZE takes (width,height) rather than usual openCV (height,width)!
-        self.ActionList.append(["scale", scale, vscale, hscale, (width, height)])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["scale", scale, vscale, hscale, (width, height)])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def HorizontalBlurImage(self, band):
+    def horizontal_blur_image(self, band):
         """Shrink the current image buffer horizontally, averaging the colors.
         Then return the image buffer to the correct width, blurring that average across the image.
         band = the pixel width that the image is horizontally compressed to."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".HorizontalBlurImage(",
             band,
             ")",
             terminal=False,
         )
-        height = int(self.ImageBuffer.shape[0])
-        originalwidth = int(self.ImageBuffer.shape[1])
+        height = int(self.image_buffer.shape[0])
+        originalwidth = int(self.image_buffer.shape[1])
         scale = band / originalwidth
         if scale <= 0.0:
             print("pilomarimage.HorizontalBlurImage(scale", scale, ") must be > 0.0")
@@ -1751,31 +1771,31 @@ class pilomarimage:
         width = int(originalwidth * scale)
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".HorizontalBlureImage: Dimensions h",
             height,
             "w",
             width,
             terminal=False,
         )
-        self.ImageBuffer = cv2.resize(
-            self.ImageBuffer, (width, height), interpolation=cv2.INTER_AREA
+        self.image_buffer = cv2.resize(
+            self.image_buffer, (width, height), interpolation=cv2.INTER_AREA
         )  # INTER_AREA better for SHRINKING.
-        self.ImageBuffer = cv2.resize(
-            self.ImageBuffer, (originalwidth, height), interpolation=cv2.INTER_LINEAR
+        self.image_buffer = cv2.resize(
+            self.image_buffer, (originalwidth, height), interpolation=cv2.INTER_LINEAR
         )  # INTER_LINEAR and INTER_CUBIC best for STRETCHING.
-        self.ActionList.append(["horizontalblurimage", scale, (width, height)])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["horizontalblurimage", scale, (width, height)])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def HorizontalBlurBuffer(self, buffer, band):
+    def horizontal_blur_buffer(self, buffer, band):
         """Shrink the current image buffer horizontally, averaging the colors.
         Then return the image buffer to the correct width, blurring that average across the image.
         buffer = the image buffer to work on.
         band = the pixel width that the image is horizontally compressed to."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".HorizontalBlurBuffer(",
             band,
             ")",
@@ -1790,7 +1810,7 @@ class pilomarimage:
         width = int(originalwidth * scale)
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".HorizontalBlureImage: Dimensions h",
             height,
             "w",
@@ -1803,59 +1823,59 @@ class pilomarimage:
         buffer = cv2.resize(
             buffer, (originalwidth, height), interpolation=cv2.INTER_LINEAR
         )  # INTER_LINEAR and INTER_CUBIC best for STRETCHING.
-        self.ActionList.append(["horizontalblurimage", scale, (width, height)])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["horizontalblurimage", scale, (width, height)])
+        self.modified_timestamp = self.now_utc()
         return buffer
 
-    def PercentageBuffer(self, buffer, percentage):
+    def percentage_buffer(self, buffer, percentage):
         """Dim a buffer to input percentage.
         percentage = 0 : Buffer is fully black.
         percentage = 50 : Buffer is reduced by 50%.
         percentage = 100 : Buffer is returned unchanged."""
-        self.log("pilomarimage", self.Name, ".PercentageBuffer()", terminal=False)
+        self.log("pilomarimage", self.name, ".PercentageBuffer()", terminal=False)
         pc = percentage / 100
         buffer = cv2.multiply(buffer, (pc, pc, pc, 1.0))
         return buffer
 
-    def SubtractBuffer(self, buffer):
+    def subtract_buffer(self, buffer):
         """Subtract 'buffer' from the main image buffer."""
-        self.log("pilomarimage", self.Name, ".SubtractBuffer()", terminal=False)
-        self.ImageBuffer = cv2.subtract(self.ImageBuffer, buffer)
-        self.ActionList.append(["subtractbuffer"])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.log("pilomarimage", self.name, ".SubtractBuffer()", terminal=False)
+        self.image_buffer = cv2.subtract(self.image_buffer, buffer)
+        self.action_list.append(["subtractbuffer"])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def CloneImage(self, donor):
+    def clone_image(self, donor):
         """Make this a copy of some other buffer.
         donor is a reference to another pilomarimage instance."""
         self.log(
-            "pilomarimage", self.Name, ".CloneImage(", donor.Name, ")", terminal=False
+            "pilomarimage", self.name, ".CloneImage(", donor.Name, ")", terminal=False
         )
-        if isinstance(donor.ImageBuffer, type(None)):
-            self.ImageBuffer = None
+        if isinstance(donor.image_buffer, type(None)):
+            self.image_buffer = None
         else:
-            self.ImageBuffer = donor.ImageBuffer.copy()
+            self.image_buffer = donor.image_buffer.copy()
         if isinstance(donor.ImageMask, type(None)):
-            self.ImageMask = None
+            self.image_mask = None
         else:
-            self.ImageMask = donor.ImageMask.copy()
+            self.image_mask = donor.ImageMask.copy()
         if isinstance(donor.ImageAccumulator, type(None)):
-            self.ImageAccumulator = None
+            self.image_accumulator = None
         else:
-            self.ImageAccumulator = donor.ImageAccumulator.copy()
+            self.image_accumulator = donor.ImageAccumulator.copy()
         if isinstance(donor.ImageCounter, type(None)):
-            self.ImageCounter = None
+            self.image_counter = None
         else:
-            self.ImageCounter = donor.ImageCounter.copy()
-        self.ActionList = []
-        self.CreatedTimestamp = self.CreatedTimestamp
-        self.ModifiedTimestamp = donor.ModifiedTimestamp
-        self.StarList = donor.StarList
-        self.StarCount = donor.StarCount
-        self.ActionList.append(["cloneimage", donor.Name])
-        return self.ImageExists()
+            self.image_counter = donor.ImageCounter.copy()
+        self.action_list = []
+        self.created_timestamp = self.created_timestamp
+        self.modified_timestamp = donor.ModifiedTimestamp
+        self.star_list = donor.StarList
+        self.star_count = donor.StarCount
+        self.action_list.append(["cloneimage", donor.Name])
+        return self.image_exists()
 
-    def Sharpness(self):
+    def sharpness(self):
         """Assess the crispness of an image.
         Some images will be sharper than others.
         *Q* UNDER DEVELOPMENT!
@@ -1863,98 +1883,98 @@ class pilomarimage:
         https://stackoverflow.com/questions/28717054/calculating-sharpness-of-an-image (Vektorsoft)
         low return values = More blurred.
         high return values = More crisp."""
-        self.log("pilomarimage", self.Name, ".Sharpness()", terminal=False)
+        self.log("pilomarimage", self.name, ".Sharpness()", terminal=False)
         canny = cv2.Canny(
-            self.NewBufferType("grayscale"), 50, 250
+            self.new_buffer_type("grayscale"), 50, 250
         )  # Use canny edge detection.
         sharpness = np.mean(canny)
         return sharpness
 
-    def CombineImage(self, donor):
+    def combine_image(self, donor):
         """Add donor image to this image.
         Performs simple addition of the two images.
         Values clipped between 0 and 255 though."""
-        tempimage = self.ImageBuffer.copy().astype(np.uint16)
+        tempimage = self.image_buffer.copy().astype(np.uint16)
         tempimage = np.add(tempimage, donor)
         tempimage = np.clip(tempimage, 0, 255).astype(np.uint8)  # Clip to uint8 values.
-        self.ImageBuffer = tempimage
-        self.ActionList.append(["combineimage", donor.Name])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.image_buffer = tempimage
+        self.action_list.append(["combineimage", donor.Name])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def MergeLayer(self, donor):
+    def merge_layer(self, donor):
         """Merge a donor image as a new layer on top of the current buffer.
         *Q* UNDER DEVELOPMENT!
         Several ways to perform a merge. This is testing a couple of them.
         Likely to change in the future."""
         self.log(
-            "pilomarimage", self.Name, ".MergeLayer(", donor.Name, ")", terminal=False
+            "pilomarimage", self.name, ".MergeLayer(", donor.Name, ")", terminal=False
         )
-        gt = self.GetType()
+        gt = self.get_type()
         if gt == "grayscale":  # Grayscale images inherit the average of the two arrays.
-            self.ImageBuffer = ((self.ImageBuffer + donor.ImageBuffer) / 2).astype(
+            self.image_buffer = ((self.image_buffer + donor.image_buffer) / 2).astype(
                 np.uint8
             )
         elif gt == "bgr":  # BGR images inherit average of the two arrays.
-            self.ImageBuffer = ((self.ImageBuffer + donor.ImageBuffer) / 2).astype(
+            self.image_buffer = ((self.image_buffer + donor.image_buffer) / 2).astype(
                 np.uint8
             )
         else:  # BGRA can use the 'A' channel to decide how much to inherit.
             b1 = (
-                self.ImageBuffer.copy().astype(np.float16) / 255
+                self.image_buffer.copy().astype(np.float16) / 255
             )  # Scale everything 0.0 - 1.0
-            b2 = donor.ImageBuffer.copy.astype(np.float16) / 255
+            b2 = donor.image_buffer.copy.astype(np.float16) / 255
             alpha = b2[:, :, 3]  # Extract alpha channel.
             b1[:, :, :3] = b1 * (
                 1 - alpha
             )  # Apply alpha to BGR channels (All X, All Y and 0,1,2 channels. Not Alpha channel (3).
             b2[:, :, :3] = b2 * alpha
-            self.ImageBuffer = np.add(b1, b2)  # Add two arrays.
-            self.ImageBuffer = self.ImageBuffer * 255  # Scale back up to 0-255
-            self.ImageBuffer = self.ImageBuffer.astype(
+            self.image_buffer = np.add(b1, b2)  # Add two arrays.
+            self.image_buffer = self.image_buffer * 255  # Scale back up to 0-255
+            self.image_buffer = self.image_buffer.astype(
                 np.uint8
             )  # Convert from float back to uint8
-        self.ActionList.append(["mergelayer", donor.Name])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["mergelayer", donor.Name])
+        self.modified_timestamp = self.now_utc()
 
-    def CenterCoordinates(self):
+    def center_coordinates(self):
         """Return current center of the image."""
-        x = int(round(self.GetWidth() / 2, 0))
-        y = int(round(self.GetHeight() / 2, 0))
+        x = int(round(self.get_width() / 2, 0))
+        y = int(round(self.get_height() / 2, 0))
         return x, y
 
-    def RotateCoordinates(self, x, y, angle):
+    def rotate_coordinates(self, x, y, angle):
         """Transpose coordinates to account for image rotating.
         Only supports 0,90,180,270 rotations at the moment."""
         angle = angle % 360  # Convert to 0-359 degrees.
         if angle == 270:
             newx = y
-            newy = self.GetHeight() - x
+            newy = self.get_height() - x
         elif angle == 180:
-            newx = self.GetWidth() - x
-            newy = self.GetHeight() - y
+            newx = self.get_width() - x
+            newy = self.get_height() - y
         elif angle == 90:
-            newx = self.GetWidth() - y
+            newx = self.get_width() - y
             newy = x
         else:  # Angle = 0, which means don't rotate anything.
             newx = x
             newy = y
         return newx, newy
 
-    def CenterVectorToPixel(self, PixDist, PixAngle):
+    def center_vector_to_pixel(self, PixDist, PixAngle):
         """Given ANGLE and PIXEL DISTANCE from current centre of image, return the resulting point."""
-        FromX, FromY = self.CenterCoordinates()
-        ToX, ToY = self.VectorToPixel(FromX, FromY, PixDist, PixAngle)
+        FromX, FromY = self.center_coordinates()
+        ToX, ToY = self.vector_to_pixel(FromX, FromY, PixDist, PixAngle)
         return ToX, ToY
 
-    def VectorToPixel(self, FromX, FromY, PixDist, PixAngle):  # 0 references.
+    def vector_to_pixel(self, FromX, FromY, PixDist, PixAngle):  # 0 references.
         """Given ANGLE and PIXEL DISTANCE from 1 point, return the resulting point."""
         rad = math.radians(PixAngle)
         ToX = int(FromX + PixDist * math.sin(rad))
         ToY = int(FromY - PixDist * math.cos(rad))  # Y is inverted.
         return ToX, ToY
 
-    def CalculateVector(self, FromX, FromY, ToX, ToY):  # 4 references.
+    def calculate_vector(self, FromX, FromY, ToX, ToY):  # 4 references.
         """Return ANGLE and PIXEL DISTANCE from 1 point to another."""
         XDist = ToX - FromX
         YDist = FromY - ToY  # Y values are inverted Y=0 at top.
@@ -1962,37 +1982,37 @@ class pilomarimage:
         PixAngle = round(math.degrees(math.atan2(XDist, YDist)), 0)
         return PixDist, PixAngle
 
-    def RotateAboutCenter(self, x, y, angle):
+    def rotate_about_center(self, x, y, angle):
         """Take any point in the image and rotate it about the center of the image."""
-        pixd, pixa = self.PixelToCenterVector(x, y)
+        pixd, pixa = self.pixel_to_center_vector(x, y)
         pixa += angle
-        cx, cy = self.CenterCoordinates()
-        x, y = self.VectorToPixel(cx, cy, pixd, pixa)
+        cx, cy = self.center_coordinates()
+        x, y = self.vector_to_pixel(cx, cy, pixd, pixa)
         return x, y
 
-    def PixelToCenterVector(self, ToX, ToY):  # 0 references.
+    def pixel_to_center_vector(self, ToX, ToY):  # 0 references.
         """Given any pixel location in an image, return its vector relative to the center of the image.
         Image UP (Y=0) is 0 Degrees.
         Image RIGHT (X=Max) is 90 Degrees.
         Image DOWN (Y=Max) is 180 Degrees.
         Image LEFT (X=0) is 270 Degrees."""
-        cx, cy = self.CenterCoordinates()
-        PixDist, PixAngle = self.CalculateVector(cx, cy, ToX, ToY)
+        cx, cy = self.center_coordinates()
+        PixDist, PixAngle = self.calculate_vector(cx, cy, ToX, ToY)
         return PixDist, PixAngle
 
-    def ContainsMeteors(self):
+    def contains_meteors(self):
         """Return TRUE if meteors or aircraft trails are detected in an image."""
-        if len(self.LineDetection()) > 0:
+        if len(self.line_detection()) > 0:
             return True
         else:
             return False
 
-    def LineDetection(self) -> list:
+    def line_detection(self) -> list:
         """Detect lines (satellites, meteors)."""
-        self.log("pilomarimage", self.Name, ".LineDetection()", terminal=False)
+        self.log("pilomarimage", self.name, ".LineDetection()", terminal=False)
         # Code based upon https://www.meteornews.net/2020/05/05/d64-nl-meteor-detecting-project/
         # Make a gray-scale copy and save the result in the variable 'gray'
-        gray = self.NewBufferType("grayscale")
+        gray = self.new_buffer_type("grayscale")
         # Apply blur and save the result in the variable 'blur'
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         # Apply the Canny edge algorithm
@@ -2013,7 +2033,7 @@ class pilomarimage:
                     continue  # Too short.
                 self.log(
                     "pilomarimage",
-                    self.Name,
+                    self.name,
                     ".LineDetection: Line",
                     i,
                     ",",
@@ -2028,7 +2048,7 @@ class pilomarimage:
                 )  # Add to the list of detected lines.
         return linereturn
 
-    def CloudDetection(self, threshold=127):  # In pilomarimage
+    def cloud_detection(self, threshold=127):  # In pilomarimage
         """Detect clouds in image.
         *Q* UNDER DEVELOPMENT
         threshold = minimum brightness at which a pixel could be a cloud."""
@@ -2036,7 +2056,7 @@ class pilomarimage:
         mincloudpixels = 400
         # Simplify image
         # - Grayscale
-        imagebuffer = self.NewBufferType("grayscale")  # Convert to grayscale.
+        imagebuffer = self.new_buffer_type("grayscale")  # Convert to grayscale.
         cv2.imwrite("/home/pi/pilomar/data/CloudDetectionGrayscale.jpg", imagebuffer)
         # - Blur
         imagebuffer = cv2.GaussianBlur(imagebuffer, (5, 5), 0)
@@ -2055,7 +2075,7 @@ class pilomarimage:
                 cloudlist.append([center_x, center_y, area])
                 self.log(
                     "pilomarimage",
-                    self.Name,
+                    self.name,
                     ".CloudDetection (",
                     center_x,
                     ",",
@@ -2067,42 +2087,42 @@ class pilomarimage:
                 )
         return cloudlist
 
-    def GetType(self):
+    def get_type(self):
         """Are we dealing with grayscale, bgr or bgra image?"""
         result = None
-        if type(self.ImageBuffer) == type(None):
+        if isinstance(self.image_buffer, type(None)):
             result = None
-        elif len(self.ImageBuffer.shape) < 3:
+        elif len(self.image_buffer.shape) < 3:
             result = "grayscale"
-        elif self.ImageBuffer.shape[2] == 3:
+        elif self.image_buffer.shape[2] == 3:
             result = "bgr"
-        elif self.ImageBuffer.shape[2] == 4:
+        elif self.image_buffer.shape[2] == 4:
             result = "bgra"
         return result
 
-    def ImageAge(self):
+    def image_age(self):
         """Return age of the image buffer in seconds."""
         td = None
-        if self.CreatedTimestamp != None:
-            td = int((self.NowUTC() - self.CreatedTimestamp).total_seconds())
+        if self.created_timestamp is not None:
+            td = int((self.now_utc() - self.created_timestamp).total_seconds())
         return td
 
-    def NewBufferType(self, newtype):
-        """Turn current ImageBuffer into a new type, but return as new buffer,
+    def new_buffer_type(self, newtype):
+        """Turn current image_buffer into a new type, but return as new buffer,
         doesn't overwrite the original image buffer."""
-        cvimagebuffer = self.ImageBuffer.copy()
-        if not newtype in pilomarimage.IMAGETYPES:
+        cvimagebuffer = self.image_buffer.copy()
+        if not newtype in PilomarImage.IMAGETYPES:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".ChangeType(",
                 newtype,
                 ") must be in ",
-                pilomarimage.IMAGETYPES,
+                PilomarImage.IMAGETYPES,
                 terminal=False,
             )
             return cvimagebuffer
-        oldtype = self.GetType()
+        oldtype = self.get_type()
         if oldtype == "bgra":
             if newtype == "bgr":
                 cvimagebuffer = cv2.cvtColor(cvimagebuffer, cv2.COLOR_BGRA2BGR)
@@ -2130,7 +2150,7 @@ class pilomarimage:
         if checktype != newtype:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".ChangeType: Failed. From",
                 oldtype,
                 "to",
@@ -2141,56 +2161,56 @@ class pilomarimage:
             )
         return cvimagebuffer
 
-    def ChangeType(self, newtype):
-        """Change ImageBuffer type."""
-        self.ImageBuffer = self.NewBufferType(newtype)
-        self.ImageMask = np.ones_like(self.ImageBuffer, np.uint8)
-        self.ActionList.append(["changetype", self.GetType()])
+    def change_type(self, newtype):
+        """Change image_buffer type."""
+        self.image_buffer = self.new_buffer_type(newtype)
+        self.image_mask = np.ones_like(self.image_buffer, np.uint8)
+        self.action_list.append(["changetype", self.get_type()])
         return True
 
-    def GetHeight(self):
-        """Return the ImageBuffer height in pixels."""
-        return self.ImageBuffer.shape[0]
+    def get_height(self):
+        """Return the image_buffer height in pixels."""
+        return self.image_buffer.shape[0]
 
-    def GetWidth(self):
-        """Return the ImageBuffer width in pixels."""
-        return self.ImageBuffer.shape[1]
+    def get_width(self):
+        """Return the image_buffer width in pixels."""
+        return self.image_buffer.shape[1]
 
-    def GetDepth(self):
-        """Return the ImageBuffer depth in pixels."""
-        if len(self.ImageBuffer.shape) < 3:  # Grayscale
+    def get_depth(self):
+        """Return the image_buffer depth in pixels."""
+        if len(self.image_buffer.shape) < 3:  # Grayscale
             depth = 1
         else:
-            depth = self.ImageBuffer.shape[2]  # BGR = 3 or BGRA = 4
+            depth = self.image_buffer.shape[2]  # BGR = 3 or BGRA = 4
         return depth
 
-    def GetDimensions(self):
-        """Return the ImageBuffer dimensions in pixels."""
-        return (self.GetHeight(), self.GetWidth())
+    def get_dimensions(self):
+        """Return the image_buffer dimensions in pixels."""
+        return (self.get_height(), self.get_width())
 
-    def GetPixelColor(self, y, x):
+    def get_pixel_color(self, y, x):
         """Return color of pixel.
         y = row
         x = column
         Converts datatype to int()"""
-        tg = self.GetType()
+        tg = self.get_type()
         try:
             if tg == "grayscale":
                 color = (
-                    int(self.ImageBuffer[y, x]),
-                    int(self.ImageBuffer[y, x]),
-                    int(self.ImageBuffer[y, x]),
+                    int(self.image_buffer[y, x]),
+                    int(self.image_buffer[y, x]),
+                    int(self.image_buffer[y, x]),
                 )
             else:
                 color = (
-                    int(self.ImageBuffer[y, x, 0]),
-                    int(self.ImageBuffer[y, x, 1]),
-                    int(self.ImageBuffer[y, x, 2]),
+                    int(self.image_buffer[y, x, 0]),
+                    int(self.image_buffer[y, x, 1]),
+                    int(self.image_buffer[y, x, 2]),
                 )
         except Exception as e:
             self.log(
                 "pilomarimage.GetPixelColor(",
-                self.Name,
+                self.name,
                 ",row",
                 y,
                 ",col",
@@ -2198,15 +2218,15 @@ class pilomarimage:
                 ") failed.",
                 terminal=False,
             )
-            self.ReportException(e, comment="pilomarimage.GetPixelColor()")
+            self.report_exception(e, comment="pilomarimage.GetPixelColor()")
             color = (0, 0, 0)
         return color
 
-    def New(self, height, width, imagetype="bgr", datatype=np.uint8):
-        """Create a new empty ImageBuffer."""
+    def new(self, height, width, imagetype="bgr", datatype=np.uint8):
+        """Create a new empty image_buffer."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".New(",
             height,
             width,
@@ -2215,23 +2235,23 @@ class pilomarimage:
             ")",
             terminal=False,
         )
-        if not imagetype in pilomarimage.IMAGETYPES:
+        if not imagetype in PilomarImage.IMAGETYPES:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".New(",
                 imagetype,
                 ") must be in ",
-                pilomarimage.IMAGETYPES,
+                PilomarImage.IMAGETYPES,
                 terminal=False,
             )
             print(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".New(",
                 imagetype,
                 ") must be in ",
-                pilomarimage.IMAGETYPES,
+                PilomarImage.IMAGETYPES,
             )
             return False
         if max(height, width) > 65535:  # Maximum jpeg size.
@@ -2243,21 +2263,21 @@ class pilomarimage:
                 terminal=False,
             )
         if imagetype == "bgr":
-            self.ImageBuffer = np.zeros((height, width, 3), datatype)  # bgr image.
+            self.image_buffer = np.zeros((height, width, 3), datatype)  # bgr image.
         elif imagetype == "bgra":
-            self.ImageBuffer = np.zeros((height, width, 4), datatype)  # bgra image.
+            self.image_buffer = np.zeros((height, width, 4), datatype)  # bgra image.
         else:
-            self.ImageBuffer = np.zeros((height, width), datatype)  # grayscale image.
-        self.ImageMask = np.ones_like(self.ImageBuffer, np.uint8)
-        self.CreatedTimestamp = self.NowUTC()
-        self.ModifiedTimestamp = self.NowUTC()
-        self.ExifData = (
+            self.image_buffer = np.zeros((height, width), datatype)  # grayscale image.
+        self.image_mask = np.ones_like(self.image_buffer, np.uint8)
+        self.created_timestamp = self.now_utc()
+        self.modified_timestamp = self.now_utc()
+        self.exif_data = (
             {}
         )  # Empty dictionary of any associated EXIF tags loaded from an image.
-        self.ActionList = [["new", (height, width), imagetype, datatype]]
+        self.action_list = [["new", (height, width), imagetype, datatype]]
         return True
 
-    def ArrangeObjects(
+    def arrange_objects(
         self,
         positions,
         objects,
@@ -2285,8 +2305,8 @@ class pilomarimage:
 
         """
         # The basis of this code was generated by Bing ChatGPT Sep.2023.
-        width = self.GetWidth()
-        height = self.GetHeight()
+        width = self.get_width()
+        height = self.get_height()
 
         # Initialize label positions at the object positions
         object_positions = np.array(positions, dtype=np.float)
@@ -2383,7 +2403,7 @@ class pilomarimage:
 
         return object_positions.tolist()  # Return updated position list.
 
-    def SeparateObjects(
+    def separate_objects(
         self, positions, objects, k=0.1, dt=0.1, iterations=100, delta_min=4.0
     ):
         """
@@ -2403,8 +2423,8 @@ class pilomarimage:
 
         """
         # The basis of this code was generated by Bing ChatGPT Sep.2023.
-        width = self.GetWidth()
-        height = self.GetHeight()
+        width = self.get_width()
+        height = self.get_height()
 
         # Initialize label positions at the object positions
         object_positions = np.array(positions, dtype=np.float)
@@ -2494,7 +2514,7 @@ class pilomarimage:
             object_positions.tolist()
         )  # , max_overlap # Return updated position list & a measure of the maximum overlap.
 
-    def RotateBufferAboutPoint(self, imagebuffer, location, angle):
+    def rotate_buffer_about_point(self, imagebuffer, location, angle):
         """WIP: Building better angle text feature.
             location is (x,y) tuple
 
@@ -2509,7 +2529,8 @@ class pilomarimage:
         )
         return imagebuffer
 
-    def OverlayBuffer(imagebuffer, overlaybuffer, x, y):
+    @staticmethod
+    def overlay_buffer(imagebuffer, overlaybuffer, x, y):
         """WIP: Building better overlay/merge function.
         Based upon https://stackoverflow.com/questions/40895785/using-opencv-to-overlay-transparent-image-onto-another-image
         Take an overlaybuffer with transparency and apply it to the imagebuffer.
@@ -2558,9 +2579,9 @@ class pilomarimage:
         ] + mask * overlaybuffer_image
         return imagebuffer
 
-    def RotateImage(self, angle):
+    def rotate_image(self, angle):
         """Accepts 0,90,180,270"""
-        self.log("pilomarimage", self.Name, ".RotateImage(", angle, ")", terminal=False)
+        self.log("pilomarimage", self.name, ".RotateImage(", angle, ")", terminal=False)
         angle = angle % 360  # Always in range 0-360 degrees.
         if angle >= 45 and angle < 135:
             rotateCode = cv2.ROTATE_90_CLOCKWISE
@@ -2570,17 +2591,17 @@ class pilomarimage:
             rotateCode = cv2.ROTATE_90_COUNTERCLOCKWISE
         else:
             rotateCode = None
-        if rotateCode != None:
-            self.ImageBuffer = cv2.rotate(self.ImageBuffer, rotateCode)
-            self.ModifiedTimestamp = self.NowUTC()
-            self.ActionList.append(["rotateimage", angle])
+        if rotateCode is not None:
+            self.image_buffer = cv2.rotate(self.image_buffer, rotateCode)
+            self.modified_timestamp = self.now_utc()
+            self.action_list.append(["rotateimage", angle])
         return True
 
-    def CountStars(self, minval=3, maxval=650, maxstars=500, threshold=100):
+    def count_stars(self, minval=3, maxval=650, maxstars=500, threshold=100):
         """Count the number of stars in an image.
         From: https://stackoverflow.com/questions/48154642/how-to-count-number-of-dots-in-an-image-using-python-and-opencv
 
-        Doesn't modify ImageBuffer.
+        Doesn't modify image_buffer.
 
         minval = Minimum area of stars.
         maxval = Maximum area of stars.
@@ -2590,7 +2611,7 @@ class pilomarimage:
 
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".CountStars(",
             minval,
             ",",
@@ -2598,7 +2619,7 @@ class pilomarimage:
             ")",
             terminal=False,
         )
-        cvimagebuffer = self.NewBufferType(
+        cvimagebuffer = self.new_buffer_type(
             "grayscale"
         )  # Return a copy of the image buffer in grayscale.
         # Threshold the image to make it more crisp.
@@ -2628,45 +2649,45 @@ class pilomarimage:
             if starcount >= maxstars:
                 self.log(
                     "pilomarimage",
-                    self.Name,
+                    self.name,
                     ".CountStars:",
                     maxstars,
                     "star limit hit.",
                     terminal=False,
                 )
                 break
-        self.StarList = starlist
-        self.StarCount = starcount
-        self.CalculateStarSpread()  # How widely spread are the stars across the image? Indicates good/bad tracking tuning.
+        self.star_list = starlist
+        self.star_count = starcount
+        self.calculate_star_spread()  # How widely spread are the stars across the image? Indicates good/bad tracking tuning.
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".CountStars: End. Counted",
             starcount,
             terminal=False,
         )
         return starcount, starlist
 
-    def BVrange(self, BV):
+    def b_vrange(self, BV):
         # Given a B-V value, pick the pair of pilomarimage.COLORPOINTS that will be used to calculate the RGB equivalent.
         fromi = 0
         toi = 1  # If BV is too low, we use the lowest pair of entries. (We will extrapolate a value)
         try:
             for i, cp in enumerate(
-                pilomarimage.COLORPOINTS
+                PilomarImage.COLORPOINTS
             ):  # Consider each sample point in turn.
                 if BV >= cp[0]:  # Above lower threshold of this sample point.
                     fromi = i  # Interpolation starts with this lower entry.
                     toi = i + 1  # Interpolation ends with the next entry.
             if toi >= len(
-                pilomarimage.COLORPOINTS
+                PilomarImage.COLORPOINTS
             ):  # If BV is too high, we are off the end of the list, so use the highest pair of entries.
-                toi = len(pilomarimage.COLORPOINTS) - 1
+                toi = len(PilomarImage.COLORPOINTS) - 1
                 fromi = toi - 1
         except Exception as e:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".BVRange:",
                 str(BV),
                 "failed:",
@@ -2677,16 +2698,16 @@ class pilomarimage:
             toi = 1
         return fromi, toi
 
-    def BVdX(self, fromi, toi):
+    def b_vd_x(self, fromi, toi):
         # Span of BV values from LOWER to UPPER sample limits.
         try:
             result = (
-                pilomarimage.COLORPOINTS[toi][0] - pilomarimage.COLORPOINTS[fromi][0]
+                PilomarImage.COLORPOINTS[toi][0] - PilomarImage.COLORPOINTS[fromi][0]
             )
         except Exception as e:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".BVdX:",
                 str(fromi),
                 str(toi),
@@ -2697,17 +2718,17 @@ class pilomarimage:
             result = 0
         return result
 
-    def BVdR(self, fromi, toi):
+    def b_vd_r(self, fromi, toi):
         # Span of BLUE channel values from LOWER to UPPER sample limits.
         try:
             result = (
-                pilomarimage.COLORPOINTS[toi][1][0]
-                - pilomarimage.COLORPOINTS[fromi][1][0]
+                PilomarImage.COLORPOINTS[toi][1][0]
+                - PilomarImage.COLORPOINTS[fromi][1][0]
             )
         except Exception as e:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".BVdR:",
                 str(fromi),
                 str(toi),
@@ -2718,17 +2739,17 @@ class pilomarimage:
             result = 0
         return result
 
-    def BVdG(self, fromi, toi):
+    def b_vd_g(self, fromi, toi):
         # Span of GREEN channel values from LOWER to UPPER sample limits.
         try:
             result = (
-                pilomarimage.COLORPOINTS[toi][1][1]
-                - pilomarimage.COLORPOINTS[fromi][1][1]
+                PilomarImage.COLORPOINTS[toi][1][1]
+                - PilomarImage.COLORPOINTS[fromi][1][1]
             )
         except Exception as e:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".BVdG:",
                 str(fromi),
                 str(toi),
@@ -2739,17 +2760,17 @@ class pilomarimage:
             result = 0
         return result
 
-    def BVdB(self, fromi, toi):
+    def b_vd_b(self, fromi, toi):
         # Span of BLUE channel values from LOWER to UPPER sample limits.
         try:
             result = (
-                pilomarimage.COLORPOINTS[toi][1][2]
-                - pilomarimage.COLORPOINTS[fromi][1][2]
+                PilomarImage.COLORPOINTS[toi][1][2]
+                - PilomarImage.COLORPOINTS[fromi][1][2]
             )
         except Exception as e:
             self.log(
                 "pilomarimage.",
-                self.Name,
+                self.name,
                 "BVdB:",
                 str(fromi),
                 str(toi),
@@ -2760,28 +2781,28 @@ class pilomarimage:
             result = 0
         return result
 
-    def BVInterpolate(self, BV, fromi, toi):
+    def bv_interpolate(self, BV, fromi, toi):
         try:
-            BVProportion = (BV - pilomarimage.COLORPOINTS[fromi][0]) / BVdX(
+            BVProportion = (BV - PilomarImage.COLORPOINTS[fromi][0]) / BVdX(
                 fromi, toi
             )  # Position of our point between the two reference points. This is the scale applied to R,G,B channels.
             r = round(
                 (BVProportion * BVdR(fromi, toi))
-                + pilomarimage.COLORPOINTS[fromi][1][0],
+                + PilomarImage.COLORPOINTS[fromi][1][0],
                 0,
             )  # Scale RED channel relative to the BV position.
             r = max(0, r)  # Colour channel values must be 0-255
             r = min(255, r)
             g = round(
                 (BVProportion * BVdG(fromi, toi))
-                + pilomarimage.COLORPOINTS[fromi][1][1],
+                + PilomarImage.COLORPOINTS[fromi][1][1],
                 0,
             )  # Scale GREEN channel relative to the BV position.
             g = max(0, g)
             g = min(255, g)
             b = round(
                 (BVProportion * BVdB(fromi, toi))
-                + pilomarimage.COLORPOINTS[fromi][1][2],
+                + PilomarImage.COLORPOINTS[fromi][1][2],
                 0,
             )  # Scale BLUE channel relative to the BV position.
             b = max(0, b)
@@ -2789,7 +2810,7 @@ class pilomarimage:
         except Exception as e:
             self.log(
                 "pilomarimage.",
-                self.Name,
+                self.name,
                 "BVInterpolate:",
                 str(BV),
                 str(fromi),
@@ -2801,7 +2822,7 @@ class pilomarimage:
             r = b = g = 255
         return (int(b), int(g), int(r))
 
-    def BVtoBGR(self, BV):  # 1 references.
+    def b_vto_bgr(self, BV):  # 1 references.
         """Convert a B-V color value from Hipparcos catalog to an approximate BGR color code.
         B-V     R G B (hex)
         -0.33   706ffe
@@ -2814,14 +2835,14 @@ class pilomarimage:
         """
         r = g = b = 255
         try:
-            fromi, toi = self.BVrange(
+            fromi, toi = self.b_vrange(
                 BV
             )  # Which pair of sample colour points do we interpolate from?
-            b, g, r = self.BVInterpolate(BV, fromi, toi)
+            b, g, r = self.bv_interpolate(BV, fromi, toi)
         except Exception as e:
             self.log(
                 "pilomarimage.",
-                self.Name,
+                self.name,
                 "BVtoBGR:",
                 str(BV),
                 "failed:",
@@ -2831,26 +2852,26 @@ class pilomarimage:
             b = g = r = 255
         return (b, g, r)
 
-    def MarkLocation(self, starx, stary, color, uppertext=None, lowertext=None):
+    def mark_location(self, starx, stary, color, uppertext=None, lowertext=None):
         """Write the location text next to the star.
         Places the text left/right depending upon it's location in the image.
         Write any 'text' value above center of star."""
         starx = int(starx)
         stary = int(stary)
-        if starx < (self.GetWidth() / 2):
+        if starx < (self.get_width() / 2):
             xloc = starx + 10
         else:
             xloc = starx - 120
         yloc = stary
         loctext = "(" + str(starx) + "," + str(stary) + ")"
-        self.AddText(loctext, xloc, yloc, color, 0.5)
-        if uppertext != None:  # There's additional info to print above the star.
-            self.AddText(uppertext, starx - 10, yloc - 20, color, 0.5)
-        if lowertext != None:  # There's additional info to print above the star.
-            self.AddText(lowertext, starx - 10, yloc + 30, color, 0.5)
+        self.add_text(loctext, xloc, yloc, color, 0.5)
+        if uppertext is not None:  # There's additional info to print above the star.
+            self.add_text(uppertext, starx - 10, yloc - 20, color, 0.5)
+        if lowertext is not None:  # There's additional info to print above the star.
+            self.add_text(lowertext, starx - 10, yloc + 30, color, 0.5)
         return True
 
-    def ScaleStarList(self, scalefactor):
+    def scale_star_list(self, scalefactor):
         """Take a list of star locations and scale the first two terms.
         Any additional terms are left unmodified.
         Each star in the list consists of x,y image positions.
@@ -2858,13 +2879,13 @@ class pilomarimage:
         Only the xpos and ypos entries are scaled, any extra terms remain unchanged."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".ScaleStarList: Scale:",
             scalefactor,
             terminal=False,
         )
         newlist = []  # The resulting list.
-        for star in self.StarList:  # Go through each star in turn.
+        for star in self.star_list:  # Go through each star in turn.
             newstar = []
             for i, term in enumerate(star):
                 if i < 2:
@@ -2873,58 +2894,58 @@ class pilomarimage:
                     newterm = term
                 newstar.append(int(newterm))
             newlist.append(newstar)
-        self.StarList = newlist
-        self.ActionList = [["scalestarlist", scalefactor]]
+        self.star_list = newlist
+        self.action_list = [["scalestarlist", scalefactor]]
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".ScaleStarList: Result:",
             newlist,
             terminal=False,
         )
         return True
 
-    def ImageExists(self):
-        """Return True if the ImageBuffer is initialised."""
-        if isinstance(self.ImageBuffer, type(None)):
+    def image_exists(self):
+        """Return True if the image_buffer is initialised."""
+        if isinstance(self.image_buffer, type(None)):
             return False
         else:
             return True
 
-    def ImageMissing(self):
-        """Return TRUE if ImageBuffer is not initialized."""
+    def image_missing(self):
+        """Return TRUE if image_buffer is not initialized."""
         result = False
-        if isinstance(self.ImageBuffer, type(None)):
+        if isinstance(self.image_buffer, type(None)):
             result = True
         return result
 
-    def SimplifyImage(self, blurradius=13):
+    def simplify_image(self, blurradius=13):
         """Backwards compatibility with earlier versions."""
         print(
             "pilomarimage.SimplifyImage(): Deprecated. Please use pilomarimage.EnhanceStars() method now."
         )
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".SimplifyImage -> EnhanceStars: Begin",
             terminal=False,
         )
-        return self.EnhanceStars(blurradius=blurradius)
+        return self.enhance_stars(blurradius=blurradius)
 
-    def PrepareImage(self, blurradius=13):
+    def prepare_image(self, blurradius=13):
         """Backwards compatibility with earlier versions."""
         print(
             "pilomarimage.PrepareImage(): Deprecated. Please use pilomarimage.EnhanceStars() method now."
         )
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".PrepareImage -> EnhanceStars: Begin",
             terminal=False,
         )
-        return self.EnhanceStars(blurradius=blurradius)
+        return self.enhance_stars(blurradius=blurradius)
 
-    def EnhanceStars(self, blurradius=13, cloudthresh=100, starthresh=16, maxval=255):
+    def enhance_stars(self, blurradius=13, cloudthresh=100, starthresh=16, maxval=255):
         """Enhance the stars in the image.
         Was 'SimplifyImage' and 'PrepareImage' in earlier pilomar versions.
         - blurradius is the GaussianBlur radius.
@@ -2933,7 +2954,7 @@ class pilomarimage:
         - maxval is the saturated value set for cells above the threshold."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".EnhanceStars: blurradius",
             blurradius,
             "cloudthresh",
@@ -2944,31 +2965,31 @@ class pilomarimage:
             maxval,
             terminal=False,
         )
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".EnhanceStars: No image in the buffer.")
-        self.ChangeType("grayscale")  # Convert to grayscale.
-        retval, self.ImageBuffer = cv2.threshold(
-            self.ImageBuffer, cloudthresh, maxval, cv2.THRESH_BINARY
+        if self.image_missing():
+            print("pilomarimage", self.name, ".EnhanceStars: No image in the buffer.")
+        self.change_type("grayscale")  # Convert to grayscale.
+        retval, self.image_buffer = cv2.threshold(
+            self.image_buffer, cloudthresh, maxval, cv2.THRESH_BINARY
         )  # 100 should ignore clouds more easily and just recognise brighter stars.
         if blurradius % 2 == 0:
             blurradius += 1  # Must be odd.
         # 2nd enlarge the stars using a blur filter.
         # - This increases the radius of each star, so when we reduce the image size, the star survives the shrinking.
-        self.ImageBuffer = cv2.GaussianBlur(
-            self.ImageBuffer, (blurradius, blurradius), 0
+        self.image_buffer = cv2.GaussianBlur(
+            self.image_buffer, (blurradius, blurradius), 0
         )
         # 3rd sharpen these larger star dots back into more definite black-or-white.
         # - Use adaptive thresholding now to make the stars more crisp.
         # - Adaptive means that the threshold limit between BLACK and WHITE is chosen by the function.
-        retval, self.ImageBuffer = cv2.threshold(
-            self.ImageBuffer, starthresh, maxval, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        retval, self.image_buffer = cv2.threshold(
+            self.image_buffer, starthresh, maxval, cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )  # OTSU is adaptive threshold limits.
-        self.ActionList.append(["enhancestars", blurradius])
-        self.ModifiedTimestamp = self.NowUTC()
-        self.log("pilomarimage", self.Name, ".EnhanceStars: End.", terminal=False)
+        self.action_list.append(["enhancestars", blurradius])
+        self.modified_timestamp = self.now_utc()
+        self.log("pilomarimage", self.name, ".EnhanceStars: End.", terminal=False)
         return True
 
-    def FS_Save(self, filterdata):
+    def fs_save(self, filterdata):
         """Save the current image buffer and write the current filter data on it.
         A debugging feature.
 
@@ -2977,27 +2998,27 @@ class pilomarimage:
         """
         if "saveas" in filterdata:  # There is a filename to use.
             filename = filterdata["saveas"]
-            if filename != None and len(filename) > 0:
+            if filename is not None and len(filename) > 0:
                 # Add filterdata information to the image.
-                self.AddText(
+                self.add_text(
                     "filterdata:",
                     x=10,
-                    y=int(self.GetHeight() / 2),
-                    color=pilomarimage.BGRColor["White"],
-                    bgcolor=pilomarimage.BGRColor["Black"],
+                    y=int(self.get_height() / 2),
+                    color=PilomarImage.BGRColor["White"],
+                    bgcolor=PilomarImage.BGRColor["Black"],
                 )
                 for key, value in filterdata.items():
-                    self.AddText(
+                    self.add_text(
                         " " + str(key) + ":" + str(value),
                         x=10,
-                        y=self.NextTextY,
-                        color=pilomarimage.BGRColor["White"],
-                        bgcolor=pilomarimage.BGRColor["Black"],
+                        y=self.next_text_y,
+                        color=PilomarImage.BGRColor["White"],
+                        bgcolor=PilomarImage.BGRColor["Black"],
                     )
-                self.Save(filename)
+                self.save(filename)
         return True
 
-    def FS_Grayscale(self, filterdata):
+    def fs_grayscale(self, filterdata):
         """Convert buffer to grayscale.
         {'method':'grayscale',
          'comment':''}"""
@@ -3007,18 +3028,18 @@ class pilomarimage:
         if comment != "":
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".FS_Grayscale: Comment:",
                 comment,
                 terminal=False,
             )
-        self.log("pilomarimage", self.Name, ".FS_Grayscale:", terminal=False)
-        self.ChangeType("grayscale")  # Convert to grayscale.
-        self.ActionList.append(["FS_Grayscale"])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.log("pilomarimage", self.name, ".FS_Grayscale:", terminal=False)
+        self.change_type("grayscale")  # Convert to grayscale.
+        self.action_list.append(["FS_Grayscale"])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FS_Threshold(self, filterdata):
+    def fs_threshold(self, filterdata):
         """Run OpenCV threshold filter on current image buffer using input parameters.
         filterdata = dictionary of parameters.
 
@@ -3038,7 +3059,7 @@ class pilomarimage:
         threshold_type = filterdata.get(
             "type", cv2.THRESH_BINARY
         )  # Get threshold calculation type, default THRESH_BINARY.
-        if threshold_type == None:
+        if threshold_type is None:
             threshold_type = cv2.THRESH_BINARY
         comment = filterdata.get(
             "comment", ""
@@ -3046,14 +3067,14 @@ class pilomarimage:
         if comment != "":
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".FS_Threshold: Comment:",
                 comment,
                 terminal=False,
             )
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".FS_Threshold(",
             threshold,
             ",",
@@ -3063,14 +3084,14 @@ class pilomarimage:
             ")",
             terminal=False,
         )
-        calculatedthreshold, self.ImageBuffer = cv2.threshold(
-            self.ImageBuffer, threshold, maxval, threshold_type
+        calculatedthreshold, self.image_buffer = cv2.threshold(
+            self.image_buffer, threshold, maxval, threshold_type
         )
-        self.ActionList.append(["FS_Threshold", threshold, maxval, threshold_type])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["FS_Threshold", threshold, maxval, threshold_type])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FS_GaussianBlur(self, filterdata):
+    def fs_gaussian_blur(self, filterdata):
         """Run OpenCV gaussianblur filter on current image buffer using input parameters.
         filterdata = dictionary of parameters.
 
@@ -3090,20 +3111,20 @@ class pilomarimage:
         if comment != "":
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".FS_GaussianBlur: Comment:",
                 comment,
                 terminal=False,
             )
         self.log(
-            "pilomarimage", self.Name, ".FS_GaussianBlur(", radius, ")", terminal=False
+            "pilomarimage", self.name, ".FS_GaussianBlur(", radius, ")", terminal=False
         )
-        self.ImageBuffer = cv2.GaussianBlur(self.ImageBuffer, (radius, radius), 0)
-        self.ActionList.append(["FS_GaussianBlur", radius])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.image_buffer = cv2.GaussianBlur(self.image_buffer, (radius, radius), 0)
+        self.action_list.append(["FS_GaussianBlur", radius])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FS_Dehaze(self, filterdata):
+    def fs_dehaze(self, filterdata):
         """Remove general haze gradient from an image buffer.
         filterdata = dictionary of parameters.
 
@@ -3124,14 +3145,14 @@ class pilomarimage:
         if comment != "":
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".FS_Dehaze: Comment:",
                 comment,
                 terminal=False,
             )
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".FS_Dehaze(",
             samples,
             ",",
@@ -3141,32 +3162,32 @@ class pilomarimage:
         )
         # Create a working buffer to construct the haze filter.
         buffer = (
-            self.ImageBuffer.copy()
+            self.image_buffer.copy()
         )  # Copy the image buffer, we will blur this copy.
-        buffer = self.HorizontalBlurBuffer(
+        buffer = self.horizontal_blur_buffer(
             buffer, band=samples
         )  # Horizontally blur the buffer.
         if strength > 0:  # There needs to be some effect.
             if strength != 100:  # Multiply all the channels appropriately.
-                buffer = self.PercentageBuffer(
+                buffer = self.percentage_buffer(
                     buffer, strength
                 )  # Reduce the strength of the buffer.
-            self.SubtractBuffer(
+            self.subtract_buffer(
                 buffer
             )  # Subtract the blurred buffer from the master image buffer.
-        self.ActionList.append(["FS_Dehaze", samples, strength])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["FS_Dehaze", samples, strength])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def RunFilterScript(self, scriptname):
+    def run_filter_script(self, scriptname):
         """Given a script name, apply the filters and parameters defined in the script.
         filterrules is a dictionary"""
-        self.log("pilomarimage", self.Name, ".RunFilterScript()", terminal=False)
+        self.log("pilomarimage", self.name, ".RunFilterScript()", terminal=False)
         if not type(scriptname) == str:  # Nothing useful set.
             self.log("RunFilterScript(): No valid script name.", terminal=False)
             print("RunFilterScript(): No valid script name.")
             return False
-        if not scriptname in pilomarimage.FILTERSCRIPTS:  # Script doesn't exist.
+        if not scriptname in PilomarImage.FILTERSCRIPTS:  # Script doesn't exist.
             self.log(
                 "RunFilterScript(",
                 scriptname,
@@ -3175,7 +3196,7 @@ class pilomarimage:
             )
             print("RunFilterScript(", scriptname, "). Script does not exist.")
             return False
-        filterscript = pilomarimage.FILTERSCRIPTS[scriptname]
+        filterscript = PilomarImage.FILTERSCRIPTS[scriptname]
 
         filtercount = 0
         result = True
@@ -3195,17 +3216,17 @@ class pilomarimage:
             filtermethod = filterdata["method"]
             result = True
             if filtermethod == "dehaze":
-                result = self.FS_Dehaze(filterdata)  # Remove haze from the image.
+                result = self.fs_dehaze(filterdata)  # Remove haze from the image.
             elif filtermethod == "gaussianblur":
-                result = self.FS_GaussianBlur(
+                result = self.fs_gaussian_blur(
                     filterdata
                 )  # Apply a Gaussian blur filter.
             elif filtermethod == "grayscale":
-                result = self.FS_Grayscale(filterdata)  # Convert image to grayscale.
+                result = self.fs_grayscale(filterdata)  # Convert image to grayscale.
             elif filtermethod == "save":
-                result = self.FS_Save(filterdata)  # Apply a threshold filter.
+                result = self.fs_save(filterdata)  # Apply a threshold filter.
             elif filtermethod == "threshold":
-                result = self.FS_Threshold(filterdata)  # Apply a threshold filter.
+                result = self.fs_threshold(filterdata)  # Apply a threshold filter.
             else:  # Filter method is not recognised.
                 self.log(
                     "pilomarimage.RunFilterScript(",
@@ -3242,7 +3263,7 @@ class pilomarimage:
             )
         return result
 
-    def UrbanFilter(
+    def urban_filter(
         self,
         band=1,
         blurradius=2,
@@ -3262,7 +3283,7 @@ class pilomarimage:
         100 = Full haze reduction."""
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".UrbanFilter(): band",
             band,
             "blurradius",
@@ -3278,20 +3299,20 @@ class pilomarimage:
             terminal=False,
         )
         buffer = (
-            self.ImageBuffer.copy()
+            self.image_buffer.copy()
         )  # Copy the image buffer, we will blur this copy.
-        buffer = self.HorizontalBlurBuffer(
+        buffer = self.horizontal_blur_buffer(
             buffer, band=band
         )  # Horizontally blur the buffer.
         if strength > 0:  # There needs to be some effect.
             if strength != 100:  # Multiply all the channels appropriately.
-                buffer = self.PercentageBuffer(
+                buffer = self.percentage_buffer(
                     buffer, strength
                 )  # Reduce the strength of the buffer.
-            self.SubtractBuffer(
+            self.subtract_buffer(
                 buffer
             )  # Subtract the blurred buffer from the master image buffer.
-        self.EnhanceStars(
+        self.enhance_stars(
             blurradius=blurradius,
             cloudthresh=cloudthresh,
             starthresh=starthresh,
@@ -3299,7 +3320,7 @@ class pilomarimage:
         )  # Enhance the stars that remain.
         return True
 
-    def HSV2BGR(self, hue, sat, val):
+    def hsv2bgr(self, hue, sat, val):
         """Convert 3 separate Hue,Saturation,Value values into Blue,Green,Red."""
         hsv = np.uint8([[[hue, sat, val]]])  # a 1x1 pixel image.
         bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
@@ -3308,41 +3329,41 @@ class pilomarimage:
         r = int(bgr[0][0][2])
         return b, g, r
 
-    def DimChannel(self, channel, ratio):  # 3 references.
+    def dim_channel(self, channel, ratio):  # 3 references.
         """simple multiplier for single color channel.
         ratio = 0.0 - 1.0"""
         channel = channel * ratio
         channel = min(max(channel, 0), 255)  # 0 <= x <= 255
         return channel
 
-    def DimColor(self, color, ratio):  # 4 references.
+    def dim_color(self, color, ratio):  # 4 references.
         """Simple multiplier for BGR or BGRA color tuples.
         ratio = 0.0 - 1.0"""
         if len(color) == 4:  # Adjust BGR, but not A.
             return (
-                self.DimChannel(color[0], ratio),
-                self.DimChannel(color[1], ratio),
-                self.DimChannel(color[2], ratio),
+                self.dim_channel(color[0], ratio),
+                self.dim_channel(color[1], ratio),
+                self.dim_channel(color[2], ratio),
                 color[3],
             )
         elif len(color) == 3:  # Adjust BGR
             return (
-                self.DimChannel(color[0], ratio),
-                self.DimChannel(color[1], ratio),
-                self.DimChannel(color[2], ratio),
+                self.dim_channel(color[0], ratio),
+                self.dim_channel(color[1], ratio),
+                self.dim_channel(color[2], ratio),
             )
         else:
-            return DimChannel(color, ratio)  # Assume single channel.
+            return dim_channel(color, ratio)  # Assume single channel.
 
-    def FakeField(self):  # Generate fake field noise.
+    def fake_field(self):  # Generate fake field noise.
         """Create a small blank image and add some fake electronic noise to it.
         Then enlarge the image to match the size of the target image.
         Then combine the two images.
         *Q* Only handles bgr images at the moment."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FakeField: No image in the buffer.")
-        height = self.GetHeight()
-        width = self.GetWidth()
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FakeField: No image in the buffer.")
+        height = self.get_height()
+        width = self.get_width()
         fieldimg = np.zeros(
             (int(height / 100), int(width / 100), 3), np.uint16
         )  # 'bgr' at 1% of original size.
@@ -3350,72 +3371,72 @@ class pilomarimage:
             fieldimg,
             (fieldimg.shape[1], fieldimg.shape[0]),
             int(fieldimg.shape[1] / 3),
-            pilomarimage.BGRColor["VeryDarkRed"],
+            PilomarImage.BGRColor["VeryDarkRed"],
             thickness=-1,
         )  # Simulate an electric field shadow.
         fieldimg = cv2.resize(
-            fieldimg, (width, height), interpolation=self.ResizeMethod
+            fieldimg, (width, height), interpolation=self.resize_method
         )  # Scale back up to full image size.
-        fieldimg = np.add(self.ImageBuffer, fieldimg)  # Combine
-        self.ImageBuffer = np.clip(fieldimg, 0, 255).astype(
+        fieldimg = np.add(self.image_buffer, fieldimg)  # Combine
+        self.image_buffer = np.clip(fieldimg, 0, 255).astype(
             np.uint8
         )  # Clip to uint8 values.
-        self.ActionList.append(["fakefield"])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["fakefield"])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FakeNoise(self):  # Generate fake image noise.
+    def fake_noise(self):  # Generate fake image noise.
         """Create a small blank image and add some fake image noise to it.
         Return the combined image.
         *Q* Only handles bgr images at the moment."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FakeNoise: No image in the buffer.")
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FakeNoise: No image in the buffer.")
         fieldimg = np.random.randint(
-            0, 25, (self.GetHeight(), self.GetWidth(), 3), np.uint16
+            0, 25, (self.get_height(), self.get_width(), 3), np.uint16
         )  # 'bgr' buffer of random values.
-        fieldimg = np.add(fieldimg, self.ImageBuffer)
-        self.ImageBuffer = np.clip(fieldimg, 0, 255).astype(
+        fieldimg = np.add(fieldimg, self.image_buffer)
+        self.image_buffer = np.clip(fieldimg, 0, 255).astype(
             np.uint8
         )  # Clip to uint8 values.
-        self.ActionList.append(["fakenoise"])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["fakenoise"])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def TrimLine(self, x1, y1, x2, y2, trimfactor=None, trimpixels=None):
+    def trim_line(self, x1, y1, x2, y2, trimfactor=None, trimpixels=None):
         """Trim an amount off each end of a line.
         Given start and end locations and the amount to trim.
         trimfactor = 0.0 - 0.5 The proportion of the line to remove from each end.
         trimpixels = nnn The number of pixels to trim from each end."""
-        if trimpixels != None:  # Convert pixel count to factor.
+        if trimpixels is not None:  # Convert pixel count to factor.
             length = int(math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2))
             if length != 0.0:
                 trimfactor = trimpixels / length
             else:
                 trimfactor = 0.0
-        if trimfactor == None:  # No value.
+        if trimfactor is None:  # No value.
             return False
         xstart = int(
-            self.Interpolate(y1, x1, y2, x2, y1 + ((y2 - y1) * trimfactor))
+            self.interpolate(y1, x1, y2, x2, y1 + ((y2 - y1) * trimfactor))
         )  # start xx% into the path.
         ystart = int(
-            self.Interpolate(x1, y1, x2, y2, x1 + ((x2 - x1) * trimfactor))
+            self.interpolate(x1, y1, x2, y2, x1 + ((x2 - x1) * trimfactor))
         )  # start xx% into the path.
         xend = int(
-            self.Interpolate(y1, x1, y2, x2, y1 + ((y2 - y1) * (1 - trimfactor)))
+            self.interpolate(y1, x1, y2, x2, y1 + ((y2 - y1) * (1 - trimfactor)))
         )  # end xx% from end of the path.
         yend = int(
-            self.Interpolate(x1, y1, x2, y2, x1 + ((x2 - x1) * (1 - trimfactor)))
+            self.interpolate(x1, y1, x2, y2, x1 + ((x2 - x1) * (1 - trimfactor)))
         )  # end xx% from end of the path.
         return xstart, ystart, xend, yend
 
-    def FakeMeteor(self):  # Generate fake meteor streak
+    def fake_meteor(self):  # Generate fake meteor streak
         """Add a random meteor like streak to an image.
         *Q* Only handles bgr images at the moment."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FakeMeteor: No image in the buffer.")
-        color = self.SafeColor(pilomarimage.BGRColor["White"])
-        width = self.GetWidth()
-        height = self.GetHeight()
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FakeMeteor: No image in the buffer.")
+        color = self.safe_color(PilomarImage.BGRColor["White"])
+        width = self.get_width()
+        height = self.get_height()
         meteorimg = np.zeros((height, width, 3), np.uint16)  # 'bgr' buffer of zeros.
         length = 0
         while length < 500:  # Make the meteor streak long enough to see.
@@ -3428,65 +3449,69 @@ class pilomarimage:
             meteorimg, (x1, y1), (x2, y2), color, 1
         )  # Mark the thin main trail on the image.
         # Flare the meteor mid path...
-        xstart, ystart, xend, yend = self.TrimLine(
+        xstart, ystart, xend, yend = self.trim_line(
             x1, y1, x2, y2, 0.3
         )  # Find the central part of the line to create a flare in the trail.
-        # xstart = int(self.Interpolate(y1,x1,y2,x2,y1 + ( (y2 - y1) * 0.3) ) ) # start 30% into the path.
-        # ystart = int(self.Interpolate(x1,y1,x2,y2,x1 + ( (x2 - x1) * 0.3) ) ) # start 30% into the path.
-        # xend = int(self.Interpolate(y1,x1,y2,x2,y1 + ( (y2 - y1) * 0.7) ) ) # end 30% from end of the path.
-        # yend = int(self.Interpolate(x1,y1,x2,y2,x1 + ( (x2 - x1) * 0.7) ) ) # end 30% from end of the path.
+        # xstart = int(self.interpolate(y1,x1,y2,x2,y1 + ( (y2 - y1) * 0.3) ) ) # start 30% into the path.
+        # ystart = int(self.interpolate(x1,y1,x2,y2,x1 + ( (x2 - x1) * 0.3) ) ) # start 30% into the path.
+        # xend = int(self.interpolate(y1,x1,y2,x2,y1 + ( (y2 - y1) * 0.7) ) ) # end 30% from end of the path.
+        # yend = int(self.interpolate(x1,y1,x2,y2,x1 + ( (x2 - x1) * 0.7) ) ) # end 30% from end of the path.
         meteorimg = cv2.line(
             meteorimg, (xstart, ystart), (xend, yend), color, 3
         )  # Mark a thicker flare trail on the image.
-        meteorimg = np.add(meteorimg, self.ImageBuffer)
-        self.ImageBuffer = np.clip(meteorimg, 0, 255).astype(
+        meteorimg = np.add(meteorimg, self.image_buffer)
+        self.image_buffer = np.clip(meteorimg, 0, 255).astype(
             np.uint8
         )  # Clip to uint8 values.
-        self.ActionList.append(["fakemeteor"])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["fakemeteor"])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def PlotStars(self, radius, starlist):
+    def plot_stars(self, radius, starlist):
         """Given an existing image buffer and a list of stars, create a clean version of the image.
         Inherit the dimensions from the source image, and place the stars according to the starlist.
         This returns a GRAYSCALE image with all stars depicted at the same size.
         The size is the same for LATEST and TARGET images (Parameters.TrackingStarRadius), so that the
         FindTransform() method has consistent images to compare."""
-        self.log("pilomarimage", self.Name, ".PlotStars(", radius, ")", terminal=False)
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".PlotStars: No image in the buffer.")
+        self.log("pilomarimage", self.name, ".PlotStars(", radius, ")", terminal=False)
+        if self.image_missing():
+            print("pilomarimage", self.name, ".PlotStars: No image in the buffer.")
         GrayscaleWhite = 255
-        self.New(
-            self.GetDimensions(), "grayscale", np.uint8
+        self.new(
+            self.get_dimensions(), "grayscale", np.uint8
         )  # GRAYSCALE image. HEIGHT, WIDTH inherited from reference image.
         for star_x, star_y, star_r in starlist:
-            self.ImageBuffer = cv2.circle(
-                self.ImageBuffer, (star_x, star_y), radius, GrayscaleWhite, thickness=-1
+            self.image_buffer = cv2.circle(
+                self.image_buffer,
+                (star_x, star_y),
+                radius,
+                GrayscaleWhite,
+                thickness=-1,
             )  # White. All stars converted to standard 7 pixel radius.
-        self.ActionList.append(["plotstars", radius])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["plotstars", radius])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def MeasureContrast(self):
+    def measure_contrast(self):
         """Return values representing contrast of overall image.
         2 contrast calculations are returned.
         1) Michelson contrast (0.0 - 1.0)
         2) standard deviation contrast
-        Doesn't modify ImageBuffer
+        Doesn't modify image_buffer
         """
-        if self.ImageMissing():
+        if self.image_missing():
             print(
-                "pilomarimage", self.Name, ".MeasureContrast: No image in the buffer."
+                "pilomarimage", self.name, ".MeasureContrast: No image in the buffer."
             )
         michelson_contrast = None
         stddev_contrast = None
-        cvimagebuffer = self.NewBufferType("grayscale")  # Needs grayscale buffer.
+        cvimagebuffer = self.new_buffer_type("grayscale")  # Needs grayscale buffer.
         try:
             stddev_contrast = cvimagebuffer.std()  # Standard deviation.
         except Exception as e:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".MeasureContrast: stddev_contrast failed.",
                 terminal=False,
             )
@@ -3497,13 +3522,13 @@ class pilomarimage:
         except Exception as e:
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".MeasureContrast: michelson_contrast failed.",
                 terminal=False,
             )
         self.log(
             "pilomarimage",
-            self.Name,
+            self.name,
             ".MeasureContrast: min",
             min,
             ", max",
@@ -3516,77 +3541,77 @@ class pilomarimage:
         )
         return michelson_contrast, stddev_contrast
 
-    def FillColor(self, color):
+    def fill_color(self, color):
         """Fill the image buffer with a specific color."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FillColor: No image in the buffer.")
-        color = self.SafeColor(color)
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FillColor: No image in the buffer.")
+        color = self.safe_color(color)
         if (
-            self.GetType == "grayscale"
+            self.get_type == "grayscale"
         ):  # Single depth grayscale image. Just fill all cells with the same value.
-            self.ImageBuffer[:, :] = color[0]
+            self.image_buffer[:, :] = color[0]
         else:  # Multiple channels.
             for i, c in enumerate(color):  # Handle each channel separately.
-                if self.ImageBuffer.shape[2] > i:  # Channel must exist.
-                    self.ImageBuffer[:, :, i] = c  # Set all values of the channel.
-        self.ActionList.append(["fillcolor", color])
-        self.ModifiedTimestamp = self.NowUTC()
+                if self.image_buffer.shape[2] > i:  # Channel must exist.
+                    self.image_buffer[:, :, i] = c  # Set all values of the channel.
+        self.action_list.append(["fillcolor", color])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def InBounds(self, x, y):
+    def in_bounds(self, x, y):
         """Return TRUE if (x,y) is within the bounds of the image."""
-        width = self.GetWidth()
-        height = self.GetHeight()
+        width = self.get_width()
+        height = self.get_height()
         if x >= 0 and x <= width and y >= 0 and y <= height:
             result = True
         else:
             result = False
         return result
 
-    def OutOfBounds(self, x, y):
+    def out_of_bounds(self, x, y):
         """Return TRUE if (x,y) is outside the bounds of the image."""
-        result = not self.InBounds(x, y)
+        result = not self.in_bounds(x, y)
         return result
 
-    def SafeThickness(self, thickness):
+    def safe_thickness(self, thickness):
         """Default line thickness if not specified."""
-        if thickness == None:
+        if thickness is None:
             thickness = 1
         return thickness
 
-    def GetPenColor(self):
+    def get_pen_color(self):
         """Return current pen color."""
-        return self.PenColor
+        return self.pen_color
 
-    def SetPenColor(self, color):
+    def set_pen_color(self, color):
         """Set current pen color."""
-        self.PenColor = self.SafeColor(
+        self.pen_color = self.safe_color(
             color
         )  # Make sure color depth matches image depth.
-        self.ActionList.append(["setpencolor", color])
+        self.action_list.append(["setpencolor", color])
         return True
 
-    def SetPenOpacity(self, opacity):
+    def set_pen_opacity(self, opacity):
         """Change the opacity of the current color."""
-        if self.GetDepth() == 4:  # Opacity supported.
-            color = self.GetPenColor()
+        if self.get_depth() == 4:  # Opacity supported.
+            color = self.get_pen_color()
             color = (color[0], color[1], color[2], opacity)
-            self.SetPenColor(color)
-        self.ActionList.append(["setpenopacity", opacity])
+            self.set_pen_color(color)
+        self.action_list.append(["setpenopacity", opacity])
         return True
 
-    def SafeColor(self, color, default=None):
+    def safe_color(self, color, default=None):
         """Default color if not specified."""
-        depth = self.GetDepth()
+        depth = self.get_depth()
         if type(color) == type(None):
             color = default
         if type(color) == type(None):
-            color = self.GetPenColor()
+            color = self.get_pen_color()
         if type(color) == type(None):
             if depth == 1:
                 color = 255  # Grayscale
             elif depth == 3:
-                color = pilomarimage.BGRColor["Black"]  # BGR
+                color = PilomarImage.BGRColor["Black"]  # BGR
             elif depth == 4:
                 color = (255, 255, 255, 255)  # BGRA
         # Convert color (received as int or tuple) into a list for looping through.
@@ -3613,10 +3638,10 @@ class pilomarimage:
                     color = tuple(color[:3])  # From 4 to 3
         return color
 
-    def DeltaColor(self, color, delta):
+    def delta_color(self, color, delta):
         """Apply delta values to a color.
         Use this to nudge colors up/down slightly."""
-        color = self.SafeColor(color)
+        color = self.safe_color(color)
         color = list(color)  # Convert to list.
         delta = list(delta)  # Convert to list.
         for i in range(len(delta)):
@@ -3629,22 +3654,22 @@ class pilomarimage:
             newcolor = tuple(newcol)
         return newcolor
 
-    def DrawLine(
+    def draw_line(
         self, startcoord, endcoord, color=None, thickness=None, arrowpixels=None
     ):
         """Use opencv linedrawing."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawLine: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        startcoord = self.OrientCoord(startcoord)  # Make sure HEIGHT is right way up.
-        endcoord = self.OrientCoord(endcoord)  # Make sure HEIGHT is right way up.
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawLine: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        startcoord = self.orient_coord(startcoord)  # Make sure HEIGHT is right way up.
+        endcoord = self.orient_coord(endcoord)  # Make sure HEIGHT is right way up.
         distance = math.sqrt(
             ((endcoord[0] - startcoord[0]) ** 2) + ((endcoord[1] - startcoord[1]) ** 2)
         )
-        if arrowpixels == None or distance <= 0:
-            self.ImageBuffer = cv2.line(
-                self.ImageBuffer,
+        if arrowpixels is None or distance <= 0:
+            self.image_buffer = cv2.line(
+                self.image_buffer,
                 startcoord,
                 endcoord,
                 color,
@@ -3655,8 +3680,8 @@ class pilomarimage:
             arrowproportion = (
                 arrowpixels / distance
             )  # ArrowedLine specifies arrow size as proportion of line length. We need constant 10pixel arrow heads.
-            self.ImageBuffer = cv2.arrowedLine(
-                self.ImageBuffer,
+            self.image_buffer = cv2.arrowedLine(
+                self.image_buffer,
                 startcoord,
                 endcoord,
                 color,
@@ -3664,13 +3689,13 @@ class pilomarimage:
                 line_type=cv2.LINE_AA,
                 tipLength=arrowproportion,
             )
-        self.ActionList.append(
+        self.action_list.append(
             ["drawline", startcoord, endcoord, color, thickness, arrowpixels]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawEdgeLine(
+    def draw_edge_line(
         self,
         startcoord,
         endcoord,
@@ -3681,24 +3706,24 @@ class pilomarimage:
         arrowpixels=None,
     ):
         """Use opencv linedrawing."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawEdgeLine: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        edgecolor = self.SafeColor(edgecolor)
-        startcoord = self.OrientCoord(startcoord)  # Make sure HEIGHT is right way up.
-        endcoord = self.OrientCoord(endcoord)  # Make sure HEIGHT is right way up.
-        if arrowpixels == None:
-            self.ImageBuffer = cv2.line(
-                self.ImageBuffer,
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawEdgeLine: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        edgecolor = self.safe_color(edgecolor)
+        startcoord = self.orient_coord(startcoord)  # Make sure HEIGHT is right way up.
+        endcoord = self.orient_coord(endcoord)  # Make sure HEIGHT is right way up.
+        if arrowpixels is None:
+            self.image_buffer = cv2.line(
+                self.image_buffer,
                 startcoord,
                 endcoord,
                 edgecolor,
                 thickness=int(thickness + (2 * edgethickness)),
                 lineType=cv2.LINE_AA,
             )
-            self.ImageBuffer = cv2.line(
-                self.ImageBuffer,
+            self.image_buffer = cv2.line(
+                self.image_buffer,
                 startcoord,
                 endcoord,
                 color,
@@ -3713,8 +3738,8 @@ class pilomarimage:
             arrowproportion = (
                 arrowpixels / distance
             )  # ArrowedLine specifies arrow size as proportion of line length. We need constant 10pixel arrow heads.
-            self.ImageBuffer = cv2.arrowedLine(
-                self.ImageBuffer,
+            self.image_buffer = cv2.arrowedLine(
+                self.image_buffer,
                 startcoord,
                 endcoord,
                 edgecolor,
@@ -3722,8 +3747,8 @@ class pilomarimage:
                 line_type=cv2.LINE_AA,
                 tipLength=arrowproportion,
             )
-            self.ImageBuffer = cv2.arrowedLine(
-                self.ImageBuffer,
+            self.image_buffer = cv2.arrowedLine(
+                self.image_buffer,
                 startcoord,
                 endcoord,
                 color,
@@ -3731,7 +3756,7 @@ class pilomarimage:
                 line_type=cv2.LINE_AA,
                 tipLength=arrowproportion,
             )
-        self.ActionList.append(
+        self.action_list.append(
             [
                 "drawedgeline",
                 startcoord,
@@ -3743,31 +3768,31 @@ class pilomarimage:
                 arrowpixels,
             ]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawCircle(self, center_x, center_y, rad, color=None, thickness=None):
+    def draw_circle(self, center_x, center_y, rad, color=None, thickness=None):
         """Draw a circle on the image."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawCircle: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        center_y = self.OrientHeight(center_y)  # Make sure HEIGHT is right way up.
-        self.ImageBuffer = cv2.circle(
-            self.ImageBuffer,
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawCircle: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        center_y = self.orient_height(center_y)  # Make sure HEIGHT is right way up.
+        self.image_buffer = cv2.circle(
+            self.image_buffer,
             (center_x, center_y),
             rad,
             color,
             thickness=thickness,
             lineType=cv2.LINE_AA,
         )
-        self.ActionList.append(
+        self.action_list.append(
             ["drawcircle", center_x, center_y, rad, color, thickness]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawEdgeCircle(
+    def draw_edge_circle(
         self,
         center_x,
         center_y,
@@ -3778,79 +3803,79 @@ class pilomarimage:
         edgethickness=1,
     ):
         """Draw a circle on the image with a colored edge."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawCircle: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        center_y = self.OrientHeight(center_y)  # Make sure HEIGHT is right way up.
-        self.ImageBuffer = cv2.circle(
-            self.ImageBuffer,
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawCircle: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        center_y = self.orient_height(center_y)  # Make sure HEIGHT is right way up.
+        self.image_buffer = cv2.circle(
+            self.image_buffer,
             (center_x, center_y),
             rad,
             edgecolor,
             thickness=thickness + (2 * edgethickness),
             lineType=cv2.LINE_AA,
         )
-        self.ImageBuffer = cv2.circle(
-            self.ImageBuffer,
+        self.image_buffer = cv2.circle(
+            self.image_buffer,
             (center_x, center_y),
             rad,
             color,
             thickness=thickness,
             lineType=cv2.LINE_AA,
         )
-        self.ActionList.append(
+        self.action_list.append(
             ["drawedgecircle", center_x, center_y, rad, color, thickness]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FillCircle(self, center_x, center_y, rad, color=None):
+    def fill_circle(self, center_x, center_y, rad, color=None):
         """Fill a circle on the image."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FillCircle: No image in the buffer.")
-        color = self.SafeColor(color)
-        center_y = self.OrientHeight(center_y)  # Make sure HEIGHT is right way up.
-        self.ImageBuffer = cv2.circle(
-            self.ImageBuffer,
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FillCircle: No image in the buffer.")
+        color = self.safe_color(color)
+        center_y = self.orient_height(center_y)  # Make sure HEIGHT is right way up.
+        self.image_buffer = cv2.circle(
+            self.image_buffer,
             (center_x, center_y),
             rad,
             color,
             thickness=-1,
             lineType=cv2.LINE_AA,
         )
-        self.ActionList.append(["fillcircle", center_x, center_y, rad, color])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["fillcircle", center_x, center_y, rad, color])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def SetPixel(self, center_x, center_y, color=None):
+    def set_pixel(self, center_x, center_y, color=None):
         """Set a single pixel on the image."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".SetPixel: No image in the buffer.")
-        color = self.SafeColor(color)
-        center_y = self.OrientHeight(center_y)  # Make sure HEIGHT is right way up.
-        self.ImageBuffer[center_y, center_x] = color
-        self.ActionList.append(["setpixel", center_x, center_y, color])
-        self.ModifiedTimestamp = self.NowUTC()
+        if self.image_missing():
+            print("pilomarimage", self.name, ".SetPixel: No image in the buffer.")
+        color = self.safe_color(color)
+        center_y = self.orient_height(center_y)  # Make sure HEIGHT is right way up.
+        self.image_buffer[center_y, center_x] = color
+        self.action_list.append(["setpixel", center_x, center_y, color])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def GetPixel(self, center_x, center_y):
+    def get_pixel(self, center_x, center_y):
         """Return value of a single pixel on the image.
         Doesn't convert datatype!"""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".GetPixel: No image in the buffer.")
-        center_y = self.OrientHeight(center_y)  # Make sure HEIGHT is right way up.
-        color = tuple(self.ImageBuffer[center_y, center_x])
+        if self.image_missing():
+            print("pilomarimage", self.name, ".GetPixel: No image in the buffer.")
+        center_y = self.orient_height(center_y)  # Make sure HEIGHT is right way up.
+        color = tuple(self.image_buffer[center_y, center_x])
         return color
 
-    def BlendColor(self, fromcolor, tocolor, ratio):
+    def blend_color(self, fromcolor, tocolor, ratio):
         """Find color between two values. Ratio says how much of each color to use.
         0.0 = All FROM COLOR
         1.0 = All TO COLOR"""
         ratio = min(max(ratio, 0.0), 1.0)  # Clip value.
         fromratio = ratio
         toratio = 1.0 - ratio
-        gt = self.GetType()
+        gt = self.get_type()
         if gt == "grayscale":
             color = int(min(fromcolor * fromratio + tocolor * toratio), 255)
         elif gt == "bgr":
@@ -3868,23 +3893,23 @@ class pilomarimage:
             )
         return color
 
-    def FadeCircle(self, center_x, center_y, rad, color=None, fadecolor=None):
+    def fade_circle(self, center_x, center_y, rad, color=None, fadecolor=None):
         """Fill a circle on the image, but the color fades from center to edge"""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FadeCircle: No image in the buffer.")
-        color = self.SafeColor(color)
-        center_y = self.OrientHeight(center_y)  # Make sure HEIGHT is right way up.
-        if fadecolor == None:
-            fadecolor = self.SafeColor(0)  # Default to Black.
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FadeCircle: No image in the buffer.")
+        color = self.safe_color(color)
+        center_y = self.orient_height(center_y)  # Make sure HEIGHT is right way up.
+        if fadecolor is None:
+            fadecolor = self.safe_color(0)  # Default to Black.
         else:
-            fadecolor = self.SafeColor(fadecolor)
+            fadecolor = self.safe_color(fadecolor)
         prevcolor = None  # Only draw circles when the color changes.
         for i in range(rad, 0, -2):
             ratio = (rad - i) / float(rad)  # Ratio is ZERO at the edge.
-            gradedcolor = self.BlendColor(color, fadecolor, ratio)
+            gradedcolor = self.blend_color(color, fadecolor, ratio)
             if gradedcolor != prevcolor:
-                self.ImageBuffer = cv2.circle(
-                    self.ImageBuffer,
+                self.image_buffer = cv2.circle(
+                    self.image_buffer,
                     (center_x, center_y),
                     i,
                     gradedcolor,
@@ -3892,25 +3917,25 @@ class pilomarimage:
                     lineType=cv2.LINE_AA,
                 )
                 prevcolor = gradedcolor
-        self.ActionList.append(
+        self.action_list.append(
             ["fadecircle", center_x, center_y, rad, color, fadecolor]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def GetTextArea(self, text, size=1.0, thickness=None):
+    def get_text_area(self, text, size=1.0, thickness=None):
         """Calculate the pixel area covered by a text line.
         xdim = overall pixel width.
         ydim = overall pixel height including tails of letters.
         baseline = y pixel offset to account for tails of letters."""
         (label_width, label_height), baseline = cv2.getTextSize(
-            text, self.Font, size, thickness
+            text, self.font, size, thickness
         )
         xdim = label_width
         ydim = label_height + baseline
         return xdim, ydim, baseline
 
-    def TextBoundary(
+    def text_boundary(
         self,
         text,
         fromx,
@@ -3924,8 +3949,8 @@ class pilomarimage:
         """Return boundaries of a text line.
         Given a single line, this returns the two corners of the surrounding text box
         and also the next/prev starting height for any following line."""
-        thickness = self.SafeThickness(thickness)
-        xdim, ydim, ybase = self.GetTextArea(
+        thickness = self.safe_thickness(thickness)
+        xdim, ydim, ybase = self.get_text_area(
             text, size=size, thickness=thickness
         )  # Boundaries of the text.
         if hjust == "c":  # Center the text horizontally on the location.
@@ -3940,7 +3965,7 @@ class pilomarimage:
             y = int(fromy + ydim) - ybase
         else:
             y = fromy - ybase  # Test is above the location.
-        if border != None:
+        if border is not None:
             b = border
         else:
             b = 0
@@ -3956,7 +3981,7 @@ class pilomarimage:
         )  # If printing multiple lines of text, this is the start point for the previous line if your printing upwards.
         return x1, y1, x2, y2, nexty, prevy
 
-    def AddTextBlock(
+    def add_text_block(
         self,
         textlines,
         fromx,
@@ -3977,7 +4002,7 @@ class pilomarimage:
         -----------------------------------
 
         """
-        thickness = self.SafeThickness(thickness)
+        thickness = self.safe_thickness(thickness)
         if type(textlines) is str:
             textlines = [textlines]  # Make sure it's a list we're handling.
         nl = []
@@ -3991,11 +4016,11 @@ class pilomarimage:
             textlines
         ):  # Now calculate the total size of the entire text block.
             if i == 0:  # 1st line.
-                xa1, ya1, xa2, ya2, nexty, prevy = self.TextBoundary(
+                xa1, ya1, xa2, ya2, nexty, prevy = self.text_boundary(
                     line, fromx, fromy, size, thickness, hjust, vjust
                 )
             else:
-                xa1, ya1, xa2, ya2, nexty, prevy = self.TextBoundary(
+                xa1, ya1, xa2, ya2, nexty, prevy = self.text_boundary(
                     line, fromx, nexty, size, thickness, hjust, vjust
                 )
             minx = min(minx, xa1, xa2)
@@ -4004,15 +4029,15 @@ class pilomarimage:
             maxy = max(maxy, ya1, ya2)
         spanx = maxx - minx
         spany = maxy - miny
-        if border != None:
+        if border is not None:
             minx = minx - border
             maxx = maxx + border
             miny = miny - border
             maxy = maxy + border
-        self.FillRectangle((minx, miny), (maxx, maxy), color=bgcolor)
+        self.fill_rectangle((minx, miny), (maxx, maxy), color=bgcolor)
         # Add border.
-        if border != None:  # Draw a border around the text.
-            self.DrawRectangle(
+        if border is not None:  # Draw a border around the text.
+            self.draw_rectangle(
                 (minx, miny), (maxx, maxy), color=color, thickness=thickness
             )
         # Now add text.
@@ -4020,7 +4045,7 @@ class pilomarimage:
             if (
                 i == 0
             ):  # 1st line. # Take over painting of border and background to make it a block instead.
-                self.AddText(
+                self.add_text(
                     line,
                     fromx,
                     fromy,
@@ -4033,10 +4058,10 @@ class pilomarimage:
                     bgcolor=None,
                 )
             else:  # subsequent lines.
-                self.AddText(
+                self.add_text(
                     line,
                     fromx,
-                    self.NextTextY,
+                    self.next_text_y,
                     color=color,
                     size=size,
                     thickness=thickness,
@@ -4047,7 +4072,7 @@ class pilomarimage:
                 )
         return True
 
-    def AddText(
+    def add_text(
         self,
         text,
         fromx,
@@ -4095,26 +4120,26 @@ class pilomarimage:
 
         border = draw a border. Value is the spacing between the letters and the border.
 
-        If you want to create a block of text, use self.NextTextY and self.PrevTextY to find the
+        If you want to create a block of text, use self.next_text_y and self.prev_text_y to find the
         y co-ordinate of the next/prev line of text to generate. This takes font size into account.
 
-            self.AddText('line1',x,y) # Print line 1 as usual.
-            self.AddText('line2',x,self.NextTextY) # NextTextY contains the starting Y coordinate for the next line.
+            self.add_text('line1',x,y) # Print line 1 as usual.
+            self.add_text('line2',x,self.next_text_y) # NextTextY contains the starting Y coordinate for the next line.
 
-        If you are changing font sizes, it is best to work bottom-up using self.PrevTextY, the spacing works more dynamically this way.
+        If you are changing font sizes, it is best to work bottom-up using self.prev_text_y, the spacing works more dynamically this way.
 
-            self.AddText('lastline',x,y,size=1) # Print last line as usual.
-            self.AddText('prevline',x,self.PrevTextY,size=2) # Print previous (higher) line next.
+            self.add_text('lastline',x,y,size=1) # Print last line as usual.
+            self.add_text('prevline',x,self.prev_text_y,size=2) # Print previous (higher) line next.
 
 
         *Q* TODO: OpenCV only supports basic 127 ASCII characters, to add UNICODE etc convert to PIL,
             add the extended characters there, then convert back.
         """
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".AddText: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        xdim, ydim, ybase = self.GetTextArea(
+        if self.image_missing():
+            print("pilomarimage", self.name, ".AddText: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        xdim, ydim, ybase = self.get_text_area(
             text, size=size, thickness=thickness
         )  # Boundaries of the text.
         if hjust == "c":  # Center the text horizontally on the location.
@@ -4129,58 +4154,58 @@ class pilomarimage:
             y = int(fromy + ydim) - ybase
         else:
             y = fromy - ybase  # Test is above the location.
-        if border != None:
+        if border is not None:
             b = border
         else:
             b = 0
-        if self.TextCollision(
+        if self.text_collision(
             x - b, y + ybase + b, x + xdim + b, y - ydim + ybase - b
         ):  # This would collide with existing text, so don't add it.
             OK2Draw = False  # It's not safe to draw.
         else:
             OK2Draw = True  # It's safe to draw.
         if OK2Draw:  # Proceed with the drawing.
-            if bgcolor != None:  # Draw background under the text.
-                bgcolor = self.SafeColor(bgcolor)
-                self.FillRectangle(
+            if bgcolor is not None:  # Draw background under the text.
+                bgcolor = self.safe_color(bgcolor)
+                self.fill_rectangle(
                     (x - b, y + ybase + b),
                     (x + xdim + b, y - ydim + ybase - b),
                     color=bgcolor,
                 )
             # We're OK to add the text at this point.
-            if border != None:  # Draw a border around the text.
-                self.DrawRectangle(
+            if border is not None:  # Draw a border around the text.
+                self.draw_rectangle(
                     (x - border, y + ybase + border),
                     (x + xdim + border, y - ydim + ybase - border),
                     color=color,
                     thickness=thickness,
                 )
             # Store where the 'next' line of text would go if we're printing multiple lines. (Text must remain same size!)
-            self.ImageBuffer = cv2.putText(
-                self.ImageBuffer,
+            self.image_buffer = cv2.putText(
+                self.image_buffer,
                 text,
-                self.OrientCoord((x, y)),
-                self.Font,
+                self.orient_coord((x, y)),
+                self.font,
                 size,
                 color,
                 thickness,
                 lineType=cv2.LINE_AA,
             )
-            self.ActionList.append(
+            self.action_list.append(
                 ["addtext", text, fromx, fromy, color, size, thickness, hjust, vjust]
             )
-            self.ModifiedTimestamp = self.NowUTC()
-        self.NextTextX = fromx  # If printing multiple lines of text, this is the start point for the next line if you're printing downwards.
-        self.NextTextY = (
+            self.modified_timestamp = self.now_utc()
+        self.next_text_x = fromx  # If printing multiple lines of text, this is the start point for the next line if you're printing downwards.
+        self.next_text_y = (
             fromy + ydim + 1
         )  # If printing multiple lines of text, this is the start point for the next line if you're printing downwards.
-        self.PrevTextX = fromx  # If printing multiple lines of text, this is the start point for the previous line if your printing upwards.
-        self.PrevTextY = (
+        self.prev_text_x = fromx  # If printing multiple lines of text, this is the start point for the previous line if your printing upwards.
+        self.prev_text_y = (
             fromy - ydim - 1
         )  # If printing multiple lines of text, this is the start point for the previous line if you're printing upwards.
         return True
 
-    def AddAngleText(
+    def add_angle_text(
         self,
         text,
         fromx,
@@ -4236,16 +4261,16 @@ class pilomarimage:
 
         border = draw a border. Value is the spacing between the letters and the border.
 
-        If you want to create a block of text, use self.NextTextY and self.PrevTextY to find the
+        If you want to create a block of text, use self.next_text_y and self.prev_text_y to find the
         y co-ordinate of the next/prev line of text to generate. This takes font size into account.
 
-            self.AddText('line1',x,y) # Print line 1 as usual.
-            self.AddText('line2',x,self.NextTextY) # NextTextY contains the starting Y coordinate for the next line.
+            self.add_text('line1',x,y) # Print line 1 as usual.
+            self.add_text('line2',x,self.next_text_y) # NextTextY contains the starting Y coordinate for the next line.
 
-        If you are changing font sizes, it is best to work bottom-up using self.PrevTextY, the spacing works more dynamically this way.
+        If you are changing font sizes, it is best to work bottom-up using self.prev_text_y, the spacing works more dynamically this way.
 
-            self.AddText('lastline',x,y,size=1) # Print last line as usual.
-            self.AddText('prevline',x,self.PrevTextY,size=2) # Print previous (higher) line next.
+            self.add_text('lastline',x,y,size=1) # Print last line as usual.
+            self.add_text('prevline',x,self.prev_text_y,size=2) # Print previous (higher) line next.
 
         angle = 0 (No rotation), 90 (clockwise 90Deg), 180 (rotate 180deg) and 270 (anticlockwise 90deg).
         - Other angles will give unpredictable results.
@@ -4264,22 +4289,22 @@ class pilomarimage:
                 str(supportedangles),
             )
             return False
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".AddAngleText: No image in the buffer.")
+        if self.image_missing():
+            print("pilomarimage", self.name, ".AddAngleText: No image in the buffer.")
         fromx = int(fromx)
         fromy = int(
-            self.OrientHeight(fromy)
+            self.orient_height(fromy)
         )  # Handle vertical orientation of pixel address here. Then it's simpler for all the following maths.
         if angle == 90:
             # 1st rotate the image to accept the text. Opposite direction to the text angle!
-            self.RotateImage(360 - angle)
+            self.rotate_image(360 - angle)
             # Translate rotated vector to new co-ordinates based upon new dimensions.
-            fromx, fromy = self.RotateCoordinates(
+            fromx, fromy = self.rotate_coordinates(
                 fromx, fromy, 360 - angle
             )  # We counterrotated the image so that the text is written at the desired angle, so counterrotate the text coordinates too.
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        xdim, ydim, ybase = self.GetTextArea(
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        xdim, ydim, ybase = self.get_text_area(
             text, size=size, thickness=thickness
         )  # Boundaries of the text.
         # Establish x,y as the actual co-ordinates at which to print the text in order to achieve justification.
@@ -4316,29 +4341,29 @@ class pilomarimage:
                 y = int(fromy + ydim) - ybase
             else:
                 y = fromy - ybase  # Test is above the location.
-        if bgcolor != None:  # Draw background under the text.
-            bgcolor = self.SafeColor(bgcolor)
-            if border != None:
+        if bgcolor is not None:  # Draw background under the text.
+            bgcolor = self.safe_color(bgcolor)
+            if border is not None:
                 b = border
             else:
                 b = 0
-            self.FillRectangle(
+            self.fill_rectangle(
                 (x - b, y + ybase + b),
                 (x + xdim + b, y - ydim + ybase + b),
                 color=bgcolor,
             )
-        if border != None:  # Draw a border around the text.
-            self.DrawRectangle(
+        if border is not None:  # Draw a border around the text.
+            self.draw_rectangle(
                 (x - border, y + ybase + border),
                 (x + xdim + border, y - ydim + ybase + border),
                 color=color,
                 thickness=thickness,
             )
-        self.ImageBuffer = cv2.putText(
-            self.ImageBuffer,
+        self.image_buffer = cv2.putText(
+            self.image_buffer,
             text,
             (x, y),
-            self.Font,
+            self.font,
             size,
             color,
             thickness,
@@ -4347,8 +4372,8 @@ class pilomarimage:
         # Store where the 'next' line of text would go if we're printing multiple lines. (Text must remain same size!)
         if angle == 90:
             # Now turn image the right way round again.
-            self.RotateImage(angle)
-        self.ActionList.append(
+            self.rotate_image(angle)
+        self.action_list.append(
             [
                 "addangletext",
                 text,
@@ -4362,10 +4387,10 @@ class pilomarimage:
                 angle,
             ]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def AddEdgeText(
+    def add_edge_text(
         self,
         text,
         fromx,
@@ -4415,28 +4440,28 @@ class pilomarimage:
 
         border = draw a border. Value is the spacing between the letters and the border.
 
-        If you want to create a block of text, use self.NextTextY and self.PrevTextY to find the
+        If you want to create a block of text, use self.next_text_y and self.prev_text_y to find the
         y co-ordinate of the next/prev line of text to generate. This takes font size into account.
 
-            self.AddText('line1',x,y) # Print line 1 as usual.
-            self.AddText('line2',x,self.NextTextY) # NextTextY contains the starting Y coordinate for the next line.
+            self.add_text('line1',x,y) # Print line 1 as usual.
+            self.add_text('line2',x,self.next_text_y) # NextTextY contains the starting Y coordinate for the next line.
 
-        If you are changing font sizes, it is best to work bottom-up using self.PrevTextY, the spacing works more dynamically this way.
+        If you are changing font sizes, it is best to work bottom-up using self.prev_text_y, the spacing works more dynamically this way.
 
-            self.AddText('lastline',x,y,size=1) # Print last line as usual.
-            self.AddText('prevline',x,self.PrevTextY,size=2) # Print previous (higher) line next.
+            self.add_text('lastline',x,y,size=1) # Print last line as usual.
+            self.add_text('prevline',x,self.prev_text_y,size=2) # Print previous (higher) line next.
 
         """
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".AddEdgeText: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        if edgethickness == None:
+        if self.image_missing():
+            print("pilomarimage", self.name, ".AddEdgeText: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        if edgethickness is None:
             edgethickness = 1  # center thickness + 1 pixel either side.
-        color = self.SafeColor(color)
-        xdim, ydim, ybase = self.GetTextArea(
+        color = self.safe_color(color)
+        xdim, ydim, ybase = self.get_text_area(
             text, size=size, thickness=int(thickness + (2 * edgethickness))
         )  # Boundaries of the text.
-        edgecolor = self.SafeColor(edgecolor)
+        edgecolor = self.safe_color(edgecolor)
         if hjust == "c":  # Center the text horizontally on the location.
             x = int(fromx - xdim / 2)
         elif hjust == "r":  # text ends horizontally at the location.
@@ -4449,162 +4474,162 @@ class pilomarimage:
             y = int(fromy + ydim) - ybase
         else:
             y = fromy - ybase  # Test is above the location.
-        if bgcolor != None:  # Draw background under the text.
-            bgcolor = self.SafeColor(bgcolor)
-            if border != None:
+        if bgcolor is not None:  # Draw background under the text.
+            bgcolor = self.safe_color(bgcolor)
+            if border is not None:
                 b = border
             else:
                 b = 0
-            self.FillRectangle(
+            self.fill_rectangle(
                 (x - b, y + ybase + b),
                 (x + xdim + b, y - ydim + ybase + b),
                 color=bgcolor,
             )
-        if border != None:  # Draw a border around the text.
-            self.DrawRectangle(
+        if border is not None:  # Draw a border around the text.
+            self.draw_rectangle(
                 (x - border, y + ybase + border),
                 (x + xdim + border, y - ydim + ybase + border),
                 color=edgecolor,
                 thickness=edgethickness,
             )
-            self.DrawRectangle(
+            self.draw_rectangle(
                 (x - border, y + ybase + border),
                 (x + xdim + border, y - ydim + ybase + border),
                 color=color,
                 thickness=thickness,
             )
-        self.ImageBuffer = cv2.putText(
-            self.ImageBuffer,
+        self.image_buffer = cv2.putText(
+            self.image_buffer,
             text,
-            self.OrientCoord((x, y)),
-            self.Font,
+            self.orient_coord((x, y)),
+            self.font,
             size,
             edgecolor,
             int(thickness + (2 * edgethickness)),
             lineType=cv2.LINE_AA,
         )
-        self.ImageBuffer = cv2.putText(
-            self.ImageBuffer,
+        self.image_buffer = cv2.putText(
+            self.image_buffer,
             text,
-            self.OrientCoord((x, y)),
-            self.Font,
+            self.orient_coord((x, y)),
+            self.font,
             size,
             color,
             thickness,
             lineType=cv2.LINE_AA,
         )
         # Store where the 'next' line of text would go if we're printing multiple lines. (Text must remain same size!)
-        self.NextTextX = fromx  # If printing multiple lines of text, this is the start point for the next line if you're printing downwards.
-        self.NextTextY = (
+        self.next_text_x = fromx  # If printing multiple lines of text, this is the start point for the next line if you're printing downwards.
+        self.next_text_y = (
             fromy + ydim
         )  # If printing multiple lines of text, this is the start point for the next line if you're printing downwards.
-        self.PrevTextX = fromx  # If printing multiple lines of text, this is the start point for the previous line if your printing upwards.
-        self.PrevTextY = (
+        self.prev_text_x = fromx  # If printing multiple lines of text, this is the start point for the previous line if your printing upwards.
+        self.prev_text_y = (
             fromy - ydim
         )  # If printing multiple lines of text, this is the start point for the previous line if your printing upwards.
-        self.ActionList.append(
+        self.action_list.append(
             ["addedgetext", text, fromx, fromy, color, size, thickness]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawPolygon(self, pointlist, color=None, thickness=None):
+    def draw_polygon(self, pointlist, color=None, thickness=None):
         """Draw polygon.
         pointlist is a list of (x,y) tuples."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawPolygon: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawPolygon: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
         # *Q* OrientCoord() to do.
         cv2.drawPoly(
-            self.ImageBuffer, np.array([pointlist]), color=color, thickness=thickness
+            self.image_buffer, np.array([pointlist]), color=color, thickness=thickness
         )
-        self.ActionList.append(["drawpolygon", pointlist, color, thickness])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["drawpolygon", pointlist, color, thickness])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawEdgePolygon(
+    def draw_edge_polygon(
         self, pointlist, color=None, edgecolor=None, thickness=None, edgethickness=None
     ):
         """Draw polygon.
         pointlist is a list of (x,y) tuples."""
-        if self.ImageMissing():
+        if self.image_missing():
             print(
-                'pilomarimage",self.Name,' ".DrawEdgePolygon: No image in the buffer."
+                'pilomarimage",self.name,' ".DrawEdgePolygon: No image in the buffer."
             )
-        thickness = self.SafeThickness(thickness)
-        if edgethickness == None:
+        thickness = self.safe_thickness(thickness)
+        if edgethickness is None:
             edgethickness = 1  # center thickness + 1 pixel either side.
-        color = self.SafeColor(color)
-        edgecolor = self.SafeColor(edgecolor)
+        color = self.safe_color(color)
+        edgecolor = self.safe_color(edgecolor)
         # *Q* OrientCoord() to do.
         cv2.drawPoly(
-            self.ImageBuffer,
+            self.image_buffer,
             np.array([pointlist]),
             color=edgecolor,
             thickness=int(thickness + (2 * edgethickness)),
         )
         cv2.drawPoly(
-            self.ImageBuffer, np.array([pointlist]), color=color, thickness=thickness
+            self.image_buffer, np.array([pointlist]), color=color, thickness=thickness
         )
-        self.ActionList.append(
+        self.action_list.append(
             ["drawedgepolygon", pointlist, color, edgecolor, thickness, edgethickness]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FillPolygon(self, pointlist, color=None):
+    def fill_polygon(self, pointlist, color=None):
         """Draw filled polygon.
         pointlist is a list of (x,y) tuples."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FillPolygon: No image in the buffer.")
-        color = self.SafeColor(color)
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FillPolygon: No image in the buffer.")
+        color = self.safe_color(color)
         # *Q* OrientCoord() to do.
-        cv2.fillPoly(self.ImageBuffer, np.array([pointlist]), color=color)
-        self.ActionList.append(["fillpolygon", pointlist, color])
-        self.ModifiedTimestamp = self.NowUTC()
+        cv2.fillPoly(self.image_buffer, np.array([pointlist]), color=color)
+        self.action_list.append(["fillpolygon", pointlist, color])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawRectangle(self, startcoord, endcoord, color=None, thickness=None):
+    def draw_rectangle(self, startcoord, endcoord, color=None, thickness=None):
         """Draw a Rectangle on the image."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawRectangle: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        startcoord = self.OrientCoord(startcoord)  # Get height right way up.
-        endcoord = self.OrientCoord(endcoord)  # Get height right way up.
-        self.ImageBuffer = cv2.rectangle(
-            self.ImageBuffer, startcoord, endcoord, color, thickness
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawRectangle: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        startcoord = self.orient_coord(startcoord)  # Get height right way up.
+        endcoord = self.orient_coord(endcoord)  # Get height right way up.
+        self.image_buffer = cv2.rectangle(
+            self.image_buffer, startcoord, endcoord, color, thickness
         )
-        self.ActionList.append(
+        self.action_list.append(
             ["drawrectangle", startcoord, endcoord, color, thickness]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FillRectangle(self, startcoord, endcoord, color=None):
+    def fill_rectangle(self, startcoord, endcoord, color=None):
         """Draw a filled Rectangle on the image."""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FillRectangle: No image in the buffer.")
-        color = self.SafeColor(color)
-        startcoord = self.OrientCoord(startcoord)  # Get height right way up.
-        endcoord = self.OrientCoord(endcoord)  # Get height right way up.
-        self.ImageBuffer = cv2.rectangle(
-            self.ImageBuffer, startcoord, endcoord, color, thickness=-1
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FillRectangle: No image in the buffer.")
+        color = self.safe_color(color)
+        startcoord = self.orient_coord(startcoord)  # Get height right way up.
+        endcoord = self.orient_coord(endcoord)  # Get height right way up.
+        self.image_buffer = cv2.rectangle(
+            self.image_buffer, startcoord, endcoord, color, thickness=-1
         )
-        self.ActionList.append(["fillrectangle", startcoord, endcoord, color])
-        self.ModifiedTimestamp = self.NowUTC()
+        self.action_list.append(["fillrectangle", startcoord, endcoord, color])
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FadeRectangle(self, startcoord, endcoord, color=None, fadecolor=None):
+    def fade_rectangle(self, startcoord, endcoord, color=None, fadecolor=None):
         """Fill a ractangle on the image, but the color fades from center to edge"""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FadeRectangle: No image in the buffer.")
-        color = self.SafeColor(color)
-        if fadecolor == None:
-            fadecolor = self.SafeColor(0)  # Default to Black.
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FadeRectangle: No image in the buffer.")
+        color = self.safe_color(color)
+        if fadecolor is None:
+            fadecolor = self.safe_color(0)  # Default to Black.
         else:
-            fadecolor = self.SafeColor(fadecolor)
+            fadecolor = self.safe_color(fadecolor)
         prevcolor = None  # Only draw rectangles when the color changes.
         side_x = endcoord[0] - startcoord[0]
         side_y = endcoord[1] - startcoord[1]
@@ -4614,7 +4639,7 @@ class pilomarimage:
         for i in range(rad, 0, -4):
             colorratio = (rad - i) / float(rad)  # Ratio is ZERO at the edge.
             sizeratio = i / float(rad)
-            gradedcolor = self.BlendColor(color, fadecolor, colorratio)
+            gradedcolor = self.blend_color(color, fadecolor, colorratio)
             if gradedcolor != prevcolor:
                 startcoord = (
                     int(center_x - (side_x * sizeratio / 2)),
@@ -4624,19 +4649,19 @@ class pilomarimage:
                     int(center_x + (side_x * sizeratio / 2)),
                     int(center_y + (side_y * sizeratio / 2)),
                 )
-                startcoord = self.OrientCoord(startcoord)  # Get height right way up.
-                endcoord = self.OrientCoord(endcoord)  # Get height right way up.
-                self.ImageBuffer = cv2.rectangle(
-                    self.ImageBuffer, startcoord, endcoord, gradedcolor, thickness=-1
+                startcoord = self.orient_coord(startcoord)  # Get height right way up.
+                endcoord = self.orient_coord(endcoord)  # Get height right way up.
+                self.image_buffer = cv2.rectangle(
+                    self.image_buffer, startcoord, endcoord, gradedcolor, thickness=-1
                 )
                 prevcolor = gradedcolor
-        self.ActionList.append(
+        self.action_list.append(
             ["faderectangle", startcoord, endcoord, color, fadecolor]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawEllipse(
+    def draw_ellipse(
         self,
         center_x,
         center_y,
@@ -4654,15 +4679,15 @@ class pilomarimage:
         angle = 0-360
         startAngle = 0-360
         endAngle = 0-360"""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawEllipse: No image in the buffer.")
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawEllipse: No image in the buffer.")
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
         # Weird behaviour of this function in Python3 (See online) - parameters very fussy about grouping and datatype.
-        center_y = self.OrientHeight(center_y)
+        center_y = self.orient_height(center_y)
         # *Q* OrientHeight needs to switch angles too.
-        self.ImageBuffer = cv2.ellipse(
-            self.ImageBuffer,
+        self.image_buffer = cv2.ellipse(
+            self.image_buffer,
             (int(center_x), int(center_y)),
             (int(axis_x), int(axis_y)),
             int(angle),
@@ -4672,7 +4697,7 @@ class pilomarimage:
             thickness,
             lineType=cv2.LINE_AA,
         )
-        self.ActionList.append(
+        self.action_list.append(
             [
                 "drawellipse",
                 center_x,
@@ -4686,10 +4711,10 @@ class pilomarimage:
                 thickness,
             ]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawEdgeEllipse(
+    def draw_edge_ellipse(
         self,
         center_x,
         center_y,
@@ -4709,19 +4734,19 @@ class pilomarimage:
         angle = 0-360
         startAngle = 0-360
         endAngle = 0-360"""
-        if self.ImageMissing():
+        if self.image_missing():
             print(
-                "pilomarimage", self.Name, ".DrawEdgeEllipse: No image in the buffer."
+                "pilomarimage", self.name, ".DrawEdgeEllipse: No image in the buffer."
             )
-        thickness = self.SafeThickness(thickness)
-        color = self.SafeColor(color)
-        edgethickness = self.SafeThickness(edgethickness)
-        edgecolor = self.SafeColor(edgecolor)
+        thickness = self.safe_thickness(thickness)
+        color = self.safe_color(color)
+        edgethickness = self.safe_thickness(edgethickness)
+        edgecolor = self.safe_color(edgecolor)
         # Weird behaviour of this function in Python3 (See online) - parameters very fussy about grouping and datatype.
-        center_y = self.OrientHeight(center_y)
+        center_y = self.orient_height(center_y)
         # *Q* OrientHeight needs to switch angles too.
-        self.ImageBuffer = cv2.ellipse(
-            self.ImageBuffer,
+        self.image_buffer = cv2.ellipse(
+            self.image_buffer,
             (int(center_x), int(center_y)),
             (int(axis_x), int(axis_y)),
             int(angle),
@@ -4731,8 +4756,8 @@ class pilomarimage:
             (thickness + 2 * edgethickness),
             lineType=cv2.LINE_AA,
         )
-        self.ImageBuffer = cv2.ellipse(
-            self.ImageBuffer,
+        self.image_buffer = cv2.ellipse(
+            self.image_buffer,
             (int(center_x), int(center_y)),
             (int(axis_x), int(axis_y)),
             int(angle),
@@ -4742,7 +4767,7 @@ class pilomarimage:
             thickness,
             lineType=cv2.LINE_AA,
         )
-        self.ActionList.append(
+        self.action_list.append(
             [
                 "drawedgeellipse",
                 center_x,
@@ -4756,10 +4781,10 @@ class pilomarimage:
                 thickness,
             ]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FillEllipse(
+    def fill_ellipse(
         self,
         center_x,
         center_y,
@@ -4776,13 +4801,13 @@ class pilomarimage:
         angle = 0-360
         startAngle = 0-360
         endAngle = 0-360"""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FillEllipse: No image in the buffer.")
-        color = self.SafeColor(color)
-        center_y = self.OrientHeight(center_y)
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FillEllipse: No image in the buffer.")
+        color = self.safe_color(color)
+        center_y = self.orient_height(center_y)
         # Weird behaviour of this function in Python3 (See online) - parameters very fussy about grouping and datatype.
-        self.ImageBuffer = cv2.ellipse(
-            self.ImageBuffer,
+        self.image_buffer = cv2.ellipse(
+            self.image_buffer,
             (int(center_x), int(center_y)),
             (int(axis_x), int(axis_y)),
             int(angle),
@@ -4792,7 +4817,7 @@ class pilomarimage:
             thickness=-1,
             lineType=cv2.LINE_AA,
         )
-        self.ActionList.append(
+        self.action_list.append(
             [
                 "fillellipse",
                 center_x,
@@ -4805,10 +4830,10 @@ class pilomarimage:
                 color,
             ]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def FadeEllipse(
+    def fade_ellipse(
         self,
         center_x,
         center_y,
@@ -4821,34 +4846,34 @@ class pilomarimage:
         fadecolor=None,
     ):
         """Fill an ellipse on the image, but the color fades from center to edge"""
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".FadeEllipse: No image in the buffer.")
+        if self.image_missing():
+            print("pilomarimage", self.name, ".FadeEllipse: No image in the buffer.")
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".FadeEllipse: No image in the buffer.",
                 level="error",
                 terminal=True,
             )
 
-        color = self.SafeColor(color)
-        if fadecolor == None:
-            fadecolor = self.SafeColor(0)  # Default to Black.
+        color = self.safe_color(color)
+        if fadecolor is None:
+            fadecolor = self.safe_color(0)  # Default to Black.
         else:
-            fadecolor = self.SafeColor(fadecolor)
+            fadecolor = self.safe_color(fadecolor)
         prevcolor = None  # Only draw ellipses when the color changes.
         rad = max(axis_x, axis_y)
         for i in range(rad, 0, -2):
             colorratio = (rad - i) / float(rad)  # Ratio is ZERO at the edge.
             sizeratio = i / float(rad)
-            gradedcolor = self.BlendColor(color, fadecolor, colorratio)
+            gradedcolor = self.blend_color(color, fadecolor, colorratio)
             if gradedcolor != prevcolor:
                 # Weird behaviour of this function in Python3 (See online) - parameters very fussy about grouping and datatype.
                 xt = int(axis_x * sizeratio)
                 yt = int(axis_y * sizeratio)
-                center_y = self.OrientHeight(center_y)
-                self.ImageBuffer = cv2.ellipse(
-                    self.ImageBuffer,
+                center_y = self.orient_height(center_y)
+                self.image_buffer = cv2.ellipse(
+                    self.image_buffer,
                     (int(center_x), int(center_y)),
                     (xt, yt),
                     int(angle),
@@ -4859,7 +4884,7 @@ class pilomarimage:
                     lineType=cv2.LINE_AA,
                 )
                 prevcolor = gradedcolor
-        self.ActionList.append(
+        self.action_list.append(
             [
                 "fadeellipse",
                 center_x,
@@ -4873,10 +4898,10 @@ class pilomarimage:
                 fadecolor,
             ]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True
 
-    def DrawDumbbell(
+    def draw_dumbbell(
         self,
         drawfrom,
         drawto,
@@ -4904,25 +4929,25 @@ class pilomarimage:
          x   x                     .  x   x
           xxx                     .    xxx"""
 
-        if self.ImageMissing():
-            print("pilomarimage", self.Name, ".DrawDumbbell: No image in the buffer.")
+        if self.image_missing():
+            print("pilomarimage", self.name, ".DrawDumbbell: No image in the buffer.")
             self.log(
                 "pilomarimage",
-                self.Name,
+                self.name,
                 ".DrawDumbbell: No image in the buffer.",
                 level="error",
                 terminal=True,
             )
-        drawfrom = self.OrientCoord(drawfrom)  # Get height right way around.
-        drawto = self.OrientCoord(drawto)
+        drawfrom = self.orient_coord(drawfrom)  # Get height right way around.
+        drawto = self.orient_coord(drawto)
         fromx = drawfrom[0]  # center of the FROM circle.
         fromy = drawfrom[1]
         tox = drawto[0]  # center of the TO circle.
         toy = drawto[1]
-        fromcolor = self.SafeColor(fromcolor)
-        tocolor = self.SafeColor(tocolor)
-        linecolor = self.SafeColor(linecolor)
-        thickness = self.SafeThickness(thickness)
+        fromcolor = self.safe_color(fromcolor)
+        tocolor = self.safe_color(tocolor)
+        linecolor = self.safe_color(linecolor)
+        thickness = self.safe_thickness(thickness)
         # Calculate distance between FROM and TO points.
         dx = tox - fromx
         dy = toy - fromy
@@ -4944,8 +4969,8 @@ class pilomarimage:
                 distance - dia
             )  # ArrowedLine specifies arrow size as proportion of line length. We need constant 10pixel arrow heads.
             if arrow:
-                self.ImageBuffer = cv2.arrowedLine(
-                    self.ImageBuffer,
+                self.image_buffer = cv2.arrowedLine(
+                    self.image_buffer,
                     (startx, starty),
                     (endx, endy),
                     linecolor,
@@ -4954,31 +4979,31 @@ class pilomarimage:
                     tipLength=arrowproportion,
                 )
             else:
-                self.ImageBuffer = cv2.line(
-                    self.ImageBuffer,
+                self.image_buffer = cv2.line(
+                    self.image_buffer,
                     (startx, starty),
                     (endx, endy),
                     linecolor,
                     thickness=thickness,
                     lineType=cv2.LINE_AA,
                 )
-        self.ImageBuffer = cv2.circle(
-            self.ImageBuffer,
+        self.image_buffer = cv2.circle(
+            self.image_buffer,
             (fromx, fromy),
             rad,
             fromcolor,
             thickness=thickness,
             lineType=cv2.LINE_AA,
         )
-        self.ImageBuffer = cv2.circle(
-            self.ImageBuffer,
+        self.image_buffer = cv2.circle(
+            self.image_buffer,
             (tox, toy),
             rad,
             tocolor,
             thickness=thickness,
             lineType=cv2.LINE_AA,
         )
-        self.ActionList.append(
+        self.action_list.append(
             [
                 "drawdumbbell",
                 drawfrom,
@@ -4991,27 +5016,27 @@ class pilomarimage:
                 thickness,
             ]
         )
-        self.ModifiedTimestamp = self.NowUTC()
+        self.modified_timestamp = self.now_utc()
         return True  # The image now has the 'dumbbell' drawn on it.
 
-    def BrightnessHistogram(self):
+    def brightness_histogram(self):
         """Return array of brightness levels.
         Uses a grayscale representation of the current image to calculate the brightness.
         Returns an integer list of 256 entries, each entry is the number of pixels of that brightness.
         """
-        tempbuffer = self.NewBufferType(
+        tempbuffer = self.new_buffer_type(
             "grayscale"
         )  # Create grayscale copy of the buffer.
         hist = cv2.calcHist([tempbuffer], [0], None, [256], [0, 256])
         return hist
 
-    def WeightedBrightness(self):
+    def weighted_brightness(self):
         """For the current image, calculate the brightness histogram and return the weighted brightness of the image.
         Returns a value in the range 0-255 indicating the weighted average brightness of all the pixels in the image.
         """
         weightedtotal = 0
-        pixeltotal = self.GetWidth() * self.GetHeight()
-        for pixelvalue, pixelcount in enumerate(self.BrightnessHistogram()):
+        pixeltotal = self.get_width() * self.get_height()
+        for pixelvalue, pixelcount in enumerate(self.brightness_histogram()):
             weightedtotal += (
                 pixelvalue + 1
             ) * pixelcount  # Add 1 to pixelvalue so that '0' brightness pixels still count.
@@ -5020,26 +5045,26 @@ class pilomarimage:
         )  # Calculate weighted average, but subtract 1 to return '0' brightness pixels within range again.
         return wb
 
-    def DescribeImage(self):
+    def describe_image(self):
         """Print information about the current image buffer."""
         print("Describe image:")
-        print("Name:", self.Name)
-        print("Created:", self.CreatedTimestamp, "Modified:", self.ModifiedTimestamp)
-        if self.ImageExists():
-            print("Shape:", self.ImageBuffer.shape)
+        print("Name:", self.name)
+        print("Created:", self.created_timestamp, "Modified:", self.modified_timestamp)
+        if self.image_exists():
+            print("Shape:", self.image_buffer.shape)
         else:
-            print("ImageBuffer is empty")
-        print("Type:", self.GetType())
-        michelson_contrast, stddev_contrast = self.MeasureContrast()
+            print("image_buffer is empty")
+        print("Type:", self.get_type())
+        michelson_contrast, stddev_contrast = self.measure_contrast()
         print(
             "Michelson contrast:",
             michelson_contrast,
             "STD DEV contrast:",
             stddev_contrast,
         )
-        print("Sharpness:", self.Sharpness())
-        print("Pen: Color:", self.PenColor, "Thickness:", self.PenThickness)
-        print("ActionList:", self.ActionList)
+        print("Sharpness:", self.sharpness())
+        print("Pen: Color:", self.pen_color, "Thickness:", self.pen_thickness)
+        print("ActionList:", self.action_list)
 
 
 class pilomarkeogram:
@@ -5052,20 +5077,20 @@ class pilomarkeogram:
     MyKeo.Extract(imagehandler4)
     MyKeo.BuildImageBuffer()
     ... you can now manipulate/markup the MyKeo.Keogram image instance.
-    MyKeo.SaveFile('keogram.jpg')
+    MyKeo.save_file('keogram.jpg')
     """
 
     def __init__(self, name, width, height):
-        self.Name = name  # A name for this instance.
-        self.Width = width  # Width of target image.
-        self.Height = height  # Height of target image.
-        self.KeogramPixels = None  # List of data sampled.
-        self.SampleCount = 0  # How many sample strips have we captured.
-        self.Keogram = pilomarimage(
+        self.name = name  # A name for this instance.
+        self.width = width  # Width of target image.
+        self.height = height  # Height of target image.
+        self.keogram_pixels = None  # List of data sampled.
+        self.sample_count = 0  # How many sample strips have we captured.
+        self.keogram = PilomarImage(
             name="keogram", logger=None
         )  # Create a pilomarimage instance for the resulting keogram.
 
-    def Extract(self, imagehandler):  # Extract data for a keogram.
+    def extract(self, imagehandler):  # Extract data for a keogram.
         """Extract data for a Keogram.
         imagehandler is an instance of pilomarimage containing the latest live image.
         Extracts a vertical band from each image received,
@@ -5074,7 +5099,7 @@ class pilomarkeogram:
         source_width = imagehandler.GetWidth()
         source_height = imagehandler.GetHeight()
         band = int(source_width * 0.10)  # Take middle 10% of image.
-        workbuf = imagehandler.ImageBuffer.copy()  # Grab a copy of the light buffer.
+        workbuf = imagehandler.image_buffer.copy()  # Grab a copy of the light buffer.
         xstart = int((source_width - band) / 2)  # Left side of the sample band.
         xend = int((source_width + band) / 2)  # Right side of the sample band.
         workbuf = workbuf[:, xstart:xend, :]  # Extract sample band.
@@ -5096,31 +5121,31 @@ class pilomarkeogram:
             column.append(
                 [[max_pixel[0], max_pixel[1], max_pixel[2]]]
             )  # Add the pixel value to the values for this column.
-        if type(self.KeogramPixels) == type(
+        if type(self.keogram_pixels) == type(
             None
         ):  # No pre-existing pixel data. Create it now.
-            self.KeogramPixels = np.array(column).astype(
+            self.keogram_pixels = np.array(column).astype(
                 np.uint8
             )  # Create a single column image in Numpy.
         else:
-            self.KeogramPixels = np.append(
-                self.KeogramPixels, column, axis=1
+            self.keogram_pixels = np.append(
+                self.keogram_pixels, column, axis=1
             )  # Add a new column to existing image in Numpy.
-        self.SampleCount += 1  # Increment count of samples.
+        self.sample_count += 1  # Increment count of samples.
 
-    def BuildImageBuffer(self):
+    def build_image_buffer(self):
         """ """
         writebuffer = cv2.resize(
-            self.KeogramPixels, (self.Width, self.Height), interpolation=cv2.INTER_AREA
+            self.keogram_pixels, (self.width, self.height), interpolation=cv2.INTER_AREA
         )
-        self.Keogram.LoadBuffer(writebuffer)
+        self.keogram.load_buffer(writebuffer)
 
-    def SaveFile(self, filename):
+    def save_file(self, filename):
         """Export and save the keogram data as a .jpg file on disc."""
-        self.Keogram.SaveFile(
+        self.keogram.save_file(
             filename
         )  # imwrite doesn't report errors very well, beware.
 
 
 if __name__ == "__main__":
-    pi = pilomarimage()
+    pi = PilomarImage()

@@ -3,7 +3,7 @@
 import json
 import os
 
-from camera.image import pilomarimage
+from camera.image import PilomarImage
 from utils.logfile import LogFile
 from utils.math_func import is_int
 from utils.text.display import ColorDisplay
@@ -666,9 +666,9 @@ class Parameters(AttributeMaster):  # Common
         )  # When selecting an AURORA target this is the altitude for the camera position.
         # Load/Save image filters for pilomarimage objects.
         self.filter_scripts = self.get_parm_val(
-            "FilterScripts", pilomarimage.FILTERSCRIPTS
+            "FilterScripts", PilomarImage.FILTERSCRIPTS
         )  # Default is the initial set of filter scripts defined in the pilomarimage class.
-        pilomarimage.FILTERSCRIPTS = (
+        PilomarImage.FILTERSCRIPTS = (
             self.filter_scripts
         )  # Now assign whatever we have loaded back to pilomarimage.
 

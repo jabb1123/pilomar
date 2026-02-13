@@ -3,9 +3,8 @@
 import glob
 import os
 from oscommand import OSCommand
-from utils import AttributeMaster
+from utils.params import AttributeMaster, Parameters
 from utils.logfile import LogFile
-from utils.params import Parameters
 from utils.text.textcolor import TextColor
 
 
@@ -334,3 +333,36 @@ class FolderHandler(AttributeMaster):
             self.logger.ReportException(
                 e, command="folderhandler.CreateFolderByPath"
             )  # Trap all the exception information in the main log file.
+
+
+def verify_folder(folder_path: str) -> bool:
+    """Check that a directory exists, create it if it doesn't.
+
+    Args:
+        folder_path: Path to the directory to verify/create
+
+    Returns:
+        True if folder exists or was successfully created, False otherwise
+    """
+    import os
+
+    result = False
+    try:
+        # Remove trailing directory separator if found
+        if folder_path[-1:] in ("/", "\\"):
+            folder_path = folder_path[:-1]
+
+        if os.path.isdir(folder_path):  # Directory exists already
+            result = True
+        else:
+            os.makedirs(folder_path, exist_ok=True)
+            # Make sure directory is accessible (Unix/Linux specific)
+            try:
+                os.chmod(folder_path, 0o755)
+            except (OSError, AttributeError):
+                pass  # Skip if not supported on this platform
+            result = os.path.isdir(folder_path)
+    except Exception:
+        result = False
+
+    return result

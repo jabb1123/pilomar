@@ -138,10 +138,14 @@ from skyfield.constants import GM_SUN_Pitjeva_2005_km3_s2 as GM_SUN
 from skyfield.data import mpc, stellarium
 
 import gpio  # GPIO wrappers to support different GPIO libraries.
-from camera import AstroCamera, AstroLens, AstroSensor  # Pilomar's CAMERA elements.
+
+# Pilomar's CAMERA elements - import directly from modules to avoid circular imports
+from camera.camera import AstroCamera
+from camera.astro_lens import AstroLens
+from camera.astro_sensor import AstroSensor
 
 # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
-from camera.image import pilomarimage
+from camera.image import PilomarImage
 from camera.targets.fixed import FixedPoint  # Pilomar's FIXED POINT target.
 from camera.targets.local import LocalStars  # Pilomar's LOCAL STAR cache.
 from camera.targets.target import AstroTarget  # Pilomar's TARGET handling.
@@ -149,6 +153,14 @@ from camera.targets.track import ImageTracker  # Pilomar's IMAGE TRACKER.
 from gpio.micro import Microcontroller  # Pilomar's microcontroller handler.
 from motor.control import MotorControl
 from oscommand import OSCommand  # Pilomar's OS command executor.
+
+# Create a simple wrapper function for os_cmd that can be used throughout the code
+_os_cmd_instance = OSCommand()  # Create without logger initially
+def os_cmd(cmd, output="none"):
+    """Execute an OS command and return the output as a list of lines."""
+    _os_cmd_instance.execute(cmd, output=output)
+    return _os_cmd_instance.last_output
+
 from pilomarcelestrak import Celestrack  # Pilomar's CELESTRAK satellite data handler.
 from session.list import SessionList
 from session.status import SessionStatus  # Pilomar's session handling.
@@ -165,14 +177,29 @@ from utils.math_func import (
     dms_to_angle,
     hms_to_angle,
     interpolate,
+    is_float,
+    text_to_int,
+    text_to_float,
     pandas_float,
 )
 from utils.menus import OptionMenu, ProcedureMenu  # Basic menu handlers.
 from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL, SYMBOLS
+from utils.coordinates import (
+    alt_az_to_xyz,
+    xyz_to_alt_az,
+    relative_alt_az,
+    plot_relative_alt_az,
+    calculate_vector,
+)
+from utils.star_utils import (
+    dim_channel,
+    magnitude2_radius,
+    hip_color,
+)
 
 # Basic colour character graphics for window display on terminal.
-from utils.text.display import ColorDisplay
+from utils.text.display import ColorDisplay, ask_yes_no
 from utils.text.human_readable import (
     clean_datetime_string,
     dictionary_to_string,
@@ -213,9 +240,10 @@ elif gpio.GPIO_DRIVER == "GPIOD":  # Bookworm GPIOD handlers needed for IO.
     outputpin = gpio.OutputPinGPIO
     GPIOCleanup = gpio.cleanup_gpio
 else:
-    raise ImportError(
-        "Could not identify a suitable GPIO driver for this installation."
-    )
+    print("GPIO_DRIVER is set to", gpio.GPIO_DRIVER)
+    # raise ImportError(
+    #     "Could not identify a suitable GPIO driver for this installation."
+    # )
 print("Got through imports")
 
 VERSION = "1.1.0"  # Shared with microcontroller. # Make sure the microcontroller accepts any new version number.
@@ -337,100 +365,6 @@ def local_to_utc(dt: datetime) -> datetime:
 # ///////////////////////////////////////////////////////////////////////////////////
 
 
-def alt_az_to_xyz(
-    alt: float, az: float, distance: float = 1.0
-) -> Tuple[float, float, float]:
-    """Convert alt,az angles to XYZ coordinates. Based upon originlab definition on web.
-    X and Y web definitions are swapped to match alignment in Pilomar space."""
-    if not type(alt) in [int, float, np.float64]:
-        main_log.log(
-            "AltAzToXYZ: Received bad alt datatype", alt, type(alt), level="error"
-        )
-    if not type(az) in [int, float, np.float64]:
-        main_log.log(
-            "AltAzToXYZ: Received bad az datatype", az, type(az), level="error"
-        )
-    try:
-        y = distance * math.cos(math.radians(alt)) * math.cos(math.radians(az))
-        x = distance * math.cos(math.radians(alt)) * math.sin(math.radians(az))
-        z = distance * math.sin(math.radians(alt))
-    except Exception as e:
-        main_log.raise_exception(
-            e, comment="AltAzToXYZ"
-        )  # Trap all the exception information in the main log file.
-    return x, y, z
-
-
-def xyz_to_alt_az(x: float, y: float, z: float) -> Tuple[float, float]:
-    """Convert 3D coordinates into altitude and azimuth."""
-    if not type(x) in [int, float, np.float64]:
-        main_log.log("XYZToAltAz: Received bad x datatype", x, type(x), level="error")
-    if not type(y) in [int, float, np.float64]:
-        main_log.log("XYZToAltAz: Received bad y datatype", y, type(y), level="error")
-    if not type(z) in [int, float, np.float64]:
-        main_log.log("XYZToAltAz: Received bad z datatype", z, type(z), level="error")
-    try:
-        r = math.sqrt(x * x + y * y)
-        alt = math.degrees(math.atan2(z, r))
-        az = math.degrees(math.atan2(x, y)) % 360
-    except Exception as e:
-        main_log.raise_exception(
-            e, comment="XYZToAltAz"
-        )  # Trap all the exception information in the main log file.
-    return alt, az
-
-
-def relative_alt_az(star_alt, star_az, look_at_alt, look_at_az):
-    """Calculate the angles of a star relative to some look-at position.
-    There will be some wonderfully clever maths to do this cleanly, quickly and precisely.
-    But this was developed with trial and error, and it works well enough for me and is modifiable as required.
-    """
-    plot_x, plot_y, plot_z = alt_az_to_xyz(
-        star_alt, star_az
-    )  # Place star on celestial sphere (unit 1)
-
-    # Swing round to LOOK-AT Azimuth.
-    new_y = plot_y * math.cos(math.radians(-1 * look_at_az)) - plot_x * math.sin(
-        math.radians(-1 * look_at_az)
-    )  # 0degrees is due north on Y axis. 90degrees is due east on X axis.
-    new_x = plot_x * math.cos(math.radians(-1 * look_at_az)) + plot_y * math.sin(
-        math.radians(-1 * look_at_az)
-    )
-    plot_x = new_x
-    plot_y = new_y
-
-    # Drop down to LOOK-AT Altitude.
-    new_y = plot_y * math.cos(math.radians(-1 * look_at_alt)) - plot_z * math.sin(
-        math.radians(-1 * look_at_alt)
-    )  # 0degrees is due north on Y axis. 90degrees is straight up on Z axis.
-    new_z = plot_z * math.cos(math.radians(-1 * look_at_alt)) + plot_y * math.sin(
-        math.radians(-1 * look_at_alt)
-    )
-    plot_y = new_y
-    plot_z = new_z
-
-    plot_star_alt, plot_star_az = xyz_to_alt_az(
-        plot_x, plot_y, plot_z
-    )  # Convert from an x,y,z location back into Alt/Az combination.
-    # Clip result to +/- 180Degrees because we're relative to the 'centre' of the map we're drawing.
-    plot_star_az = plot_star_az % 360
-    if plot_star_az > 180:
-        plot_star_az -= 360
-    plot_star_alt = plot_star_alt % 360
-    if plot_star_alt > 180:
-        plot_star_alt -= 360
-    return plot_star_alt, plot_star_az
-
-
-def calculate_vector(from_x, from_y, to_x, to_y):
-    """Return ANGLE and PIXEL DISTANCE from 1 point to another."""
-    x_dist = to_x - from_x
-    y_dist = to_y - from_y
-    pix_dist = round(math.sqrt((x_dist**2) + (y_dist**2)), 0)
-    pix_angle = round(math.degrees(math.atan2(x_dist, y_dist)), 0)
-    return pix_dist, pix_angle
-
-
 def distortion_table_index(pix_dist, pix_angle):
     """Given DISTANCE and ANGLE values, calculate the index to the lens distortion table."""
     dist_range = round(pix_dist / 50, 0) * 50  # Nearest 50 pixels.
@@ -456,28 +390,6 @@ def convert_arcseconds_to_pixels(arcseconds):
     """Convert an arcsecond value into a pixel count.
     Used for calculating the size of objects in an image."""
     return arcseconds * camera_in_use.pixels_per_fov_degree_width / 3600
-
-
-def plot_relative_alt_az(plot_star_alt, plot_star_az, height, width):
-    """Given a relative altitude and azimuth, return the X,Y co-ordinates on the image of dimensions (height*width)
-    plot_star_alt = +/- degrees from the centre of the image.
-    plot_star_az = +/- degrees from the centre of the image.
-    height = pixel height of the image.
-    width = pixel width of the image.
-    applydistortion = Position will be modified to simulate lens distortion."""
-    # Convert relative AltAz to a location on an image.
-    try:
-        temp_star_x = int(
-            (width / 2) + (plot_star_az * camera_in_use.pixels_per_fov_degree_width)
-        )  # Raw position
-        temp_star_y = int(
-            (height / 2) - (plot_star_alt * camera_in_use.pixels_per_fov_degree_height)
-        )  # SUBTRACT rather than ADD because Y axis in image counts down from the top, whereas ALTITUDE counts up from the bottom.
-    except Exception as e:
-        main_log.raise_exception(
-            e, comment="plot_relative_alt_az"
-        )  # Trap all the exception information in the main log file.
-    return temp_star_x, temp_star_y
 
 
 def az_alt_text(az, alt, symbol=None) -> str:
@@ -638,7 +550,7 @@ def detect_raspistill(canenable=False, candisable=False):
     canenable = True: If the camera is found, then automatically enable it in parameters.
     """
     filename = (
-        ProjectRoot + "/temp/testraspistill.jpg"
+        project_root + "/temp/testraspistill.jpg"
     )  # Or use /dev/null ? We don't need this file.
     # Remove any earlier copy of the file.
     tempcmd = "rm " + filename
@@ -688,7 +600,7 @@ def detect_libcamera(canenable=False, candisable=False):
     canenable = True: If the camera is found, then automatically enable it in parameters.
     """
     filename = (
-        ProjectRoot + "/temp/testlibcamera-still.jpg"
+        project_root + "/temp/testlibcamera-still.jpg"
     )  # Or use /dev/null ? We don't need this file.
     # Remove any earlier copy of the file.
     tempcmd = "rm " + filename
@@ -768,7 +680,7 @@ def calibrate_fov_menu():
             session.target.name, camera_in_use.exposure_seconds
         )  # This assigns folder names for all the image types.
         document_session()
-        drift_tracker.Reset()
+        drift_tracker.reset()
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -978,194 +890,8 @@ def dictionary_loader(filename):
     return dictionary
 
 
-def b_vto_bgr(BV):
-    """Convert a B-V color value from Hipparcos catalog to an approximate BGR color code.
-    B-V     R G B (hex)
-    -0.33   706ffe
-    -0.3    519ffe
-    -0.02   bfd0ff
-    0.3     cdfdff
-    0.58    eeffdf
-    0.81    ffff7f
-    1.40    fe7f7d
-    """
-    r = g = b = 255
-    # List of sample B-V values and their approximate R,G,B equivalents. Found online.
-    color_points = [
-        (-0.33, [0x70, 0x6F, 0xFE]),
-        (-0.3, [0x51, 0x9F, 0xFE]),
-        (-0.02, [0xBF, 0xD0, 0xFF]),
-        (0.3, [0xCD, 0xFD, 0xFF]),
-        (0.58, [0xEE, 0xFF, 0xDF]),
-        (0.81, [0xFF, 0xFF, 0x7F]),
-        (1.4, [0xFE, 0x7F, 0x7D]),
-    ]
-
-    def b_vrange(BV):
-        # Given a B-V value, pick the pair of color_points that will be used to calculate the RGB equivalent.
-        fromi = 0
-        toi = 1  # If BV is too low, we use the lowest pair of entries. (We will extrapolate a value)
-        try:
-            for i, cp in enumerate(color_points):  # Consider each sample point in turn.
-                if BV >= cp[0]:  # Above lower threshold of this sample point.
-                    fromi = i  # Interpolation starts with this lower entry.
-                    toi = i + 1  # Interpolation ends with the next entry.
-            if toi >= len(
-                color_points
-            ):  # If BV is too high, we are off the end of the list, so use the highest pair of entries.
-                toi = len(color_points) - 1
-                fromi = toi - 1
-        except Exception as e:
-            main_log.log("BVRange:", str(BV), "failed:", str(e), level="error")
-            fromi = 0
-            toi = 1
-        return fromi, toi
-
-    def b_vd_x(fromi, toi):
-        # Span of BV values from LOWER to UPPER sample limits.
-        try:
-            result = color_points[toi][0] - color_points[fromi][0]
-        except Exception as e:
-            main_log.log(
-                "BVdX:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def b_vd_r(fromi, toi):
-        # Span of BLUE channel values from LOWER to UPPER sample limits.
-        try:
-            result = color_points[toi][1][0] - color_points[fromi][1][0]
-        except Exception as e:
-            main_log.log(
-                "BVdR:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def b_vd_g(fromi, toi):
-        # Span of GREEN channel values from LOWER to UPPER sample limits.
-        try:
-            result = color_points[toi][1][1] - color_points[fromi][1][1]
-        except Exception as e:
-            main_log.log(
-                "BVdG:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def b_vd_b(fromi, toi):
-        try:
-            result = color_points[toi][1][2] - color_points[fromi][1][2]
-        except Exception as e:
-            main_log.log(
-                "BVdB:", str(fromi), str(toi), "failed:", str(e), level="error"
-            )
-            result = 0
-        return result
-
-    def bv_interpolate(BV, fromi, toi):
-        try:
-            bv_proportion = (BV - color_points[fromi][0]) / b_vd_x(
-                fromi, toi
-            )  # Position of our point between the two reference points. This is the scale applied to R,G,B channels.
-            r = round(
-                (bv_proportion * b_vd_r(fromi, toi)) + color_points[fromi][1][0], 0
-            )  # Scale RED channel relative to the BV position.
-            r = max(0, r)  # Colour channel values must be 0-255
-            r = min(255, r)
-            g = round(
-                (bv_proportion * b_vd_g(fromi, toi)) + color_points[fromi][1][1], 0
-            )  # Scale GREEN channel relative to the BV position.
-            g = max(0, g)
-            g = min(255, g)
-            b = round(
-                (bv_proportion * b_vd_b(fromi, toi)) + color_points[fromi][1][2], 0
-            )  # Scale BLUE channel relative to the BV position.
-            b = max(0, b)
-            b = min(255, b)
-        except Exception as e:
-            main_log.log(
-                "BVInterpolate:",
-                str(BV),
-                str(fromi),
-                str(toi),
-                "failed:",
-                str(e),
-                level="error",
-            )
-            r = b = g = 255
-        return (int(b), int(g), int(r))
-
-    try:
-        fromi, toi = b_vrange(
-            BV
-        )  # Which pair of sample colour points do we interpolate from?
-        b, g, r = bv_interpolate(BV, fromi, toi)
-    except Exception as e:
-        main_log.log("BVtoBGR:", str(BV), "failed:", str(e), level="warning")
-        b = g = r = 255
-    return (b, g, r)
-
-
+# b_vto_bgr has been moved to utils.star_utils and is used by hip_color() wrapper.
 # -----------------------------------------------------------------------------------------------------
-
-
-def hip_color(bv):
-    """Return b,g,r values for the color of any star given its B-V value from the hipparcos catalog."""
-    bv = pandas_float(bv)  # Make sure it's a float, trap NaN values.
-    try:
-        if is_float(bv):  # Some entries are BLANK in Hipparcos data set.
-            color_bv = float(bv)
-            b, g, r = b_vto_bgr(color_bv)
-            # Make all the stars quite bright, so rescale the values to 128 - 255.
-            b = int(b / 2) + 127
-            g = int(g / 2) + 127
-            r = int(r / 2) + 127
-        else:
-            main_log.log(
-                "HipColor:",
-                str(bv),
-                "isn't float, setting (255,255,255)",
-                terminal=False,
-            )
-            b = g = r = 255
-    except Exception as e:
-        main_log.log("HipColor:", str(bv), "failed:", str(e), level="warning")
-        b = g = r = 255
-    return (b, g, r)
-
-
-def magnitude2_radius(mag, dimmest, brightest=-6, radius_max=20):
-    """Calculate star radius based upon a sliding scale of magnitudes.
-    Returns a scaled 'radius' and a 'ratio' for dimming colours based upon the magnitude of the item.
-    dimmest = High value magnitude (dimmest star to represent). (Radius 1)
-    brightest = Low value magnitude (brightest star to represent). (Radius 10)
-    NOTE: If you are tempted to alter this, test it carefully first. Magnitudes run negatively!
-    """
-    rmag = min(mag, dimmest)  # Magnitudes are inverted!
-    rmag = max(rmag, brightest)  # Magnitudes are inverted!
-    span = dimmest - brightest  # Span of magnitudes to be handled.
-    offset = rmag - brightest  # Start point on magnitude scale.
-    ratio = round(
-        (radius_max - 1) * (offset / span), 0
-    )  # How far along the magnitude scale is this item?
-    radius = int(radius_max - ratio)  # Convert to a radius.
-    brightnessratio = float(offset) / float(
-        span
-    )  # How far along the brightest - dimmest scale are we?
-    brightnessratio = 1.0 - (
-        brightnessratio / 2
-    )  # Invert the scale and make sure we don't dim below 50% so stuff stays visible.
-    return radius, brightnessratio
-
-
-def dim_channel(channel, ratio):
-    """simple multiplier for single color channel."""
-    channel = channel * ratio
-    channel = max(channel, 0)  # Cannot be < 0
-    channel = min(channel, 255)  # Cannot be > 255
-    return int(channel)
 
 
 def generate_ngc_dataframe(ngc_dict: dict):
@@ -1319,7 +1045,7 @@ def generate_ngc_dataframe(ngc_dict: dict):
 def comet_data_age():
     """Report the age of the comet trajectory data from the Minor Planet Center.
     warn = True : Will issue warning here."""
-    filename = ProjectRoot + "/data/CometEls.txt"
+    filename = project_root + "/data/CometEls.txt"
     filedays = None
     if os.path.exists(filename):  # The cache data exists, check its age.
         with open(filename, "r") as f:
@@ -2281,7 +2007,7 @@ def choose_filter_script(default=None):
     """From the available filter scripts, choose one to apply to a task."""
     option = None
     filter_options = {"None": {"label": "None", "value": None}}
-    for key, _ in pilomarimage.FILTERSCRIPTS.items():
+    for key, _ in PilomarImage.FILTERSCRIPTS.items():
         filter_options[key] = {"label": key, "value": key}
     filter_menu = OptionMenu(
         filter_options, "Select filter", titlefg=MENU_TITLE_FG, titlebg=MENU_TITLE_BG
@@ -2306,7 +2032,7 @@ def select_latest_filter():
         print("LATEST TRACKING images will not be filtered.")
     else:
         print("LATEST TRACKING images will have the following filters applied.")
-        ftemp = pilomarimage.FILTERSCRIPTS[
+        ftemp = PilomarImage.FILTERSCRIPTS[
             params.latest_tracking_filter
         ]  # Get the filter details.
         # List the filter steps.
@@ -2338,11 +2064,11 @@ def test_latest_filter(folder_handler: FolderHandler):
         if not os.path.exists(sourcefile):
             print(TextColor.red(sourcefile, "does not exist, try again."))
     # Create pilomarimage instance for the file.
-    image = pilomarimage(name="testlatestfilter", logger=main_log)
-    image.LoadFile(sourcefile)
+    image = PilomarImage(name="testlatestfilter", logger=main_log)
+    image.load_file(sourcefile)
     print("Running", params.latest_tracking_filter, "against", sourcefile, "...")
-    image.RunFilterScript(params.latest_tracking_filter)
-    image.SaveFile(outputfile)
+    image.run_filter_script(params.latest_tracking_filter)
+    image.save_file(outputfile)
     print("result is saved in", outputfile)
 
 
@@ -3066,7 +2792,7 @@ def tune_position(motor_name: str = None):
                     i.tune_position(delta)
             lFound = True
     if lFound:
-        drift_tracker.Reset()  # Reset optical tracking because we've moved the camera.
+        drift_tracker.reset()  # Reset optical tracking because we've moved the camera.
     else:  # We didn't find the motor!
         main_log.log(
             "tune_position: Motor '",
@@ -3160,7 +2886,7 @@ def menu_set_exposure_time():  # For menu
             session.target.name, camera_in_use.exposure_seconds
         )  # This assigns folder names for all the image types.
         document_session()
-        drift_tracker.Reset()
+        drift_tracker.reset()
 
 
 def set_camera_timelapse(p):
@@ -3325,7 +3051,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         )  # What is the alt/az location of the centre of the image?
     else:  # Use the last reported camera position. Deprecated.
         # What is the alt/az location of the centre of the image?
-        centre_alt, centre_az = last_reported_alt_az(WarningFlags)
+        centre_alt, centre_az = MotorControl.last_reported_alt_az(WarningFlags)
     centre_ra, centre_dec = (
         session.target.ra_dec_degrees()
     )  # Calculations for target from observer's location. Returns decimal degree values. *Q* Does this ever vary with time?
@@ -3340,13 +3066,13 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         terminal=False,
     )
     # load the image
-    new_image_buffer = pilomarimage(name="preview", logger=cam_log)
-    new_image_buffer.LoadBuffer(
-        camera_in_use.image.ImageBuffer
+    new_image_buffer = PilomarImage(name="preview", logger=cam_log)
+    new_image_buffer.load_buffer(
+        camera_in_use.image.image_buffer
     )  # Take it directly from memory
-    new_image_buffer.ChangeType("bgr")  # Make sure it's a colour image.
-    width = new_image_buffer.GetWidth()
-    height = new_image_buffer.GetHeight()
+    new_image_buffer.change_type("bgr")  # Make sure it's a colour image.
+    width = new_image_buffer.get_width()
+    height = new_image_buffer.get_height()
     centrex = int(width / 2)
     centrey = int(height / 2)
     filename = folder_handler.prep_file(
@@ -3420,15 +3146,15 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                         (temp_star_x2, temp_star_y3),
                         (temp_star_x, temp_star_y3),
                     ]
-                    new_image_buffer.FillPolygon(polygon, color=(0, 0, 30))
+                    new_image_buffer.fill_polygon(polygon, color=(0, 0, 30))
                 # Plot grid lines.
-                new_image_buffer.DrawLine(
+                new_image_buffer.draw_line(
                     (temp_star_x, temp_star_y),
                     (temp_star_x2, temp_star_y2),
                     color=h_color,
                     thickness=h_thick,
                 )  # DIMGREY Link to neighbouring grid intersections. # Horizontal part of grid (B-C)
-                new_image_buffer.DrawLine(
+                new_image_buffer.draw_line(
                     (temp_star_x, temp_star_y),
                     (temp_star_x3, temp_star_y3),
                     color=v_color,
@@ -3438,7 +3164,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     i_alt % 5 == i_az % 5 == 0
                 ):  # Show co-ordinates at major grid crossing points.
                     text = str(i_alt) + "," + str(i_az)
-                    new_image_buffer.AddText(
+                    new_image_buffer.add_text(
                         text, temp_star_x, temp_star_y - 10, color=(127, 127, 127)
                     )
                 # Label compass points. Consider any vertical (azimuth) lines which cross the bottom of the screen.
@@ -3460,12 +3186,12 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                                 inp3=y,
                             )
                         )  # Where does line cross bottom of the screen?
-                        new_image_buffer.AddText(
+                        new_image_buffer.add_text(
                             label,
                             x,
                             y,
-                            color=pilomarimage.BGR("Black"),
-                            bgcolor=pilomarimage.BGR("Green"),
+                            color=PilomarImage.bgr("Black"),
+                            bgcolor=PilomarImage.bgr("Green"),
                             size=2,
                             thickness=2,
                             border=10,
@@ -3476,7 +3202,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
     if True:  # Mark Right Ascension direction on the image.
         cam_log.log("markup_preview: Show ra/dec grid.", terminal=False)
         # Given target RA/DEC values - establish points either side to show the plane of equal Right Ascension values.
-        new_image_buffer.SetPenColor(pilomarimage.BGR("LightBlue"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("LightBlue"))
         ra_unit = (
             camera_in_use.lens.fov_vertical / 6
         )  # Scale the size of the RA markers, keep centre clear but don't go off edge of image.
@@ -3508,46 +3234,46 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         xl2, yl2 = plot_relative_alt_az(plot_alt2, plot_az2, height, width)
         xl3, yl3 = plot_relative_alt_az(plot_alt3, plot_az3, height, width)
         xl4, yl4 = plot_relative_alt_az(plot_alt4, plot_az4, height, width)
-        new_image_buffer.DrawEdgeLine(
-            (xl2, yl2), (xl1, yl1), edgecolor=pilomarimage.BGR("Black"), arrowpixels=20
+        new_image_buffer.draw_edge_line(
+            (xl2, yl2), (xl1, yl1), edgecolor=PilomarImage.bgr("Black"), arrowpixels=20
         )  # The -ve line ends with an arrow to show direction.
-        new_image_buffer.DrawEdgeLine(
-            (xl3, yl3), (xl4, yl4), edgecolor=pilomarimage.BGR("Black"), arrowpixels=20
+        new_image_buffer.draw_edge_line(
+            (xl3, yl3), (xl4, yl4), edgecolor=PilomarImage.bgr("Black"), arrowpixels=20
         )  # The +ve line ends with an arrow to show direction.
         if xl4 > xl3:  # Add +ve and -ve labels at the ends of the lines.
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "RA+",
                 xl4 + 10,
                 yl4,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
             )
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "RA-",
                 xl1 - 10,
                 yl1,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
                 hjust="r",
             )
         else:
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "RA+",
                 xl4 - 10,
                 yl4,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
                 hjust="r",
             )
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "RA-",
                 xl1 + 10,
                 yl1,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
             )
         dec_l1 = centre_dec - (2 * ra_unit)  # 2 degrees below the target.
@@ -3578,46 +3304,46 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         xl2, yl2 = plot_relative_alt_az(plot_alt2, plot_az2, height, width)
         xl3, yl3 = plot_relative_alt_az(plot_alt3, plot_az3, height, width)
         xl4, yl4 = plot_relative_alt_az(plot_alt4, plot_az4, height, width)
-        new_image_buffer.DrawEdgeLine(
-            (xl2, yl2), (xl1, yl1), edgecolor=pilomarimage.BGR("Black"), arrowpixels=20
+        new_image_buffer.draw_edge_line(
+            (xl2, yl2), (xl1, yl1), edgecolor=PilomarImage.bgr("Black"), arrowpixels=20
         )  # The -ve line ends with an arrow to show direction.
-        new_image_buffer.DrawEdgeLine(
-            (xl3, yl3), (xl4, yl4), edgecolor=pilomarimage.BGR("Black"), arrowpixels=20
+        new_image_buffer.draw_edge_line(
+            (xl3, yl3), (xl4, yl4), edgecolor=PilomarImage.bgr("Black"), arrowpixels=20
         )  # The +ve line ends with an arrow to show direction.
         if xl4 > xl3:  # Add +ve and -ve labels at the ends of the lines.
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "Dec+",
                 xl4 + 10,
                 yl4,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
             )
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "Dec-",
                 xl1 - 10,
                 yl1,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
                 hjust="r",
             )
         else:
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "Dec+",
                 xl4 - 10,
                 yl4,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
                 hjust="r",
             )
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "Dec-",
                 xl1 + 10,
                 yl1,
                 thickness=2,
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
                 vjust="c",
             )
 
@@ -3628,7 +3354,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         xpos = int(width / 2)
         ypos = int(height / 2)
         gap = 60
-        new_image_buffer.SetPenColor(pilomarimage.BGR("HotPink"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("HotPink"))
         # List of exposure times, including the selected exposure time.
         for i, span in enumerate([3600, 1800, camera_in_use.exposure_seconds]):
             rotation = session.target.rotation_arc(
@@ -3659,34 +3385,34 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             r = (i + 10) * gap  # How far down the 'y' axis do we draw this arc?
             # Put label left or right of the arc depending upon which way it is moving.
             if i == 0:  # Print header above first instance.
-                new_image_buffer.AddEdgeText(
+                new_image_buffer.add_edge_text(
                     "Field rotation",
                     textpos,
                     ypos + (9 * gap),
-                    color=pilomarimage.BGR("HotPink"),
-                    edgecolor=pilomarimage.BGR("Black"),
+                    color=PilomarImage.bgr("HotPink"),
+                    edgecolor=PilomarImage.bgr("Black"),
                     hjust=hjust,
-                    bgcolor=pilomarimage.BGR("Black"),
+                    bgcolor=PilomarImage.bgr("Black"),
                 )  # Explain and demonstrate the field rotation that the telescope is currently experiencing.
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 human_readable_seconds(span) + " is " + str(round(rotation, 2)) + "deg",
                 textpos,
                 ypos + r,
-                color=pilomarimage.BGR("HotPink"),
-                edgecolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("HotPink"),
+                edgecolor=PilomarImage.bgr("Black"),
                 hjust=hjust,
                 vjust="c",
-                bgcolor=pilomarimage.BGR("Black"),
+                bgcolor=PilomarImage.bgr("Black"),
             )  # Show rotation value.
             if abs(rotation) > 180:  # Too big to be useful
-                new_image_buffer.AddEdgeText(
+                new_image_buffer.add_edge_text(
                     deg_3dp(rotation),
                     textpos,
                     ypos + r,
-                    color=pilomarimage.BGR("HotPink"),
-                    edgecolor=pilomarimage.BGR("Black"),
+                    color=PilomarImage.bgr("HotPink"),
+                    edgecolor=PilomarImage.bgr("Black"),
                     hjust=hjust,
-                    bgcolor=pilomarimage.BGR("Black"),
+                    bgcolor=PilomarImage.bgr("Black"),
                 )  # Explain and demonstrate the field rotation that the telescope is currently experiencing.
             elif abs(rotation) > 0.1:  # Big enough for an arc to appear.
                 new_image_buffer.DrawEdgeEllipse(
@@ -3698,27 +3424,27 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     0,
                     rotation * -1,
                     thickness=3,
-                    edgecolor=pilomarimage.BGR("Black"),
+                    edgecolor=PilomarImage.bgr("Black"),
                 )  # Draw arc representing the rotation.
             else:  # Too short for an arc to appear. Draw a dot instead.
                 new_image_buffer.DrawEdgeCircle(
-                    xpos, ypos + r, 1, thickness=2, edgecolor=pilomarimage.BGR("Black")
+                    xpos, ypos + r, 1, thickness=2, edgecolor=PilomarImage.bgr("Black")
                 )  # Draw dot representing insignificant rotation.
 
     if True:  # Parameters.MarkupShowCrosshairs: # Target cross hairs
         cam_log.log("markup_preview: ShowCrosshairs", terminal=False)
         # Draw cross hairs. Gap in the centre so that target is still visible.
-        new_image_buffer.SetPenColor(pilomarimage.BGR("Yellow"))
-        new_image_buffer.DrawLine(
+        new_image_buffer.set_pen_color(PilomarImage.bgr("Yellow"))
+        new_image_buffer.draw_line(
             (int(width / 2), 0), (int(width / 2), int(height / 2 - 20))
         )
-        new_image_buffer.DrawLine(
+        new_image_buffer.draw_line(
             (int(width / 2), height), (int(width / 2), int(height / 2 + 20))
         )
-        new_image_buffer.DrawLine(
+        new_image_buffer.draw_line(
             (0, int(height / 2)), (int(width / 2 - 20), int(height / 2))
         )
-        new_image_buffer.DrawLine(
+        new_image_buffer.draw_line(
             (int(width / 2) + 20, int(height / 2)), (width, int(height / 2))
         )
 
@@ -3726,7 +3452,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
     # This is degrees movement of the camera, NOT degrees in the sky!
     if True:
         cam_log.log("markup_preview: ShowDegreeScale", terminal=False)
-        new_image_buffer.SetPenColor(pilomarimage.BGR("Yellow"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("Yellow"))
         # Calibration - Azimuth
         for i in range(-10, 11):
             xpos = int(width / 2) + (
@@ -3736,21 +3462,21 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             text = str(i) + "deg"  # DEGREE_SYMBOL
             if i > 0:
                 text = "+" + text
-            new_image_buffer.DrawLine((xpos, ypos - 100), (xpos, ypos))
-            new_image_buffer.AddText(text, xpos, ypos - 100, hjust="c", vjust="t")
+            new_image_buffer.draw_line((xpos, ypos - 100), (xpos, ypos))
+            new_image_buffer.add_text(text, xpos, ypos - 100, hjust="c", vjust="t")
         # Calibration - Altitude
         for i in range(-10, 11):
             xpos = int(width / 2)
             ypos = int(height / 2) + (
                 i * camera_in_use.pixels_per_fov_degree_height
             )  # 1 degree markers
-            new_image_buffer.DrawLine((xpos - 100, ypos), (xpos, ypos))
+            new_image_buffer.draw_line((xpos - 100, ypos), (xpos, ypos))
             text = (
                 str(i * -1) + "deg"
             )  # DEGREE_SYMBOL - Invert scale because image Y positions are inverted.
             if i < 0:
                 text = "+" + text
-            new_image_buffer.AddText(text, xpos - 100, ypos, vjust="c", hjust="r")
+            new_image_buffer.add_text(text, xpos - 100, ypos, vjust="c", hjust="r")
 
     if True:  # Parameters.MarkupShowFullStepScale: # Mark FULL STEP scale.
         cam_log.log(
@@ -3769,7 +3495,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             terminal=False,
         )
         # Calibration - Azimuth
-        new_image_buffer.SetPenColor(pilomarimage.BGR("Cyan"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("Cyan"))
         c = 0  # Counter used to stagger the text to reduce overlapping.
         major_tick_steps = dynamic_scale(
             targetpix=200, pixelsperstep=az_pixels_per_fullstep
@@ -3782,11 +3508,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             c = 1 - c
             xpos = int((width / 2) + (i * az_pixels_per_fullstep))
             ypos = int(height / 2)
-            new_image_buffer.DrawLine((xpos, ypos), (xpos, ypos + 100), thickness=3)
+            new_image_buffer.draw_line((xpos, ypos), (xpos, ypos + 100), thickness=3)
             text = str(i) + "Steps"
             if i > 0:
                 text = "+" + text
-            new_image_buffer.AddText(
+            new_image_buffer.add_text(
                 text, xpos, ypos + 110 + (c * 25), size=1.0, hjust="c", vjust="b"
             )  # Offset alternate markings to keep legible.
         # Calibration - Altitude
@@ -3800,11 +3526,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         ):  # Major tick marks only.
             xpos = int(width / 2)
             ypos = int((height / 2) + (i * alt_pixels_per_fullstep))
-            new_image_buffer.DrawLine((xpos, ypos), (xpos + 100, ypos), thickness=3)
+            new_image_buffer.draw_line((xpos, ypos), (xpos + 100, ypos), thickness=3)
             text = str(i * -1) + "Steps"
             if i < 0:
                 text = "+" + text
-            new_image_buffer.AddText(text, xpos + 110, ypos, vjust="c")
+            new_image_buffer.add_text(text, xpos + 110, ypos, vjust="c")
         # Mark precision circle on centre. Once you're inside this circle, there's little point in finetuning further on this scale.
         if az_pixels_per_fullstep > 5 or alt_pixels_per_fullstep > 5:
             # Only bother showing the precision circle IF it is large enough to be useful.
@@ -3815,11 +3541,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                 xpos,
                 ypos,
                 int(az_pixels_per_fullstep),
-                color=pilomarimage.BGR("Gold"),
+                color=PilomarImage.bgr("Gold"),
                 thickness=3,
             )
             new_image_buffer.DrawCircle(
-                xpos, ypos, int(az_pixels_per_fullstep), color=pilomarimage.BGR("Black")
+                xpos, ypos, int(az_pixels_per_fullstep), color=PilomarImage.bgr("Black")
             )
 
     if True:  # Draw angular scale for reference.
@@ -3831,11 +3557,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             ["30arcsec", 0.0, 0.0, 30.0],
             ["10arcsec", 0.0, 0.0, 10.0],
         ]
-        new_image_buffer.SetPenColor(pilomarimage.BGR("White"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("White"))
         x = 200
         y = int(height / 2) + 200
-        new_image_buffer.AddEdgeText(
-            "Angular scale", x, y, size=0.5, edgecolor=pilomarimage.BGR("Black")
+        new_image_buffer.add_edge_text(
+            "Angular scale", x, y, size=0.5, edgecolor=PilomarImage.bgr("Black")
         )
         for i, scale in enumerate(scale_list):
             label = scale[0]
@@ -3846,23 +3572,23 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             if p > width - 300:  # Line is too long to be useful.
                 continue
             y += 20
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 label,
                 x,
                 y,
                 size=0.5,
                 hjust="r",
                 vjust="c",
-                edgecolor=pilomarimage.BGR("Black"),
+                edgecolor=PilomarImage.bgr("Black"),
             )
-            new_image_buffer.DrawLine((x + 10, y), (x + 10 + p, y), thickness=3)
-            new_image_buffer.DrawLine((x + 10, y - 10), (x + 10, y + 10), thickness=1)
-            new_image_buffer.DrawLine(
+            new_image_buffer.draw_line((x + 10, y), (x + 10 + p, y), thickness=3)
+            new_image_buffer.draw_line((x + 10, y - 10), (x + 10, y + 10), thickness=1)
+            new_image_buffer.draw_line(
                 (x + 10 + p, y - 10), (x + 10 + p, y + 10), thickness=1
             )
 
     if True:  # Parameters.MarkupShowMessier: # Mark neighbouring Messier objects ....
-        new_image_buffer.SetPenColor(pilomarimage.BGR("Green"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("Green"))
         # Find that alt/az locations of all the objects.
         for temp_star_name, temp_star_parms in Messier_dictionary.items():  # Python3
             temp_rah = temp_star_parms["ra"][0]  # Right Ascension HOURS
@@ -3920,7 +3646,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             temp_text_x = (
                 temp_star_x + temp_star_width + 5
             )  # Put Messier labels on the RIGHT of the object so they don't clash with NGC labels for the same thing.
-            new_image_buffer.DrawEllipse(
+            new_image_buffer.draw_ellipse(
                 temp_star_x,
                 temp_star_y,
                 int(temp_star_width),
@@ -3931,7 +3657,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             )
             if params.markup_show_labels:
                 text = az_alt_text(temp_star_az, temp_star_alt, "deg")
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     text, temp_text_x, temp_star_y + lineheight, size=0.5
                 )
                 text = (
@@ -3940,11 +3666,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     + " Dec:"
                     + temp_star_parms["declabel"]
                 )
-                new_image_buffer.AddText(
-                    text, temp_text_x, new_image_buffer.NextTextY, size=0.5
+                new_image_buffer.add_text(
+                    text, temp_text_x, new_image_buffer.next_text_y, size=0.5
                 )
                 if temp_star_name is not None:
-                    new_image_buffer.AddText(
+                    new_image_buffer.add_text(
                         temp_star_name.upper(), temp_text_x, temp_star_y - 20, size=1
                     )
 
@@ -3993,7 +3719,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             "records.",
             terminal=False,
         )
-        new_image_buffer.SetPenColor(pilomarimage.BGR("LightBlue"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("LightBlue"))
         for i in range(len(tempdf)):
             temp_star_parms = tempdf.iloc[
                 i
@@ -4082,7 +3808,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     temp_star_x - temp_star_width - 5
                 )  # Put NGC labels on the LEFT of the object so they don't clash with any matching Messier label for the same thing.
                 text = az_alt_text(temp_star_az, temp_star_alt, "deg")
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     text, temp_text_x, temp_star_y + lineheight, size=0.5, hjust="r"
                 )
                 text = (
@@ -4091,11 +3817,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     + " Dec:"
                     + temp_star_parms["declabel"]
                 )
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     text, temp_text_x, new_image_buffer.NextTextY, size=0.5, hjust="r"
                 )
                 if ngc_type is not None:  # Describe the object type.
-                    new_image_buffer.AddText(
+                    new_image_buffer.add_text(
                         ngc_type.title(),
                         temp_text_x,
                         new_image_buffer.NextTextY,
@@ -4103,7 +3829,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                         hjust="r",
                     )
                 if temp_star_name is not None:  # name - ie NGCxxx
-                    new_image_buffer.AddText(
+                    new_image_buffer.add_text(
                         temp_star_name.upper(),
                         temp_text_x,
                         temp_star_y - 30,
@@ -4111,7 +3837,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                         hjust="r",
                     )
                 if temp_star_name2 is not None:  # Known as - ie Whirlpool Galaxy
-                    new_image_buffer.AddText(
+                    new_image_buffer.add_text(
                         temp_star_name2.title(),
                         temp_text_x,
                         new_image_buffer.NextTextY,
@@ -4145,7 +3871,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             "entries.",
             terminal=False,
         )
-        new_image_buffer.SetPenColor(pilomarimage.BGR("PaleGreen"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("PaleGreen"))
         # Now convert this list of ra/dec locations into alt/az positions for plotting on the preview image.
         plotted_star_count = (
             0  # How many stars have been plotted? We don't want to swamp the display.
@@ -4193,11 +3919,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     and temp_star_constellation is not None
                 ):
                     temp_star_name += " (" + temp_star_constellation + ")"
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     temp_star_rec["label"], labelx, temp_star_y - 20
                 )  # Hipparcos ID
                 if len(temp_star_name) > 0:  # Add star name.
-                    new_image_buffer.AddText(
+                    new_image_buffer.add_text(
                         temp_star_name.title(),
                         labelx,
                         new_image_buffer.NextTextY,
@@ -4206,7 +3932,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     )
             if params.markup_show_labels:  # Show position labels. Alt/Az and Ra/Dec
                 text = az_alt_text(temp_star_az.degrees, temp_star_alt.degrees, "deg")
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     text, labelx, new_image_buffer.NextTextY, size=0.5
                 )
                 text = (
@@ -4215,7 +3941,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     + " Dec:"
                     + temp_star_rec["declabel"]
                 )
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     text, labelx, new_image_buffer.NextTextY, size=0.5
                 )
             if (
@@ -4242,7 +3968,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         cclist = (
             {}
         )  # We place the name of the constellation in the middle of the visible stars. This list builds up where those locations are.
-        new_image_buffer.SetPenColor(pilomarimage.BGR("Red"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("Red"))
         constellations_df = ConstellationStars.get(centre_ra, centre_dec)
         cam_log.log(
             "markup_preview: ShowConstellations: Columns available:",
@@ -4417,7 +4143,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     x2 = int(tox - (deltax * rad / hyp))
                     y1 = int(fromy + (deltay * rad / hyp))
                     y2 = int(toy - (deltay * rad / hyp))
-                    new_image_buffer.DrawLine((x1, y1), (x2, y2))
+                    new_image_buffer.draw_line((x1, y1), (x2, y2))
                 else:
                     cam_log.log(
                         "markup_preview: ShowConstellations: Too close to plot",
@@ -4484,13 +4210,13 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                 y = 20
             elif y > height - 20:
                 y = height - 20
-            new_image_buffer.AddText(
+            new_image_buffer.add_text(
                 ccname.title(), int(x), int(y), size=3, hjust=hjust
             )
 
     if True:  # Parameters.MarkupShowPlanets: # Mark neighbouring planets ....
         cam_log.log("markup_preview: ShowPlanets", terminal=False)
-        new_image_buffer.SetPenColor(pilomarimage.BGR("Gold"))
+        new_image_buffer.set_pen_color(PilomarImage.bgr("Gold"))
         # Find the alt/az locations of all the planets.
         for temp_star_name in [
             "sun",
@@ -4504,13 +4230,13 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             "neptune barycenter",
             "pluto barycenter",
         ]:
-            TempStarDescription = temp_star_name
+            temp_star_description = temp_star_name
             temp_star = planets[temp_star_name]
             temptarget = AstroTarget(
                 temp_star,
                 name=temp_star_name,
                 objecttype="planet",
-                description=TempStarDescription,
+                description=temp_star_description,
                 magnitude=0.0,
             )
             temp_star_az, temp_star_alt = temptarget.az_alt_degrees(time=t)
@@ -4531,16 +4257,16 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             )  # cyan # circle where the planet is.
             if params.markup_show_labels:
                 text = az_alt_text(temp_star_az, temp_star_alt, "deg")
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     text, temp_star_x + temp_star_width + 5, temp_star_y + 40
                 )
                 text = ra_dec_text(TempStarRA, temp_star_dec, "deg")
                 # text = "RA:" + str(TempStarRA) + " Dec:" + str(temp_star_dec)
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     text, temp_star_x + temp_star_width + 5, new_image_buffer.NextTextY
                 )
             if temp_star_name is not None:
-                new_image_buffer.AddText(
+                new_image_buffer.add_text(
                     temp_star_name.split()[0].title(),
                     temp_star_x + temp_star_width + 5,
                     temp_star_y - 20,
@@ -4550,11 +4276,11 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         False
     ):  # Parameters.MarkupShowRegistration: # Reference marks on preview image...
         cam_log.log("markup_preview: ShowRegistration", terminal=False)
-        new_image_buffer.SetPenColor(pilomarimage.BGR("Red"))
-        new_image_buffer.DrawLine((10, 10), (100, 10), thickness=3)  # Red
-        new_image_buffer.DrawLine((10, 10), (10, 100), thickness=3)  # Red
+        new_image_buffer.set_pen_color(PilomarImage.bgr("Red"))
+        new_image_buffer.draw_line((10, 10), (100, 10), thickness=3)  # Red
+        new_image_buffer.draw_line((10, 10), (10, 100), thickness=3)  # Red
         text = "(10,10)"
-        new_image_buffer.AddText(text, 40, 60, color=pilomarimage.BGR("Red"))  # red
+        new_image_buffer.add_text(text, 40, 60, color=PilomarImage.bgr("Red"))  # red
 
     if True:  # Parameters.MarkupShowDrift: # Mark last measured DRIFT indicator.
         cam_log.log(
@@ -4568,37 +4294,37 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             text = (
                 "Drift: " + str(drift_pixels_x) + "," + str(drift_pixels_y) + " pixels"
             )
-            new_image_buffer.DrawEdgeLine(
+            new_image_buffer.draw_edge_line(
                 (int(width / 2), int(height / 2)),
                 (
                     int(width / 2) + int(drift_pixels_x),
                     int(height / 2) + int(drift_pixels_y),
                 ),
-                color=pilomarimage.BGR("Red"),
-                edgecolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("Red"),
+                edgecolor=PilomarImage.bgr("Black"),
             )  # Black outline showing last measured drift.
             new_image_buffer.DrawCircle(
                 int(width / 2) + int(drift_pixels_x),
                 int(height / 2) + int(drift_pixels_y),
                 10,
-                color=pilomarimage.BGR("Red"),
+                color=PilomarImage.bgr("Red"),
             )  # Black outline showing last measured drift.
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 text,
                 int(width / 2) + int(drift_pixels_x) + 10,
                 int(height / 2) + int(drift_pixels_y) + 10,
-                color=pilomarimage.BGR("Red"),
-                edgecolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("Red"),
+                edgecolor=PilomarImage.bgr("Black"),
                 thickness=2,
                 edgethickness=2,
             )  # Red line
         else:
-            new_image_buffer.AddEdgeText(
+            new_image_buffer.add_edge_text(
                 "NO DRIFT AVAILABLE",
                 int(width / 2) + 150,
                 int(height / 2) + 150,
-                color=pilomarimage.BGR("Red"),
-                edgecolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("Red"),
+                edgecolor=PilomarImage.bgr("Black"),
                 thickness=2,
                 edgethickness=2,
             )  # Red line
@@ -4612,99 +4338,99 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         xpos = int(width / 2)
         ypos = int(height - 70)
         text = str(camera_in_use.last_image_date_time)
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             ypos,
             size=2.0,
-            color=pilomarimage.BGR("White"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("White"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="c",
         )
         # Filename in bottom left corner.
         xpos = int(10)
         ypos = int(height - 10)
         text = "File: " + filename
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             ypos,
-            color=pilomarimage.BGR("White"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("White"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
         # Program ID in bottom right corner.
         xpos = int(width - 10)
         ypos = int(height - 10)
-        new_image_buffer.AddText(
-            ProgramTitle + " " + VERSION,
+        new_image_buffer.add_text(
+            program_title + " " + VERSION,
             xpos,
             ypos,
-            color=pilomarimage.BGR("White"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("White"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         # Camera options in top left corner.
         xpos = int(width / 2)
         ypos = int(40)
         text = "Camera options: " + str(camera_in_use.last_light_command)
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             ypos,
-            color=pilomarimage.BGR("Yellow"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Yellow"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="c",
         )
         # Key in top right corner.
         xpos = width - 50
         ypos = 50
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "KEY",
             xpos,
             ypos,
-            color=pilomarimage.BGR("White"),
+            color=PilomarImage.bgr("White"),
             hjust="r",
-            bgcolor=pilomarimage.BGR("Black"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "Hipparcos O",
             xpos,
             new_image_buffer.NextTextY,
-            color=pilomarimage.BGR("PaleGreen"),
+            color=PilomarImage.bgr("PaleGreen"),
             hjust="r",
-            bgcolor=pilomarimage.BGR("Black"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "Messier O",
             xpos,
             new_image_buffer.NextTextY,
-            color=pilomarimage.BGR("Green"),
+            color=PilomarImage.bgr("Green"),
             hjust="r",
-            bgcolor=pilomarimage.BGR("Black"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "NGC O",
             xpos,
             new_image_buffer.NextTextY,
-            color=pilomarimage.BGR("LightBlue"),
+            color=PilomarImage.bgr("LightBlue"),
             hjust="r",
-            bgcolor=pilomarimage.BGR("Black"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "Planet O",
             xpos,
             new_image_buffer.NextTextY,
-            color=pilomarimage.BGR("Gold"),
+            color=PilomarImage.bgr("Gold"),
             hjust="r",
-            bgcolor=pilomarimage.BGR("Black"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "Constellation -",
             xpos,
             new_image_buffer.NextTextY,
-            color=pilomarimage.BGR("Red"),
+            color=PilomarImage.bgr("Red"),
             hjust="r",
-            bgcolor=pilomarimage.BGR("Black"),
+            bgcolor=PilomarImage.bgr("Black"),
         )
         # More detail in bottom right corner.
         xpos = int(width - 50)
@@ -4719,35 +4445,35 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                 + " of "
                 + str(i.AxisStepsPerRev)
             )
-            new_image_buffer.AddText(
+            new_image_buffer.add_text(
                 text,
                 xpos,
                 new_image_buffer.PrevTextY,
-                color=pilomarimage.BGR("Green"),
-                bgcolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("Green"),
+                bgcolor=PilomarImage.bgr("Black"),
                 hjust="r",
             )
         text = "Marking objects above magnitude " + str(
             round(params.target_min_magnitude, 1)
         )  # Object magnitude filter.
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("Gold"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Gold"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         if session.target.magnitude is not None:  # Magnitude of the target.
             text = "Target magnitude " + str(round(session.target.magnitude, 1))
         else:
             text = "Target magnitude UNKNOWN"
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("Gold"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Gold"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         # Astro location.
@@ -4755,21 +4481,21 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             session.target.object_type != "meteor"
         ):  # *Q* This doesn't work for meteor shower observations, so don't show it until fixed.
             text = az_alt_text(centre_az, centre_alt, "deg")
-            new_image_buffer.AddText(
+            new_image_buffer.add_text(
                 text,
                 xpos,
                 new_image_buffer.PrevTextY,
-                color=pilomarimage.BGR("HotPink"),
-                bgcolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("HotPink"),
+                bgcolor=PilomarImage.bgr("Black"),
                 hjust="r",
             )
             text = "RA: " + str(cRa) + " Dec: " + str(cDec)
-            new_image_buffer.AddText(
+            new_image_buffer.add_text(
                 text,
                 xpos,
                 new_image_buffer.PrevTextY,
-                color=pilomarimage.BGR("HotPink"),
-                bgcolor=pilomarimage.BGR("Black"),
+                color=PilomarImage.bgr("HotPink"),
+                bgcolor=PilomarImage.bgr("Black"),
                 hjust="r",
             )
         # Lens characteristics
@@ -4780,30 +4506,30 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             + deg_3dp(lens_in_use.fov_vertical)
             + "deg"
         )  # DEGREE_SYMBOL
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("Gold"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Gold"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         # Exposure details
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "Exposure: " + str(camera_in_use.exposure_seconds) + " seconds.",
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("Gold"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Gold"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         # Photo capture time.
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             "Captured: " + str(camera_in_use.last_image_date_time),
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("Gold"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Gold"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         if (
@@ -4818,31 +4544,31 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                 terminal=False,
             )
         text = "ImageCaptureEnd: " + str(camera_in_use.capture_end)
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("Cyan"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Cyan"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         text = "Markup time: " + str(ts_to_datetime(t))
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("Orange"),
-            bgcolor=pilomarimage.BGR("Black"),
+            color=PilomarImage.bgr("Orange"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
         text = "Target: " + session.target.name  # Target
-        new_image_buffer.AddText(
+        new_image_buffer.add_text(
             text,
             xpos,
             new_image_buffer.PrevTextY,
-            color=pilomarimage.BGR("White"),
+            color=PilomarImage.bgr("White"),
             thickness=2,
-            bgcolor=pilomarimage.BGR("Black"),
+            bgcolor=PilomarImage.bgr("Black"),
             hjust="r",
         )
 
@@ -4851,7 +4577,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         camera_window.print(
             now_hour_minute_sec() + " " + filename.split("/")[-1]
         )  # Show the preview filename that's being generated.
-        new_image_buffer.SaveFile(filename)
+        new_image_buffer.save_file(filename)
         camera_in_use.previewjpg = (
             filename  # Record the filename so that the web interface can access it.
         )
@@ -4985,7 +4711,7 @@ def create_target_image(
             + "/"
             + str(round(az_degree - tgt_az_degree, 4))
         )
-    NewTargetImage = pilomarimage(
+    NewTargetImage = PilomarImage(
         name="target_work", logger=cam_log
     )  # Create a new black canvas to draw upon.
     width = (
@@ -5039,8 +4765,8 @@ def create_target_image(
         FullCount = 0
         for temp_star_name, temp_star_parms in Messier_dictionary.items():  # Python3
             FullCount += 1
-            TempStarMagnitude = temp_star_parms["magnitude"]
-            if TempStarMagnitude > params.target_min_magnitude:  # Too dim to show.
+            temp_star_magnitude = temp_star_parms["magnitude"]
+            if temp_star_magnitude > params.target_min_magnitude:  # Too dim to show.
                 continue  # Skip to next object.
             TempStarRA = temp_star_parms[
                 "radeg"
@@ -5069,9 +4795,9 @@ def create_target_image(
             )  # Create star object from RADEC co-ordinates.
             temp_star_type = temp_star_parms["type"]
             if temp_star_type in ["galaxy", "cluster", "milky way"]:
-                TempStarColor = pilomarimage.BGR("MidnightBlue")
+                temp_star_color = PilomarImage.bgr("MidnightBlue")
             else:
-                TempStarColor = pilomarimage.BGR("HotPink")
+                temp_star_color = PilomarImage.bgr("HotPink")
             temp_star_width = int(
                 (
                     temp_star_parms["widthdeg"]
@@ -5092,7 +4818,7 @@ def create_target_image(
                 objecttype=temp_star_type,
                 constellation="",
                 description="",
-                magnitude=TempStarMagnitude,
+                magnitude=temp_star_magnitude,
             )
             temp_star_az, temp_star_alt = temptarget.az_alt_degrees(time=t)
             plot_star_alt, plot_star_az = relative_alt_az(
@@ -5109,7 +4835,7 @@ def create_target_image(
                 angle=0,
                 startAngle=0,
                 endAngle=360,
-                color=TempStarColor,
+                color=temp_star_color,
             )
             ItemCount += 1
         cam_log.log(
@@ -5197,7 +4923,7 @@ def create_target_image(
                 angle=0,
                 startAngle=0,
                 endAngle=360,
-                color=pilomarimage.BGR("DarkGreen"),
+                color=PilomarImage.bgr("DarkGreen"),
             )
         cam_log.log(
             "create_target_image: NGCItems: Plot NGC objects end. (",
@@ -5212,26 +4938,26 @@ def create_target_image(
     # If not specified by calling routine, try to match the number of stars detected in the latest live image.
     # (When simulating images, the first tracking pass will have 0 stars in the LatestStarCount, because it doesn't exist until we create it here.)
     if StarLimit is None:
-        StarLimit = max(drift_tracker.LatestImage.StarCount + 10, 50)
+        StarLimit = max(drift_tracker.latest_image.star_count + 10, 50)
         cam_log.log(
             "create_target_image: LatestStarCount from last saved image is:",
-            drift_tracker.LatestImage.StarCount,
+            drift_tracker.latest_image.star_count,
             terminal=False,
         )
         cam_log.log(
             "create_target_image: LatestImage exists?",
-            drift_tracker.LatestImage.ImageExists(),
+            drift_tracker.latest_image.ImageExists(),
             terminal=False,
         )
     cam_log.log("create_target_image: Setting StarLimit as:", StarLimit, terminal=False)
-    TempStarRadius = int(
+    temp_star_radius = int(
         params.tracking_star_radius
     )  # Default is that all stars are the same size in this image.
 
     if True:  # Parameters.TargetShowStars: # Mark neighbouring stars.
         # *Q* This can be very slow, taking 270 seconds in some tests. This hits the CPU hard especially when faking all the photographs!
         #     But when run alone consistently takes only 18 seconds. Hmmmmm.... A conflict comewhere?
-        StarCount = 0  # How many stars have we plotted?
+        star_count = 0  # How many stars have we plotted?
         neighbouring_stars = local_stars.get(centre_ra, centre_dec)
         cam_log.log(
             "create_target_image: neighbouring_stars contains",
@@ -5239,15 +4965,15 @@ def create_target_image(
             "entries.",
             terminal=False,
         )
-        TotalStars = len(neighbouring_stars)
+        total_stars = len(neighbouring_stars)
         hsat = home_site.at(
             t
         )  # Calculate this once, it's reused for each star in turn.
-        TempStarColor = pilomarimage.BGR(
+        temp_star_color = PilomarImage.bgr(
             "White"
         )  # B&W tracking images are just simple white dots.
 
-        for i in range(TotalStars):
+        for i in range(total_stars):
             if i % 400 == 0:
                 cam_log.log(
                     "create_target_image.ShowStars: Processing star", i, terminal=False
@@ -5277,28 +5003,28 @@ def create_target_image(
                 temp_star_x, temp_star_y
             ):  # The star is off the edge of the image, ignore it.
                 continue  # The star is off the edge of the image, ignore it.
-            TempStarMagnitude = temp_star_rec[
+            temp_star_magnitude = temp_star_rec[
                 "magnitude"
             ]  # Note the brightness of the star.
-            if TempStarMagnitude > MinMagnitude:  # Too dim
+            if temp_star_magnitude > MinMagnitude:  # Too dim
                 continue  # The star is too dim, ignore it.
             if (
                 color
             ):  # Colour images need star colour and represent the magnitude via the size of the star.
-                TempStarRadius = int(temp_star_rec["starradius"])
-                TempStarColor = (
+                temp_star_radius = int(temp_star_rec["starradius"])
+                temp_star_color = (
                     int(temp_star_rec["color_b"]),
                     int(temp_star_rec["color_g"]),
                     int(temp_star_rec["color_r"]),
                 )
             NewTargetImage.FillCircle(
-                temp_star_x, temp_star_y, TempStarRadius, color=TempStarColor
+                temp_star_x, temp_star_y, temp_star_radius, color=temp_star_color
             )
             starlist.append(
                 [temp_star_x, temp_star_y]
             )  # *Q* Does latest drift calculation need Radius or Magnitude anymore?
-            StarCount += 1  # Increment the count of stars plotted.
-            if StarCount >= StarLimit:
+            star_count += 1  # Increment the count of stars plotted.
+            if star_count >= StarLimit:
                 cam_log.log(
                     "create_target_image: drift_tracker star limit "
                     + str(StarLimit)
@@ -5315,18 +5041,18 @@ def create_target_image(
                 break
         cam_log.log(
             "create_target_image: Marked",
-            StarCount,
+            star_count,
             "of",
             StarLimit,
             "Stars,",
-            TotalStars,
+            total_stars,
             "available.",
             terminal=False,
         )
-        if StarCount < StarLimit:
+        if star_count < StarLimit:
             cam_log.log(
                 "create_target_image: Exhausted neighbouring_stars cache after",
-                StarCount,
+                star_count,
                 "stars.",
                 terminal=False,
             )
@@ -5336,7 +5062,7 @@ def create_target_image(
     if True:  # Parameters.TargetShowPlanets: # Mark neighbouring planets ....
         # Find the alt/az locations of all the planets.
         cam_log.log("create_target_image: Plot planets start.", terminal=False)
-        PlanetRadii = [
+        planet_radii = [
             40,
             4,
             6,
@@ -5348,17 +5074,17 @@ def create_target_image(
             4,
             4,
         ]  # Radius to draw solar system objects. Must match list below.
-        PlanetColors = [
-            pilomarimage.BGR("Yellow"),
-            pilomarimage.BGR("White"),
-            pilomarimage.BGR("White"),
-            pilomarimage.BGR("White"),
-            pilomarimage.BGR("Red"),
-            pilomarimage.BGR("Yellow"),
-            pilomarimage.BGR("Gold"),
-            pilomarimage.BGR("White"),
-            pilomarimage.BGR("Blue"),
-            pilomarimage.BGR("White"),
+        planet_colors = [
+            PilomarImage.bgr("Yellow"),
+            PilomarImage.bgr("White"),
+            PilomarImage.bgr("White"),
+            PilomarImage.bgr("White"),
+            PilomarImage.bgr("Red"),
+            PilomarImage.bgr("Yellow"),
+            PilomarImage.bgr("Gold"),
+            PilomarImage.bgr("White"),
+            PilomarImage.bgr("Blue"),
+            PilomarImage.bgr("White"),
         ]  # Color to draw solar system objects. Must match list below.
         for i, temp_star_name in enumerate(
             [
@@ -5374,21 +5100,21 @@ def create_target_image(
                 "pluto barycenter",
             ]
         ):
-            TempStarMagnitude = 0.0
-            if TempStarMagnitude > MinMagnitude:  # Too dim to show.
+            temp_star_magnitude = 0.0
+            if temp_star_magnitude > MinMagnitude:  # Too dim to show.
                 continue  # Skip to next planet.
             if color:  # Color images try to be vaguelly realistic.
-                TempStarColor = PlanetColors[i]
-                TempStarRadius = PlanetRadii[i]
+                temp_star_color = planet_colors[i]
+                temp_star_radius = planet_radii[i]
             else:  # Grayscale images just need to show dots for items.
-                TempStarColor = pilomarimage.BGR("White")
-            TempStarDescription = temp_star_name
+                temp_star_color = PilomarImage.bgr("White")
+            temp_star_description = temp_star_name
             temp_star = planets[temp_star_name]
             temptarget = AstroTarget(
                 temp_star,
                 name=temp_star_name,
                 objecttype="planet",
-                description=TempStarDescription,
+                description=temp_star_description,
                 magnitude=0.0,
             )
             temp_star_az, temp_star_alt = temptarget.az_alt_degrees(time=t)
@@ -5401,26 +5127,26 @@ def create_target_image(
                 plot_star_alt, plot_star_az, height, width
             )
             NewTargetImage.FillCircle(
-                temp_star_x, temp_star_y, TempStarRadius, color=TempStarColor
+                temp_star_x, temp_star_y, temp_star_radius, color=temp_star_color
             )
         cam_log.log("create_target_image: Plot planets end.", terminal=False)
 
     if textlabel is not None:  # We have a text string to include in the image too.
-        NewTargetImage.AddText(
-            textlabel, 10, 50, color=pilomarimage.BGR("White"), size=1.0, thickness=1
+        NewTargetImage.add_text(
+            textlabel, 10, 50, color=PilomarImage.bgr("White"), size=1.0, thickness=1
         )
 
     if color:  # Return a colour image.
         pass
     else:  # Return Grayscale image.
-        NewTargetImage.ChangeType("grayscale")  # Convert BGR to grayscale.
+        NewTargetImage.change_type("grayscale")  # Convert BGR to grayscale.
     cam_log.log(
         "create_target_image: Elapsed time ",
         str((now_utc() - routine_start).total_seconds()),
         terminal=False,
     )
     cam_log.log("create_target_image: Complete.", terminal=False)
-    return NewTargetImage.ImageBuffer, StarCount, starlist
+    return NewTargetImage.image_buffer, star_count, starlist
 
 
 def auto_preview():
@@ -5526,7 +5252,7 @@ def image_count_campaign():
     main_log.log("image_count_campaign: basedir", basedir, terminal=False)
     searchpath = basedir + "/**/*" + selext
     main_log.log("image_count_campaign: searchpath", searchpath, terminal=False)
-    FileCountList = {}
+    file_count_list = {}
     for file in glob.glob(
         searchpath, recursive=True
     ):  # Recursive search through all the folders of the current campaign.
@@ -5534,11 +5260,11 @@ def image_count_campaign():
         foldertype = trimmedfile.split("/")[-2].split("_")[
             0
         ]  # Last remaining item is filename, Penultimate folder is image type.
-        FileCountList[foldertype] = (
-            FileCountList.get(foldertype, 0) + 1
+        file_count_list[foldertype] = (
+            file_count_list.get(foldertype, 0) + 1
         )  # How many files of this type so far?
     # Convert the list of image types and counts into a summarised text string.
-    for key, value in FileCountList.items():
+    for key, value in file_count_list.items():
         result += (
             key + "=" + str(value) + " "
         )  # Abbreviate image type and number of images.
@@ -5581,40 +5307,40 @@ def camera_handler(outboundqueue, inboundqueue):
     Long exposures (>4seconds) really need the camera to move DURING the exposure.
     outboundqueue and inboundqueue are the communication queues that can be used to control this thread.
     """
-    RunThread = True  # Set to False to terminate the handler. This will shutdown the thread entirely.
+    run_thread = True  # Set to False to terminate the handler. This will shutdown the thread entirely.
     batch_size = 1
     cam_log.log("camera_handler: Started")
     camera_window.print(now_hour_minute_sec() + " camera_handler started.")
     ready_to_observe = False  # When True the handler can start taking photographs.
     cam_log.log("camera_handler.initial: ready_to_observe = False", terminal=False)
     prev_ready_to_observe = False  # Detect when the ready_to_observe status changes.
-    PhotoCount = 0  # Counter of completed photographs.
+    photo_count = 0  # Counter of completed photographs.
     camera_in_use.batch_count = 0  # Counter of completed photographs.
     az_drift_steps = 0
     alt_drift_steps = 0
-    DriftX = None
-    DriftY = None
+    drift_x = None
+    drift_y = None
     TimeAllocation = (
         {}
     )  # Measure how much time is spent on each task. Helps get scheduling and priorities right.
-    AllocationTimer = Timer(600)  # Report time allocation figures every 10 minutes.
-    LoopCounter = 0  # Count the number of loops.
+    allocation_timer = Timer(600)  # Report time allocation figures every 10 minutes.
+    loop_counter = 0  # Count the number of loops.
     camera_in_use.current_task = None  # No task currently active.
     # Flush any outstanding commands in the command queue.
-    FlushedCount = 0
+    flushed_count = 0
     while (
         not inboundqueue.empty()
     ):  # There are some commands available from observation_run to the camera.
         # Get the incoming message.
-        ReceivedMessage = inboundqueue.get()
+        received_message = inboundqueue.get()
         cam_log.log(
             "camerahandler: Communication flush: Ignoring:",
-            ReceivedMessage,
+            received_message,
             terminal=False,
         )
-        FlushedCount += 1
-    if FlushedCount > 0:
-        camera_window.print("Flushed", FlushedCount, "old messages.")
+        flushed_count += 1
+    if flushed_count > 0:
+        camera_window.print("Flushed", flushed_count, "old messages.")
     # Set observation specific parameters. These change based upon the target type etc.
     # - This sets camera_in_use.camera_tasks, the types of images to save, fast capture mode etc.
     camera_in_use.set_observation_parameters(
@@ -5623,7 +5349,7 @@ def camera_handler(outboundqueue, inboundqueue):
 
     cam_log.log("camerahandler: Begin main loop.", terminal=False)
     while (
-        RunThread
+        run_thread
     ):  # This will run through all queued commands in sequence, then start polling periodically for new ones.
         if (
             not threading.main_thread().is_alive()
@@ -5632,22 +5358,22 @@ def camera_handler(outboundqueue, inboundqueue):
                 "camera_handler: Parent thread is nolonger alive. Stopping.",
                 level="error",
             )
-            RunThread = False
+            run_thread = False
             time.sleep(5)
             break
 
         # Which task will we perform in this loop?
-        LoopTask = camera_in_use.camera_tasks[0]
-        camera_in_use.current_task = LoopTask
-        LoopStartTimestamp = now_utc()  # How much time has been spent on this task?
-        PrevTaskList = (
+        loop_task = camera_in_use.camera_tasks[0]
+        camera_in_use.current_task = loop_task
+        loop_start_timestamp = now_utc()  # How much time has been spent on this task?
+        prev_task_list = (
             camera_in_use.camera_tasks
         )  # This will be restored if the camera receives an override task from the main loop. So we don't miss anything.
         camera_in_use.camera_tasks = camera_in_use.camera_tasks[
             1:
         ]  # Shift the task list ready for the next loop.
-        camera_in_use.camera_tasks.append(LoopTask)
-        cam_log.log("camera_handler: Loop task:", LoopTask, terminal=False)
+        camera_in_use.camera_tasks.append(loop_task)
+        cam_log.log("camera_handler: Loop task:", loop_task, terminal=False)
 
         # This will run through all queued commands in sequence before capturing images if allowed.
         # This is performed regardless of which task is being performed in this loop.
@@ -5655,93 +5381,93 @@ def camera_handler(outboundqueue, inboundqueue):
             not inboundqueue.empty()
         ):  # There are some commands available from observation_run to the camera.
             # Get the incoming message.
-            ReceivedMessage = inboundqueue.get()
+            received_message = inboundqueue.get()
             camera_in_use.rx_count += 1
             cam_log.log(
-                "camera_handler received command: " + str(ReceivedMessage),
+                "camera_handler received command: " + str(received_message),
                 terminal=False,
             )
             camera_tx_window.print(
-                dictionary_to_string(ReceivedMessage)
+                dictionary_to_string(received_message)
             )  # Report communications from Main to Camera.
-            if "Stop" in ReceivedMessage:  # Main routine has told camera to shutdown.
-                RunThread = False
-                ReplyMessage = {
+            if "Stop" in received_message:  # Main routine has told camera to shutdown.
+                run_thread = False
+                reply_message = {
                     "TimeStamp": now_utc(),
                     "Stop": "acknowledged",
                 }  # Confirm back to main thread that STOP will be attempted.
-                outboundqueue.put(ReplyMessage)
+                outboundqueue.put(reply_message)
                 camera_in_use.tx_count += 1
                 camera_rx_window.print(
-                    dictionary_to_string(ReplyMessage)
+                    dictionary_to_string(reply_message)
                 )  # Report communications from Camera to Main.
             if (
-                "LoopTask" in ReceivedMessage
+                "loop_task" in received_message
             ):  # Main routine has requested an immediate preview image or some other task override.
                 # If multiple overrides are received in the same loop, only the latest one is actioned.
-                LoopTask = ReceivedMessage[
+                loop_task = received_message[
                     "Task"
-                ]  # Overwrite LoopTask to make it do whatever the main routine wants.
-                camera_in_use.camera_tasks = PrevTaskList  # We have overridden the planned task sequence, restore the planned list to it's previous state so nothing is missed.
+                ]  # Overwrite loop_task to make it do whatever the main routine wants.
+                camera_in_use.camera_tasks = prev_task_list  # We have overridden the planned task sequence, restore the planned list to it's previous state so nothing is missed.
                 dev_window.print(
                     now_hour_minute_sec()
-                    + ' LoopTask override "'
-                    + LoopTask
+                    + ' loop_task override "'
+                    + loop_task
                     + '" received.'
                 )
                 cam_log.log(
-                    "camera_handler.inboundqueue: LoopTask overridden with",
-                    LoopTask,
+                    "camera_handler.inboundqueue: loop_task overridden with",
+                    loop_task,
                     terminal=False,
                 )
             if (
-                "BatchSize" in ReceivedMessage
+                "BatchSize" in received_message
             ):  # Main routine is updating the batch size.
-                batch_size = ReceivedMessage["BatchSize"]
+                batch_size = received_message["BatchSize"]
             if (
-                "ready_to_observe" in ReceivedMessage
+                "ready_to_observe" in received_message
             ):  # Main routine is updating the ready_to_observe status.
-                ready_to_observe = ReceivedMessage["ready_to_observe"]
+                ready_to_observe = received_message["ready_to_observe"]
                 cam_log.log(
                     "camera_handler.inboundqueue: ready_to_observe =",
                     ready_to_observe,
                     terminal=False,
                 )
-            if "Reset" in ReceivedMessage:  # Instruction to reset image buffers.
+            if "Reset" in received_message:  # Instruction to reset image buffers.
                 camera_in_use.reset()  # Reset the image buffers.
                 camera_window.print(now_hour_minute_sec() + " Reset image buffers.")
                 cam_log.log(
                     "camera_handler.inboundqueue: reset received.", terminal=False
                 )
             if (
-                "PhotoCount" in ReceivedMessage
+                "photo_count" in received_message
             ):  # Main routine is updating the current photo count.
-                PhotoCount = ReceivedMessage["PhotoCount"]
-                ReplyMessage = {
+                photo_count = received_message["photo_count"]
+                reply_message = {
                     "TimeStamp": now_utc(),
                     "PhotoCountReset": True,
                 }  # Acknowledge that the photo count has been reset.
-                outboundqueue.put(ReplyMessage)
+                outboundqueue.put(reply_message)
                 camera_in_use.tx_count += 1
                 camera_rx_window.print(
-                    dictionary_to_string(ReplyMessage)
+                    dictionary_to_string(reply_message)
                 )  # Report communications from Camera to Main.
 
-        if LoopTask == "image":  # Taking an actual photo.
+        if loop_task == "image":  # Taking an actual photo.
             image_status_window.field_value(
-                "CTASK", LoopTask, fg=TextColor.BLACK, bg=OSW_TEXT_GOOD
+                "CTASK", loop_task, fg=TextColor.BLACK, bg=OSW_TEXT_GOOD
             )  # Tell the image status window what the camera is currently doing.
-        elif LoopTask == "tracking":  # Taking a tracking photo.
+        elif loop_task == "tracking":  # Taking a tracking photo.
             image_status_window.field_value(
-                "CTASK", LoopTask, fg=TextColor.BLACK, bg=TextColor.CYAN
+                "CTASK", loop_task, fg=TextColor.BLACK, bg=TextColor.CYAN
             )
-        elif LoopTask == "preview":  # Generate preview image.
+        elif loop_task == "preview":  # Generate preview image.
             image_status_window.field_value(
-                "CTASK", LoopTask, fg=TextColor.BLACK, bg=TextColor.MAGENTA
+                "CTASK", loop_task, fg=TextColor.BLACK, bg=TextColor.MAGENTA
             )
         else:  # Doing something else.
             image_status_window.field_value(
-                "CTASK", LoopTask, fg=TextColor.BLACK, bg=OSW_TEXT_POOR
+                "CTASK", loop_task, fg=TextColor.BLACK, bg=OSW_TEXT_POOR
             )  # Tell the image status window what the camera is currently doing.
 
         # If the Microcontroller stops working or talking, we cannot be sure that ready_to_observe is still valid.
@@ -5781,23 +5507,23 @@ def camera_handler(outboundqueue, inboundqueue):
         if ready_to_observe:
             # Calculate drift.
             if (
-                LoopTask == "tracking"
+                loop_task == "tracking"
             ):  # Time to consider a tracking check, and it's enabled.
                 if (
-                    drift_tracker.TrackingAge() is None
-                    or drift_tracker.TrackingAge() > drift_tracker.TrackingInterval
+                    drift_tracker.tracking_age() is None
+                    or drift_tracker.tracking_age() > drift_tracker.tracking_interval
                 ):
-                    TrackingDue = True
+                    tracking_due = True
                 else:
-                    TrackingDue = False
+                    tracking_due = False
                 if (
                     not params.use_tracking
                 ):  # Tracking currently disabled. (User can dynamically change this switch during observation).
-                    if TrackingDue:
+                    if tracking_due:
                         drift_window.print(
                             now_hour_minute_sec() + " Drift tracking disabled."
                         )  # Warn the user.
-                elif TrackingDue:
+                elif tracking_due:
                     # First update the drift_tracker
                     obs_start = now_utc()
                     cam_log.log(
@@ -5833,8 +5559,8 @@ def camera_handler(outboundqueue, inboundqueue):
                     cam_log.log(
                         "camera_handler: Storing latest tracking image.", terminal=False
                     )
-                    drift_tracker.SetLatestImage(
-                        camera_in_use.image.ImageBuffer, obs_start
+                    drift_tracker.set_latest_image(
+                        camera_in_use.image.image_buffer, obs_start
                     )  # OpenCV (numpy) array of the camera image it is saved in drift_tracker as Grayscale and reduced and enhanced.
                     cam_log.log(
                         "camera_handler: Consider storing target image...",
@@ -5871,7 +5597,7 @@ def camera_handler(outboundqueue, inboundqueue):
                         "camera_handler: Calling SetTargetImage after create_target_image",
                         terminal=False,
                     )
-                    drift_tracker.SetTargetImage(
+                    drift_tracker.set_target_image(
                         TempCvBuffer,
                         starcount=TempStarCount,
                         starlist=TempStarList,
@@ -5891,22 +5617,22 @@ def camera_handler(outboundqueue, inboundqueue):
                     az_drift_steps = 0  # No drift unless we safely calculate one.
                     alt_drift_steps = 0
                     if params.tracking_prediction:  # Project drift forward over time.
-                        DriftX, DriftY, _ = drift_tracker.PredictedTransform(
+                        drift_x, drift_y, _ = drift_tracker.predicted_transform(
                             now_utc()
                         )  # Predict the drift by using the measured drift between 2 images and extrapolating forward to now.
                     else:  # Use directly measured drift.
-                        DriftX = drift_tracker.dx
-                        DriftY = drift_tracker.dy
+                        drift_x = drift_tracker.dx
+                        drift_y = drift_tracker.dy
                     cam_log.log(
                         "camera_handler: drift_tracker PredictedTransform driftx",
-                        str(DriftX),
+                        str(drift_x),
                         "drifty",
-                        str(DriftY),
+                        str(drift_y),
                         terminal=False,
                     )
-                    temp = len(drift_tracker.LatestStarMatchList)
+                    temp = len(drift_tracker.latest_star_match_list)
                     if (
-                        DriftX is not None and temp < params.tracking_match_threshold
+                        drift_x is not None and temp < params.tracking_match_threshold
                     ):  # At least 6 stars must have been matched.
                         cam_log.log(
                             "camera_handler: drift_tracker, low confidence.",
@@ -5920,27 +5646,27 @@ def camera_handler(outboundqueue, inboundqueue):
                             + str(temp)
                             + " star(s)."
                         )
-                        DriftX = None
-                        DriftY = None
+                        drift_x = None
+                        drift_y = None
                     cam_log.log(
                         "camera_handler: drift_tracker trusted driftx",
-                        str(DriftX),
+                        str(drift_x),
                         "drifty",
-                        str(DriftY),
+                        str(drift_y),
                         terminal=False,
                     )
-                    if DriftX is not None:
-                        az_drift_steps = int(DriftX / az_pixels_per_fullstep)
+                    if drift_x is not None:
+                        az_drift_steps = int(drift_x / az_pixels_per_fullstep)
                         alt_drift_steps = (
-                            int(DriftY / alt_pixels_per_fullstep) * -1
+                            int(drift_y / alt_pixels_per_fullstep) * -1
                         )  # Invert result to convert from IMAGE Y direction to Motor Alt direction.
                         cam_log.log(
                             "camera_handler: Predicted drift: x="
-                            + str(round(DriftX, 2))
+                            + str(round(drift_x, 2))
                             + "("
                             + str(az_drift_steps)
                             + "steps), y="
-                            + str(round(DriftY, 2))
+                            + str(round(drift_y, 2))
                             + "("
                             + str(alt_drift_steps)
                             + "steps)",
@@ -5949,9 +5675,9 @@ def camera_handler(outboundqueue, inboundqueue):
                     drift_window.print(
                         now_hour_minute_sec()
                         + " Drift result: "
-                        + str(DriftX)
+                        + str(drift_x)
                         + ","
-                        + str(DriftY)
+                        + str(drift_y)
                         + " px; "
                         + str(az_drift_steps)
                         + ","
@@ -6020,21 +5746,21 @@ def camera_handler(outboundqueue, inboundqueue):
                                     + ", drift is too small.",
                                     terminal=False,
                                 )
-                    ReplyMessage = {
+                    reply_message = {
                         "TimeStamp": now_utc(),
-                        "DriftX": DriftX,
-                        "DriftY": DriftY,
+                        "drift_x": drift_x,
+                        "drift_y": drift_y,
                         "az_drift_steps": az_drift_steps,
                         "alt_drift_steps": alt_drift_steps,
                     }
-                    outboundqueue.put(ReplyMessage)
+                    outboundqueue.put(reply_message)
                     camera_in_use.tx_count += 1
                     camera_rx_window.print(
-                        dictionary_to_string(ReplyMessage)
+                        dictionary_to_string(reply_message)
                     )  # Report communications from Camera to Main.
                     cam_log.log("camera_handler: End drift calculation", terminal=False)
             if (
-                LoopTask == "image"
+                loop_task == "image"
             ):  # Time to take an actual image. (If timelapse is active, only when it's due, otherwise every time.)
                 if not camera_in_use.timelapse_due():  # Check timelapse mechanism.
                     cam_log.log(
@@ -6055,7 +5781,7 @@ def camera_handler(outboundqueue, inboundqueue):
                             + " Begin "
                             + TextColor.green("image")
                             + " capture ("
-                            + str(PhotoCount + 1)
+                            + str(photo_count + 1)
                             + ") "
                             + str(camera_in_use.exposure_seconds)
                             + "s."
@@ -6087,21 +5813,21 @@ def camera_handler(outboundqueue, inboundqueue):
                         terminal=False,
                     )
                     if result:
-                        PhotoCount += 1
+                        photo_count += 1
                         camera_in_use.batch_count += 1
-                        ReplyMessage = {
+                        reply_message = {
                             "TimeStamp": now_utc(),
-                            "PhotoCount": PhotoCount,
+                            "photo_count": photo_count,
                             "ObsStart": obs_start,
                             "ObsEnd": obs_end,
                             "ObsTime": obs_time,
-                            "RunThread": True,
+                            "run_thread": True,
                         }
                         outboundqueue.put(
-                            ReplyMessage
+                            reply_message
                         )  # Report communications from Camera to Main.
                         camera_in_use.tx_count += 1
-                        camera_rx_window.print(dictionary_to_string(ReplyMessage))
+                        camera_rx_window.print(dictionary_to_string(reply_message))
                         cam_log.log(
                             "Folder for image details:",
                             folder_handler.get_path("session"),
@@ -6137,7 +5863,7 @@ def camera_handler(outboundqueue, inboundqueue):
                                 f.write(
                                     "Now"
                                     + "\t"
-                                    + "PhotoCount"
+                                    + "photo_count"
                                     + "\t"
                                     + "Obs start"
                                     + "\t"
@@ -6157,7 +5883,7 @@ def camera_handler(outboundqueue, inboundqueue):
                             f.write(
                                 str(now_utc())
                                 + "\t"
-                                + str(PhotoCount)
+                                + str(photo_count)
                                 + "\t"
                                 + str(obs_start)
                                 + "\t"
@@ -6185,10 +5911,10 @@ def camera_handler(outboundqueue, inboundqueue):
                             "camera_handler: Image capture did not succeed. Stopping.",
                             level="error",
                         )
-                        RunThread = False  # Something went wrong, quit!
+                        run_thread = False  # Something went wrong, quit!
 
             # Generate a labelled copy of the image periodically. For monitoring.
-            if LoopTask == "preview":  # Time to consider making a preview markup.
+            if loop_task == "preview":  # Time to consider making a preview markup.
                 if (
                     preview_timer.due() and camera_in_use.image.ImageExists()
                 ):  # Periodically prepare a new preview image. This is slow, so don't do it very frequently.
@@ -6212,17 +5938,17 @@ def camera_handler(outboundqueue, inboundqueue):
                     cam_log.log("camera_handler: End image markup", terminal=False)
 
             # Stop taking photos when the limit is reached. The main thread will also command the photos to stop, but it may be delayed.
-            if PhotoCount >= params.batch_size:
+            if photo_count >= params.batch_size:
                 cam_log.log(
                     "camera_handler: Batch size reached.",
-                    PhotoCount,
+                    photo_count,
                     "images captured.",
                     terminal=False,
                 )
                 camera_window.print(
                     now_hour_minute_sec()
                     + " camera_handler: Batch size reached. "
-                    + str(PhotoCount)
+                    + str(photo_count)
                     + " images captured."
                 )
                 ready_to_observe = False
@@ -6235,26 +5961,26 @@ def camera_handler(outboundqueue, inboundqueue):
                 "CTASK", "WAITING", fg=TextColor.WHITE, bg=TextColor.RED
             )
 
-        if RunThread and LoopTask == "pause":
+        if run_thread and loop_task == "pause":
             time.sleep(0.25)  # Small delay in each loop to relax things.
 
         # How much time has been spent on this task?
-        LoopDuration = (now_utc() - LoopStartTimestamp).total_seconds()
-        TimeAllocation[LoopTask] = LoopDuration + TimeAllocation.get(LoopTask, 0.0)
-        LoopCounter += 1
-        if LoopTask != "pause":  # Record CPU usage for the latest task.
+        LoopDuration = (now_utc() - loop_start_timestamp).total_seconds()
+        TimeAllocation[loop_task] = LoopDuration + TimeAllocation.get(loop_task, 0.0)
+        loop_counter += 1
+        if loop_task != "pause":  # Record CPU usage for the latest task.
             cam_log.log(
                 "camera_handler: Loop completed",
-                LoopTask,
+                loop_task,
                 "in",
                 round(LoopDuration, 2),
                 "seconds",
                 terminal=False,
             )
         if (
-            AllocationTimer.due()
+            allocation_timer.due()
         ):  # Report how much time has been spent on each type of task.
-            cam_log.log("camera_handler: Completed loop", LoopCounter, terminal=False)
+            cam_log.log("camera_handler: Completed loop", loop_counter, terminal=False)
             totaltime = 0
             for key, value in TimeAllocation.items():
                 totaltime += value
@@ -6274,11 +6000,11 @@ def camera_handler(outboundqueue, inboundqueue):
                 )
 
     camera_in_use.current_task = None  # No task currently active.
-    ReplyMessage = {"TimeStamp": now_utc(), "RunThread": False}
-    outboundqueue.put(ReplyMessage)
+    reply_message = {"TimeStamp": now_utc(), "run_thread": False}
+    outboundqueue.put(reply_message)
     camera_in_use.tx_count += 1
     camera_rx_window.print(
-        dictionary_to_string(ReplyMessage)
+        dictionary_to_string(reply_message)
     )  # Report communications from Camera to Main.
     camera_window.print(now_hour_minute_sec() + " camera_handler stopped.")
     cam_log.log("camera_handler: Finished.")
@@ -6329,8 +6055,8 @@ def shutdown_camera():
             session.camera_rx_count += 1  # We received another message from the camera.
         else:
             StatusMessage = {}  # Nothing from camera_handler.
-        if "RunThread" in StatusMessage:  # RunThread status message received.
-            if not StatusMessage["RunThread"]:  # camera_handler is shutting down.
+        if "run_thread" in StatusMessage:  # run_thread status message received.
+            if not StatusMessage["run_thread"]:  # camera_handler is shutting down.
                 print("camera_thread stopping...")
                 if camera_thread.is_alive():
                     camera_thread.join()  # Wait for it to complete.
@@ -6918,18 +6644,6 @@ def report_observation_errors():
     return True
 
 
-def get_position_ages():
-    """Return the age of the position measurements of each motor.
-    Returns values in rounded whole seconds."""
-    AzAge = AltAge = 0
-    for i in motor_contollers:
-        if i.motor_name == "azimuth":
-            AzAge = i.PositionAge()
-        else:
-            AltAge = i.PositionAge()
-    return AzAge, AltAge
-
-
 def incomplete_observation_check():
     """If the previous observation didn't complete,
     warn that camera positions may be incorrect
@@ -7032,7 +6746,7 @@ def observation_run():
 
     # Setup campaign information.
     document_session()  # Create text file listing the details of this session.
-    drift_tracker.Reset()  # Clear the drift tracking object for this new observation target.
+    drift_tracker.reset()  # Clear the drift tracking object for this new observation target.
 
     if params.use_tracking:
         drift_window.print(now_hour_minute_sec() + " Drift tracking is active.")
@@ -7071,18 +6785,18 @@ def observation_run():
             terminal=False,
         )
     obsstart = now_utc()  # Note the start of the observation run.
-    PhotoCount = 0  # How many photos have been taken? We can exit the loop when the limit is reached. If Camera is disabled, it will loop forever.
+    photo_count = 0  # How many photos have been taken? We can exit the loop when the limit is reached. If Camera is disabled, it will loop forever.
     SlowLoopCounter = 0  # Count how often we have slow processing loops, it can be the sign of storage problems.
 
-    # Reset PhotoCount in the camera and wait for acknowledgement.
-    # PhotoCount is maintained by the camera_thread, so we must communicate with it.
+    # Reset photo_count in the camera and wait for acknowledgement.
+    # photo_count is maintained by the camera_thread, so we must communicate with it.
     start_camera_thread()  # Fire up the camera thread if it's not running.
     time.sleep(
         0.5
     )  # Pause briefly before sending the control message to the camera handler.
     ControlMessage = {
         "TimeStamp": now_utc(),
-        "PhotoCount": 0,
+        "photo_count": 0,
     }  # *Q* Can be common attribute now rather than message queues.
     camera_control_queue.put(
         ControlMessage
@@ -7094,7 +6808,7 @@ def observation_run():
     )  # Tell the camera to reset the photo count.
     session.camera_tx_count += 1  # We sent another message to the camera.
     # Wait for acknowledgement
-    main_log.log("observation_run: Resetting camera PhotoCount.", terminal=False)
+    main_log.log("observation_run: Resetting camera photo_count.", terminal=False)
     ack = False  # No acknowledgement from the camera yet.
     AckTimer = Timer(
         600
@@ -7126,12 +6840,12 @@ def observation_run():
             session.camera_rx_count += 1  # We received another message.
             if (
                 "PhotoCountReset" in StatusMessage
-            ):  # Is it acknowledging that the PhotoCount has been reset?
+            ):  # Is it acknowledging that the photo_count has been reset?
                 ack = True  # Acknowledged, OK to proceed.
-                main_log.log("Reset camera PhotoCount acknowledged.", terminal=False)
+                main_log.log("Reset camera photo_count acknowledged.", terminal=False)
             else:  # The message is for some other purpose, we ignore it for now.
                 main_log.log(
-                    "Reset camera PhotoCount ignored " + str(StatusMessage),
+                    "Reset camera photo_count ignored " + str(StatusMessage),
                     terminal=False,
                 )
         # If the camera has not acknowledged in a reasonable time, assume something is wrong and quit.
@@ -7435,9 +7149,9 @@ def observation_run():
             )  # Retrieve the first message in the queue.
             session.camera_rx_count += 1  # We received another message from the camera.
             # Extract any useful information from the received messages.
-            if "PhotoCount" in StatusMessage:
-                PhotoCount = StatusMessage[
-                    "PhotoCount"
+            if "photo_count" in StatusMessage:
+                photo_count = StatusMessage[
+                    "photo_count"
                 ]  # Camera has updated the number of photographs taken during this run.
         # Calculate the current position of the target. This also updates the cached values, which remain valid for the duration of this loop.
         dtnow = now_utc()  # In datetime format.
@@ -7650,7 +7364,7 @@ def observation_run():
                     observationresult = False  # Don't continue
                     RunObservation = False  # Terminate the observation.
 
-        if PhotoCount >= params.batch_size:
+        if photo_count >= params.batch_size:
             # We've taken the required number of photos as defined by BatchSize.
             # The camera_handler thread is probably already working on the next one, so you may get an extra freebie!
             main_log.log(
@@ -7710,7 +7424,7 @@ def observation_run():
 
         image_status_window.field_value("IMAGES", str(image_count()), fg=OSW_TEXT_GOOD)
         # Calculate total accumulated image time.
-        AccumulatedTime = PhotoCount * camera_in_use.exposure_seconds
+        AccumulatedTime = photo_count * camera_in_use.exposure_seconds
         if AccumulatedTime >= 1:  # Show in HH:MM:SS
             image_status_window.field_value(
                 "ACCTIME", human_readable_seconds(AccumulatedTime), fg=OSW_TEXT_GOOD
@@ -7722,10 +7436,10 @@ def observation_run():
         if True:
             pceta = ""  # Don't know the estimated completion time yet.
             if (
-                PhotoCount > 0 and ObservationStartUTC is not None
+                photo_count > 0 and ObservationStartUTC is not None
             ):  # We can estimate when the batch of photographs will be completed.
                 pcprogress = (
-                    float(PhotoCount) / params.batch_size
+                    float(photo_count) / params.batch_size
                 )  # Percentage of way through the image batch.
                 if (
                     pcprogress > 0.0
@@ -7739,10 +7453,10 @@ def observation_run():
                     pceta = str(pcend)[:16]  # YYYY.MM.DD HH:MM
             image_status_window.field_value(
                 "RUN",
-                str(PhotoCount) + " of " + str(params.batch_size),
+                str(photo_count) + " of " + str(params.batch_size),
                 fg=OSW_TEXT_GOOD,
             )
-            if PhotoCount >= params.batch_size:  # We've hit the target.
+            if photo_count >= params.batch_size:  # We've hit the target.
                 image_status_window.field_color(
                     "RUN", fg=TextColor.BLACK, bg=TextColor.LIGHTGREEN
                 )  # Highlight we've made it.
@@ -7750,7 +7464,7 @@ def observation_run():
         else:
             image_status_window.field_value(
                 "RUN",
-                str(PhotoCount) + " of " + str(params.batch_size) + "(dis.)",
+                str(photo_count) + " of " + str(params.batch_size) + "(dis.)",
                 fg=TextColor.RED1,
             )  # Red
             image_status_window.field_value("ETA", "n/a", fg=OSW_TEXT_GOOD)
@@ -7764,7 +7478,7 @@ def observation_run():
         update_camera_capture_status()
         # Explain what is in the 'last captured image' buffer.
         if camera_in_use.image.ImageExists():  # openCV image buffer is loaded.
-            if len(camera_in_use.image.ImageBuffer.shape) > 2:
+            if len(camera_in_use.image.image_buffer.shape) > 2:
                 fmt = "color"  # Show whether COLOUR or GRAYSCALE image in the OpenCV buffer.
             else:
                 fmt = "gray"
@@ -7773,9 +7487,9 @@ def observation_run():
                 "loaded "
                 + hms_from_stamp(camera_in_use.last_image_date_time)
                 + " "
-                + str(camera_in_use.image.ImageBuffer.shape[0]).rjust(4)
+                + str(camera_in_use.image.image_buffer.shape[0]).rjust(4)
                 + "*"
-                + str(camera_in_use.image.ImageBuffer.shape[1]).rjust(4)
+                + str(camera_in_use.image.image_buffer.shape[1]).rjust(4)
                 + " "
                 + fmt,
                 fg=OSW_TEXT_GOOD,
@@ -7783,22 +7497,22 @@ def observation_run():
         else:
             image_status_window.field_value("OCVIB", "empty", fg=OSW_TEXT_POOR)
         # Explain the status of the TARGET tracking image.
-        if drift_tracker.TargetImage.ImageExists():  # openCV image buffer is loaded.
+        if drift_tracker.target_image.ImageExists():  # openCV image buffer is loaded.
             temp = (
                 "matched "
-                + str(len(drift_tracker.TargetStarMatchList))
+                + str(len(drift_tracker.target_star_match_list))
                 + " of "
-                + str(drift_tracker.TargetImage.StarCount)
+                + str(drift_tracker.target_image.star_count)
                 + " stars"
             )
-            if len(drift_tracker.TargetImage.ImageBuffer.shape) > 2:
+            if len(drift_tracker.target_image.image_buffer.shape) > 2:
                 fmt = "color"  # Show whether COLOUR or GRAYSCALE image in the OpenCV buffer.
             else:
                 fmt = "gray"
             temp = (
-                str(drift_tracker.TargetImage.ImageBuffer.shape[0]).rjust(4)
+                str(drift_tracker.target_image.image_buffer.shape[0]).rjust(4)
                 + "*"
-                + str(drift_tracker.TargetImage.ImageBuffer.shape[1]).rjust(4)
+                + str(drift_tracker.target_image.image_buffer.shape[1]).rjust(4)
                 + " "
                 + fmt
                 + " "
@@ -7806,28 +7520,31 @@ def observation_run():
             )
             image_status_window.field_value(
                 "DTI",
-                "loaded " + hms_from_stamp(drift_tracker.TargetTimeStamp) + " " + temp,
+                "loaded "
+                + hms_from_stamp(drift_tracker.target_time_stamp)
+                + " "
+                + temp,
                 fg=OSW_TEXT_GOOD,
             )
         else:  # No drift target image available.
             image_status_window.field_value("DTI", "empty", fg=OSW_TEXT_POOR)
         # Explain the status of the LATEST tracking image.
-        if drift_tracker.LatestImage.ImageExists():  # openCV image buffers are loaded.
+        if drift_tracker.latest_image.ImageExists():  # openCV image buffers are loaded.
             temp = (
                 "matched "
-                + str(len(drift_tracker.LatestStarMatchList))
+                + str(len(drift_tracker.latest_star_match_list))
                 + " of "
-                + str(drift_tracker.LatestImage.StarCount)
+                + str(drift_tracker.latest_image.star_count)
                 + " stars"
             )
-            if len(drift_tracker.LatestImage.ImageBuffer.shape) > 2:
+            if len(drift_tracker.latest_image.image_buffer.shape) > 2:
                 fmt = "color"  # Show whether COLOUR or GRAYSCALE image in the OpenCV buffer.
             else:
                 fmt = "gray"
             temp = (
-                str(drift_tracker.LatestImage.ImageBuffer.shape[0]).rjust(4)
+                str(drift_tracker.latest_image.image_buffer.shape[0]).rjust(4)
                 + "*"
-                + str(drift_tracker.LatestImage.ImageBuffer.shape[1]).rjust(4)
+                + str(drift_tracker.latest_image.image_buffer.shape[1]).rjust(4)
                 + " "
                 + fmt
                 + " "
@@ -7835,7 +7552,10 @@ def observation_run():
             )
             image_status_window.field_value(
                 "DLI",
-                "loaded " + hms_from_stamp(drift_tracker.LatestTimeStamp) + " " + temp,
+                "loaded "
+                + hms_from_stamp(drift_tracker.latest_time_stamp)
+                + " "
+                + temp,
                 fg=OSW_TEXT_GOOD,
             )
         else:  # No current drift image available.
@@ -8054,7 +7774,7 @@ def disable_cleanup():  # For menu
                     session.target.name, camera_in_use.exposure_seconds
                 )  # This assigns folder names for all the image types.
                 document_session()
-                drift_tracker.Reset()
+                drift_tracker.reset()
         else:
             print(
                 "- With libcamera installations you should edit the --denoise parameter in the command templates."
@@ -8084,7 +7804,7 @@ def enable_cleanup():  # For menu
                     session.target.name, camera_in_use.exposure_seconds
                 )  # This assigns folder names for all the image types.
                 document_session()
-                drift_tracker.Reset()
+                drift_tracker.reset()
         else:
             print(
                 "- With libcamera installations you should edit the --denoise parameter in the command templates."
@@ -8256,7 +7976,7 @@ def document_session():
     """Create a brief description of the session and key parameters.
     Details are written to a disc file."""
     with open(folder_handler.prep_file("session", "info.txt"), "w") as f:
-        f.write("# " + ProgramTitle.upper() + " session settings:\n")
+        f.write("# " + program_title.upper() + " session settings:\n")
         f.write("Program started\t" + str(session.program_start_time) + "\n")
         f.write("Source code\t" + source_code() + "\n")
         f.write("Source version\t" + str(source_date()) + "\n")
@@ -8426,7 +8146,7 @@ def select_target():  # For menu
             session.target.name, camera_in_use.exposure_seconds
         )  # This assigns folder names for all the image types.
         document_session()
-        drift_tracker.Reset()
+        drift_tracker.reset()
         program_status()  # Show current situation of the telescope and target.
 
 
@@ -8572,7 +8292,7 @@ def program_status():  # For menu
     listlines = []
     temp = (
         " "
-        + ProgramTitle.upper()
+        + program_title.upper()
         + " "
         + VERSION
         + " "
@@ -8816,7 +8536,7 @@ def tracking_status():
     # Results of latest drift calculation.
     print(TextColor.white("Drift calculation"))
     sm_fg = OSW_TEXT_GOOD
-    ltemp = len(drift_tracker.TargetStarMatchList)
+    ltemp = len(drift_tracker.target_star_match_list)
     if ltemp < 1:
         sm_fg = OSW_TEXT_BAD
     elif ltemp < 10:
@@ -8846,15 +8566,15 @@ def tracking_status():
     # Processing of the TARGET image.
     print(
         "     Target image: Loaded",
-        drift_tracker.TargetImage.ImageExists(),
-        drift_tracker.TargetTimeStamp,
+        drift_tracker.target_image.ImageExists(),
+        drift_tracker.target_time_stamp,
     )
     BadThreshold = 50
     PoorThreshold = 70
-    drift_tracker.TargetImage.CalculateStarSpread()  # Calculate the spread of stars in the target image.
-    hs = round(drift_tracker.TargetImage.HorizontalSpread, 0)
-    vs = round(drift_tracker.TargetImage.VerticalSpread, 0)
-    imgs = round(drift_tracker.TargetImage.AreaSpread, 0)
+    drift_tracker.target_image.CalculateStarSpread()  # Calculate the spread of stars in the target image.
+    hs = round(drift_tracker.target_image.HorizontalSpread, 0)
+    vs = round(drift_tracker.target_image.VerticalSpread, 0)
+    imgs = round(drift_tracker.target_image.AreaSpread, 0)
     hs_fg = vs_fg = imgs_fg = (
         OSW_TEXT_GOOD  # What color to show for GOOD star spread percentages?
     )
@@ -8872,7 +8592,7 @@ def tracking_status():
         imgs_fg = OSW_TEXT_POOR  # Area star spread is POOR.
     print(
         "       Star count:",
-        drift_tracker.TargetImage.StarCount,
+        drift_tracker.target_image.star_count,
         "Spread:",
         "Horiz",
         TextColor.fgbgcolor(hs_fg, TextColor.BLACK, str(hs)),
@@ -8886,13 +8606,13 @@ def tracking_status():
     # Processing of the LATEST image.
     print(
         "     Latest image: Loaded",
-        drift_tracker.LatestImage.ImageExists(),
-        drift_tracker.LatestTimeStamp,
+        drift_tracker.latest_image.ImageExists(),
+        drift_tracker.latest_time_stamp,
     )
-    drift_tracker.LatestImage.CalculateStarSpread()  # Calculate the spread of stars in the target image.
-    hs = round(drift_tracker.LatestImage.HorizontalSpread, 0)
-    vs = round(drift_tracker.LatestImage.VerticalSpread, 0)
-    imgs = round(drift_tracker.LatestImage.AreaSpread, 0)
+    drift_tracker.latest_image.CalculateStarSpread()  # Calculate the spread of stars in the target image.
+    hs = round(drift_tracker.latest_image.HorizontalSpread, 0)
+    vs = round(drift_tracker.latest_image.VerticalSpread, 0)
+    imgs = round(drift_tracker.latest_image.AreaSpread, 0)
     hs_fg = vs_fg = imgs_fg = (
         OSW_TEXT_GOOD  # What color to show for GOOD star spread percentages?
     )
@@ -8910,7 +8630,7 @@ def tracking_status():
         imgs_fg = OSW_TEXT_POOR  # Area star spread is POOR.
     print(
         "       Star count:",
-        drift_tracker.LatestImage.StarCount,
+        drift_tracker.latest_image.star_count,
         "Spread:",
         "Horiz",
         TextColor.fgbgcolor(hs_fg, TextColor.BLACK, str(hs)),
@@ -9181,7 +8901,7 @@ def about_camera():
 
 def about():
     """Display version information."""
-    print(TextColor.yellow("About", ProgramTitle))
+    print(TextColor.yellow("About", program_title))
     # Print timestamp.
     main_log.log("Now:", now_utc(), "UTC", terminal=True)
     # Print O/S and hardware
@@ -9217,13 +8937,13 @@ def about():
             main_log.log("Uptime:", line, terminal=True)
     # Print program ID
     main_log.log(
-        "Program:", ProgramTitle, terminal=True
+        "Program:", program_title, terminal=True
     )  # What program name is running?
     main_log.log(
         "Program version:", VERSION, terminal=True
     )  # Print RPi software version.
     main_log.log(
-        "Project root:", ProjectRoot, terminal=True
+        "Project root:", project_root, terminal=True
     )  # What is the project root?
     if session.valid_controller_version():
         main_log.log(
@@ -9566,10 +9286,10 @@ def lens50mm():
 
 if __name__ == "__main__":
 
-    ProgramTitle = (
+    program_title = (
         source_code().split("/")[-1].split(".")[0].lower()
     )  # Used in display titles and also filenaming to separate different generations of the program.
-    print(ProgramTitle, VERSION)
+    print(program_title, VERSION)
 
     # Dictionary of 'toggles' so that warnings do not repeat too often.
     resume_observation = False  # Set this to TRUE to automatically load the previous observation and resume.
@@ -9585,26 +9305,37 @@ if __name__ == "__main__":
     # Identify the program and version to the user.
     print(TextColor.yellow(source_code() + " " + str(source_date())))
 
-    ProjectRoot = os.path.dirname("/home/pi/pilomar")  # Root directory of the project.
+    # Determine project root dynamically based on where this script is located
+    # pilomar.py is in the src/ directory, so go up one level to get project root
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    print(f"Project root: {project_root}")
+    
+    # Create necessary subdirectories if they don't exist
+    required_dirs = ['log', 'data', 'temp', 'fonts', 'docs']
+    for dirname in required_dirs:
+        dirpath = os.path.join(project_root, dirname)
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath, exist_ok=True)
+            print(f"Created directory: {dirpath}")
 
     RELOAD_DATA = False  # Set to True to reload the data files.
 
     # Initialize Logging.
-    logdir = ProjectRoot + "/log"
+    logdir = os.path.join(project_root, "log")
     # Main log file.
-    LogFileName = logdir + "/" + ProgramTitle + "_" + utc_time_stamp() + ".log"
-    print("Main log to", LogFileName)
+    log_file_name = os.path.join(logdir, program_title + "_" + utc_time_stamp() + ".log")
+    print("Main log to", log_file_name)
     main_log = LogFile(
-        LogFileName, clockoffset=clock_offset
+        log_file_name, clockoffset=clock_offset
     )  # Create a MAIN log file object.
 
     # Camera log file.
-    CamLogFileName = (
-        logdir + "/" + ProgramTitle + "_camera_" + utc_time_stamp() + ".log"
+    cam_log_file_name = os.path.join(
+        logdir, program_title + "_camera_" + utc_time_stamp() + ".log"
     )
-    print("Camera log to", CamLogFileName)
+    print("Camera log to", cam_log_file_name)
     cam_log = LogFile(
-        CamLogFileName, clockoffset=clock_offset
+        cam_log_file_name, clockoffset=clock_offset
     )  # Create a CAMERA specific log file. (This runs in separate thread, unsure if logging would be thread-safe.)
 
     main_log.log("Python version:", sys.version, terminal=False)
@@ -9613,10 +9344,12 @@ if __name__ == "__main__":
     )  # Record that 'reload' has been triggered.
 
     main_log.log("Startup parameters:", run_args, terminal=False)
-    HistoryJsonFile = (
-        ProjectRoot + "/data/" + ProgramTitle + "_sessions.json"
+    HistoryJsonFile = os.path.join(
+        project_root, "data", program_title + "_sessions.json"
     )  # Chosen observation targets and settings are stored in this file.
 
+    # Update os_cmd instance to use the main_log logger
+    _os_cmd_instance.log = main_log.log
     OSCommand = OSCommand(main_log.log)  # Create OS Command executor.
     os_cmd = (
         OSCommand.execute
@@ -9658,17 +9391,17 @@ if __name__ == "__main__":
     )
     main_log.log("GPIO driver chosen:", gpio.GPIO_DRIVER, terminal=False)
     if OS_systemkey in SUPPORTED_SYSTEMS:
-        main_log.log(ProgramTitle, "OK to run under", OS_systemkey, terminal=False)
+        main_log.log(program_title, "OK to run under", OS_systemkey, terminal=False)
     else:  # Cannot proceed, wrong O/S & hardware combination.
         main_log.log(
-            ProgramTitle,
+            program_title,
             "is only designed to run under",
             SUPPORTED_SYSTEMS,
             level="error",
             terminal=True,
         )
         main_log.log(
-            ProgramTitle,
+            program_title,
             "is not designed to run under",
             OS_name,
             OS_bits,
@@ -9681,7 +9414,7 @@ if __name__ == "__main__":
             terminal=True,
         )
         raise Exception(
-            str(ProgramTitle)
+            str(program_title)
             + " is not designed to run under this combination of hardware and O/S."
         )
 
@@ -9692,7 +9425,7 @@ if __name__ == "__main__":
         "find "
         + logdir
         + " -type f -name '"
-        + ProgramTitle
+        + program_title
         + "_*.log' -mtime +2 -print"
     )
     linelist = os_cmd(cmd)
@@ -9704,7 +9437,7 @@ if __name__ == "__main__":
         "find "
         + logdir
         + " -type f -name '"
-        + ProgramTitle
+        + program_title
         + "_*.log' -mtime +2 -delete"
     )
     print(cmd)  # Show the user the command being executed.
@@ -9756,7 +9489,7 @@ if __name__ == "__main__":
         bg=OSW_TEXT_BG,
         titlefg=OSW_TITLE_FG,
         titlebg=OSW_TITLE_BG,
-        title="Observation status " + ProgramTitle.upper() + " " + VERSION,
+        title="Observation status " + program_title.upper() + " " + VERSION,
     )  # This is the text window that displays current progress of an observation.
     observation_status_window.draw_border = True  # Draw border around window.
     observation_status_window.set_border_colors(
@@ -10164,7 +9897,7 @@ if __name__ == "__main__":
     )  # When redrawing windows, only the changed lines are repainted.
 
     # Establish the filename of the parameters file that will be loaded.
-    parameter_file_name = ProjectRoot + "/data/" + ProgramTitle + "_params.json"
+    parameter_file_name = project_root + "/data/" + program_title + "_params.json"
     params = Parameters(
         filename=parameter_file_name,
         logger=main_log,
@@ -10354,7 +10087,7 @@ if __name__ == "__main__":
         )
 
     folder_handler = FolderHandler(
-        projectroot=ProjectRoot, logger=main_log
+        projectroot=project_root, logger=main_log
     )  # Create FolderHandler instance. Defines folder structures and creates them as needed.
 
     # Create camera related objects.
@@ -10548,13 +10281,13 @@ if __name__ == "__main__":
 
     # Load dictionary listing star NAMES, CONSTELLATION and Hipparcos catalog number.
     load = Loader(
-        ProjectRoot + "/data"
+        os.path.join(project_root, "data")
     )  # Create own version of Skyfield 'load' object. This version saves cache files in the data directory.
-    star_name_url = ProjectRoot + "/data/starnames.json"
-    messier_dict_url = ProjectRoot + "/data/messierobjects.json"
-    meteor_dict_url = ProjectRoot + "/data/meteors.json"
-    ngc_cache_file = ProjectRoot + "/data/ngc.pkl"
-    ngc_url = ProjectRoot + "/data/ngc.json"
+    star_name_url = os.path.join(project_root, "data", "starnames.json")
+    messier_dict_url = os.path.join(project_root, "data", "messierobjects.json")
+    meteor_dict_url = os.path.join(project_root, "data", "meteors.json")
+    ngc_cache_file = os.path.join(project_root, "data", "ngc.pkl")
+    ngc_url = os.path.join(project_root, "data", "ngc.json")
 
     # Load starname dictionary.
     main_log.log(
@@ -10802,7 +10535,7 @@ if __name__ == "__main__":
         "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"
     )
     main_log.log("Loading celes_trak station data from", celestrakurl, terminal=True)
-    celes_trak = Celestrack(celestrakurl, logger=main_log, projectroot=ProjectRoot)
+    celes_trak = Celestrack(celestrakurl, logger=main_log, projectroot=project_root)
 
     if (
         RELOAD_DATA

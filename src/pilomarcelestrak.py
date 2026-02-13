@@ -17,27 +17,30 @@
 
 import os
 from datetime import datetime, timedelta
+from utils.params import AttributeMaster
 from utils.text.human_readable import human_readable_seconds
-from utils.text.textcolor import TextColor
 import json
 import requests  # To handle json response for seeing conditions from online services.
 from requests.exceptions import HTTPError  # Error handling.
 
 
-class Celestrack:
+class Celestrack(AttributeMaster):
     """Download Celestrack TLE data.
     Data is cached on disc and only updated once the disc cache is > 30 days old."""
 
     def __init__(self, url, logger=None, projectroot=None):
+        super().__init__()
         self.set_logger(logger)  # Define which logging stream to use.
         self.url = url  # "https://Celestrack.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle" # Where to find the latest TLE data
         self.tle_dict = {}  # TLE data converted into a dictionary for easy searching.
         if projectroot is None:
-            self.celestrack_cache_file_name = "/home/pi/pilomar/data/Celestrackcache.json"  # The disc cache filename used to store the data locally.
-        else:  # ProjectRoot = '/home/pi/pilomar'
+            # The disc cache filename used to store the data locally.
             self.celestrack_cache_file_name = (
-                projectroot + "/data/Celestrackcache.json"
-            )  # The disc cache filename used to store the data locally.
+                "/home/pi/pilomar/data/Celestrackcache.json"
+            )
+        else:  # ProjectRoot = '/home/pi/pilomar'
+            # The disc cache filename used to store the data locally.
+            self.celestrack_cache_file_name = projectroot + "/data/Celestrackcache.json"
         self.satellite_list = []  # List of satellite names, use for selecting objects.
         self.refresh()  # Refresh the data, load from Celestrack if needed else use the disc cache.
 
@@ -54,7 +57,7 @@ class Celestrack:
     def tle_age_warning(self, name):  # *Q* Is this still used?
         """Extract the epoch datetime from the 1st line of a TLE entry.
         Warn if it's > 30days old. It will need updating."""
-        line1, line2 = self.get_tle_lines(name)
+        line1, _ = self.get_tle_lines(name)
         if line1 is None:
             if self.log is not None:
                 self.log(
@@ -143,9 +146,8 @@ class Celestrack:
             self.log("Celestrack.DownloadData: begin", terminal=False)
         WSOK = True
         try:  # Trap and report errors, but don't allow the entire program to abort.
-            response = requests.get(
-                self.url
-            )  # Try to retrieve the response from the remote server.
+            # Try to retrieve the response from the remote server.
+            response = requests.get(self.url, timeout=10)
             response.raise_for_status()  # Check for errors in the request.
             TLEText = response.text  # Convert the response into a text object.
             self.extract_data(TLEText)  # Convert text into dictionary.

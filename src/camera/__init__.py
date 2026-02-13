@@ -1,4 +1,5 @@
-# This file is used to import the classes from the camera module.
-from camera.astro_lens import AstroLens
-from camera.astro_sensor import AstroSensor
-from camera.camera import AstroCamera
+# Camera module
+# Import what you need directly from submodules to avoid circular imports
+# Example: from camera.camera import AstroCamera
+
+__all__ = ["AstroCamera", "AstroLens", "AstroSensor"]
