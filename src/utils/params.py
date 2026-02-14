@@ -70,7 +70,7 @@ class AttributeMaster:  # A parent class containing some common methods that oth
             # Save the updated dictionary back to disc.
             json.dump(tempdictionary, f, indent=4, default=str)
         # When the file is complete, rename it to its proper name.
-        osCmd("mv " + tempfilename + " " + filename)
+        os.replace(tempfilename, filename)
 
     def save_to_dictionary(
         self, allowlist=None, denylist=None, initialdictionary={}, nameprefix=None
@@ -183,6 +183,7 @@ class Parameters(AttributeMaster):  # Common
         self,
         filename,
         logger=None,
+        camera_driver=None,
         dev_window: ColorDisplay = None,
         error_window: ColorDisplay = None,
         camera_window: ColorDisplay = None,
@@ -205,6 +206,7 @@ class Parameters(AttributeMaster):  # Common
         self.drift_window: ColorDisplay = drift_window
         self.session_window: ColorDisplay = session_window
         self.param_filename = filename  # The disc copy of the parameter file. This is overwritten if the program completes correctly.
+        self._init_camera_driver = camera_driver  # Store the initial camera_driver value.
         self.load_parameters()
         self.require_restart = False  # These parameters are safe to consistently configure microcontroller and run observations.
         # Set to FALSE if they change and require a software restart.
@@ -436,7 +438,7 @@ class Parameters(AttributeMaster):  # Common
         # Applies to raspistill only!
         self.disable_cleanup = self.get_parm_val("DisableCleanup", True)
         self.camera_driver = self.get_parm_val(
-            "camera_driver", camera_driver
+            "CameraDriver", self._init_camera_driver
         )  # Set outside the Parameters object.
         self.set_camera_driver(
             self.camera_driver
@@ -545,8 +547,8 @@ class Parameters(AttributeMaster):  # Common
         self.local_tz = self.get_parm_val(
             "LocalTZ", "Europe/London"
         )  # What's the local timezone (pytz values). pytz.all_timezones() lists all available. Info only at present.
-        self.home_lat = self.get_parm_val("HomeLat", None)  # Latitude of the observer.
-        self.home_lon = self.get_parm_val("HomeLon", None)  # Longitude of the observer.
+        self.home_lat = self.get_parm_val("HomeLat", None, oldnames=["home_lat"])  # Latitude of the observer.
+        self.home_lon = self.get_parm_val("HomeLon", None, oldnames=["home_lon"])  # Longitude of the observer.
         self._home_lat_val = 0.0
         if self.home_lat is not None:
             self._home_lat_val = float(

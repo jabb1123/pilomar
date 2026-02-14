@@ -107,13 +107,14 @@ class ColorDisplay:
                 1
             ]  # Pull the character column width from the CDLayout list.
             row = 1
+            cd: ColorDisplay
             for (
                 cd
             ) in (
                 ColorDisplay.DefinedWindows
             ):  # Stack each new window beneath previous ones in a column.
                 if (
-                    cd.CDEntry == self.color_display_entry
+                    cd.color_display_entry == self.color_display_entry
                     and cd.last_display_row >= row
                 ):
                     row = (
@@ -123,14 +124,14 @@ class ColorDisplay:
         self.display_row = row  # What's the location of the 1st cell in the display on the actual terminal?
         self.display_col = col
         if self.display_row is not None and self.display_rows is not None:
-            self.last_display_row = (
+            self.last_display_row: int = (
                 self.display_row + self.display_rows - 1
             )  # Where does the display END ?
         else:
             self.last_display_row = None
         if self.display_col is not None and self.display_columns is not None:
             # self.last_display_col = self.DisplayCol + self.DisplayColumns - 1
-            self.last_display_col = self.display_col + self.display_columns
+            self.last_display_col: int = self.display_col + self.display_columns
         else:
             self.last_display_col = None
         if isinstance(fg, list):

@@ -111,6 +111,12 @@ import math  # Math and trig functions.
 import os  # OS Command execution.
 import sys
 
+# Configure UTF-8 encoding for Windows console to support Unicode box-drawing characters
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 # import sep # This is used by astroalign, it is only imported here to flush out any problems with the package. (It has suffered from the classic 'numpy.ndarray size changed' in the past.)
 # Run the image capture in a separate thread so that motor movement can continue. *Q* Drift calculation and targetting could also move to separate thread.
 import threading
@@ -138,11 +144,11 @@ from skyfield.constants import GM_SUN_Pitjeva_2005_km3_s2 as GM_SUN
 from skyfield.data import mpc, stellarium
 
 import gpio  # GPIO wrappers to support different GPIO libraries.
+from camera.astro_lens import AstroLens
+from camera.astro_sensor import AstroSensor
 
 # Pilomar's CAMERA elements - import directly from modules to avoid circular imports
 from camera.camera import AstroCamera
-from camera.astro_lens import AstroLens
-from camera.astro_sensor import AstroSensor
 
 # Pilomar's IMAGE BUFFER handler (combines numpy, OpenCV and pilomar specific routines)
 from camera.image import PilomarImage
@@ -151,19 +157,29 @@ from camera.targets.local import LocalStars  # Pilomar's LOCAL STAR cache.
 from camera.targets.target import AstroTarget  # Pilomar's TARGET handling.
 from camera.targets.track import ImageTracker  # Pilomar's IMAGE TRACKER.
 from gpio.micro import Microcontroller  # Pilomar's microcontroller handler.
-from motor.control import MotorControl
+from motor.control import MotorControl, last_reported_alt_az
 from oscommand import OSCommand  # Pilomar's OS command executor.
 
 # Create a simple wrapper function for os_cmd that can be used throughout the code
 _os_cmd_instance = OSCommand()  # Create without logger initially
+
+
 def os_cmd(cmd, output="none"):
     """Execute an OS command and return the output as a list of lines."""
     _os_cmd_instance.execute(cmd, output=output)
     return _os_cmd_instance.last_output
 
+
 from pilomarcelestrak import Celestrack  # Pilomar's CELESTRAK satellite data handler.
 from session.list import SessionList
 from session.status import SessionStatus  # Pilomar's session handling.
+from utils.coordinates import (
+    alt_az_to_xyz,
+    calculate_vector,
+    plot_relative_alt_az,
+    relative_alt_az,
+    xyz_to_alt_az,
+)
 from utils.disk import DiskMonitor, DiskType  # Pilomar's disc storage monitor.
 from utils.files import FolderHandler  # File handling routines.
 from utils.logfile import LogFile  # Pilomar's logging class.
@@ -178,25 +194,14 @@ from utils.math_func import (
     hms_to_angle,
     interpolate,
     is_float,
-    text_to_int,
-    text_to_float,
     pandas_float,
+    text_to_float,
+    text_to_int,
 )
 from utils.menus import OptionMenu, ProcedureMenu  # Basic menu handlers.
 from utils.params import AttributeMaster, Parameters
+from utils.star_utils import dim_channel, hip_color, magnitude2_radius
 from utils.statics import DEGREE_SYMBOL, SYMBOLS
-from utils.coordinates import (
-    alt_az_to_xyz,
-    xyz_to_alt_az,
-    relative_alt_az,
-    plot_relative_alt_az,
-    calculate_vector,
-)
-from utils.star_utils import (
-    dim_channel,
-    magnitude2_radius,
-    hip_color,
-)
 
 # Basic colour character graphics for window display on terminal.
 from utils.text.display import ColorDisplay, ask_yes_no
@@ -396,14 +401,16 @@ def az_alt_text(az, alt, symbol=None) -> str:
     """Return standardised string of Altitude and Azimuth coordinates."""
     if symbol is None:
         symbol = DEGREE_SYMBOL
-    return "az: " + deg_3dp(az) + symbol + " alt: " + deg_3dp(alt) + symbol
+    return f"az: {deg_3dp(az)}{symbol} alt: {deg_3dp(alt)}{symbol}"
 
 
 def ra_dec_text(radeg, decdeg, symbol=None):
     """Return standardised string of RA and DEC coordinates."""
     th, tm, ts = angle_to_hms(radeg)  # Convert deg to hms.
     temp = display_hms(th, tm, ts).strip()  # Convert to string.
-    return "RA: " + temp + " Dec: " + deg_3dp(decdeg) + symbol  # Return entire string.
+    if symbol is None:
+        symbol = DEGREE_SYMBOL
+    return f"RA: {temp} Dec: {deg_3dp(decdeg)}{symbol}"  # Return entire string.
 
 
 def get_terminal_size():
@@ -415,7 +422,7 @@ def get_terminal_size():
 
 
 # Use discmonitor to find any potential USB memory too.
-def choose_usb_memory():
+def choose_usb_memory() -> str:
     """If a USB memory stick is attached, find it."""
     usbdev = None  # Default USB memory device.
     usb_list = sd_card_monitor.list_us_bdevices()  # List all the potential devices.
@@ -1463,7 +1470,7 @@ def choose_comet(prechosen=None):
         objecttype="comet",
         description=desc,
         constellation=None,
-        magnitude=None,
+        magnitude=0.0,
         searchgroup="comet",
         searchterm=search_value,
         cometpandasrow=row,
@@ -1572,20 +1579,18 @@ def choose_solar(prechosen=None):
             result = prechosen
         if result is None:  # Nothing selected.
             return None  # Quit.
-        main_log.log("choose_solar: Observation target input:" + result, terminal=False)
+        main_log.log(
+            f"choose_solar: Observation target input: {result}", terminal=False
+        )
         if result not in available_targets:
             if prechosen is not None:
                 main_log.log(
-                    "choose_solar: Prechosen not "
-                    + str(prechosen)
-                    + " recognised. Ignored.",
+                    f"choose_solar: Prechosen {prechosen} not recognised. Ignored.",
                     terminal=False,
                 )
                 return None  # Scrap the attempt.
             print(
-                TextColor.red(
-                    "'" + result + "' is not a recognised target name. Try again."
-                )
+                TextColor.red(f"'{result}' is not a recognised target name. Try again.")
             )
             result = ""
     if result == "sun":
@@ -1709,7 +1714,7 @@ def choose_local_tz(default=None):
         if result is None:
             return default
         if not result in pytz.all_timezones:
-            print(TextColor.red("'" + result + "' is not recognised. Try again."))
+            print(TextColor.red(f"'{result}' is not recognised. Try again."))
             result = ""
     return result
 
@@ -1752,26 +1757,21 @@ def choose_satellite(prechosen=None):
         if result is None:  # Nothing selected.
             return None  # Quit.
         main_log.log(
-            "choose_satellite: Observation target input:" + result, terminal=False
+            f"choose_satellite: Observation target input: {result}", terminal=False
         )
         if result not in available_targets:
             if prechosen is not None:
                 main_log.log(
-                    "choose_satellite: Prechosen '"
-                    + str(prechosen)
-                    + "' not recognised. Ignored.",
+                    f"choose_satellite: Prechosen '{prechosen}' not recognised. Ignored.",
                     terminal=False,
                 )
                 main_log.log(
-                    "choose_satellite: Recognised list:",
-                    str(available_targets),
+                    f"choose_satellite: Recognised list: {available_targets}",
                     terminal=False,
                 )
                 return None  # Scrap the attempt.
             print(
-                TextColor.red(
-                    "'" + result + "' is not a recognised target name. Try again."
-                )
+                TextColor.red(f"'{result}' is not a recognised target name. Try again.")
             )
             result = ""
     line1, line2 = celes_trak.get_tle_lines(
@@ -1783,20 +1783,18 @@ def choose_satellite(prechosen=None):
             es,
             name=result,
             objecttype="earth satellite",
-            description="Spacestation:" + result,
+            description=f"Spacestation: {result}",
             magnitude=-6.0,
             searchgroup="satellite",
             searchterm=result,
         )
     else:
         main_log.log(
-            "choose_satellite: Could not initialize target (" + result + ")",
+            f"choose_satellite: Could not initialize target ({result})",
             level="error",
         )
-        raise Exception(
-            "choose_satellite: Could not initialize target (" + result + ")"
-        )
-    main_log.log("choose_satellite: End " + obstarget.name, terminal=False)
+        raise Exception(f"choose_satellite: Could not initialize target ({result})")
+    main_log.log(f"choose_satellite: End {obstarget.name}", terminal=False)
     return obstarget
 
 
@@ -1962,11 +1960,7 @@ def altaz_object(prechosen=None):
         if alt is None or alt < minalt or alt > maxalt:
             print(
                 TextColor.red(
-                    "2nd term must be float ALTITUDE degrees (",
-                    minalt,
-                    "to",
-                    maxalt,
-                    "). Try again",
+                    f"2nd term must be float ALTITUDE degrees ({minalt} to {maxalt}). Try again"
                 )
             )
             continue  # Try again.
@@ -1974,11 +1968,7 @@ def altaz_object(prechosen=None):
         if az is None or az < minaz or az > maxaz:
             print(
                 TextColor.red(
-                    "4th term must be float AZIMUTH degrees (",
-                    minaz,
-                    "to",
-                    maxaz,
-                    "). Try again",
+                    f"4th term must be float AZIMUTH degrees ({minaz} to {maxaz}). Try again"
                 )
             )
             continue  # Try again.
@@ -2337,7 +2327,7 @@ def choose_last_target():
     se = session_history.session_list[0]  # Read first entry.
     camera_in_use.set_timelapse(se.timelapse_period)
     camera_in_use.exposure_seconds = se.exposure_seconds
-    main_log.log("choose_last_target: Selected " + line, terminal=False)
+    main_log.log(f"choose_last_target: Selected {line}", terminal=False)
     if se.search_group == "solar":
         obstarget = choose_solar(se.search_term)  # Create a solar system target.
     elif se.search_group == "satellite":
@@ -2389,21 +2379,9 @@ def rise_set_string(otarget: AstroTarget):
         )
     if rise is not None:
         if rise < set:  # Put resulting RISE and SET times in chronological sequence.
-            RS = (
-                " Target Rise: "
-                + str(rise).split(".")[0]
-                + " UTC , Set: "
-                + str(set).split(".")[0]
-                + " UTC"
-            )
+            RS = f" Target Rise: {str(rise).split('.')[0]} UTC , Set: {str(set).split('.')[0]} UTC"
         else:
-            RS = (
-                " Target Set: "
-                + str(set).split(".")[0]
-                + " UTC , Rise: "
-                + str(rise).split(".")[0]
-                + " UTC"
-            )
+            RS = f" Target Set: {str(set).split('.')[0]} UTC , Rise: {str(rise).split('.')[0]} UTC"
     else:
         if otarget.visible():
             RS = " Target is permanently above the horizon, it will not set."
@@ -2488,25 +2466,9 @@ def target_selection():
                     dec
                 )  # Convert DEC degrees into Deg, Mins, Secs
                 line_list = [
-                    obstarget.name
-                    + " is not currently in range ("
-                    + az_alt_text(az, alt)
-                    + ").",
-                    "RA: "
-                    + str(rh)
-                    + "h "
-                    + str(rm)
-                    + "' "
-                    + str(round(rs, 3))
-                    + '" '
-                    + "Dec: "
-                    + str(dd)
-                    + DEGREE_SYMBOL
-                    + " "
-                    + str(dm)
-                    + "' "
-                    + str(round(ds, 3))
-                    + '"',
+                    f""
+                    f"{obstarget.name} is not currently in range ({az_alt_text(az, alt)}).",
+                    f"RA: {rh}h {rm}' {round(rs, 3)}\" Dec: {dd}{DEGREE_SYMBOL} {dm}' {round(ds, 3)}\"",
                     rise_set_string(obstarget),
                 ]
                 TextColor.text_box(line_list, fg=TextColor.RED, bg=TextColor.BLACK)
@@ -2639,7 +2601,7 @@ def set_motor_angle(motor_name=None):
                 deg_3dp(i.current_angle) + DEGREE_SYMBOL,
             )
     stop_motors()  # Reset motor condition to prevent further movement.
-    main_log.log("set_motor_angle " + motor_name + " Completed.", terminal=False)
+    main_log.log(f"set_motor_angle {motor_name} Completed.", terminal=False)
     print(TextColor.yellow("Done.") + TextColor.clearlineforward())
     return True
 
@@ -2706,7 +2668,7 @@ def exercise_motor(motor_name=None):
             + "' was not recognised. Nothing moved.",
             level="error",
         )
-    main_log.log("exercise_motor " + motor_name + " completed.", terminal=False)
+    main_log.log(f"exercise_motor {motor_name} completed.", terminal=False)
     print(TextColor.yellow("Done.") + TextColor.clearlineforward())
     return True
 
@@ -3051,7 +3013,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         )  # What is the alt/az location of the centre of the image?
     else:  # Use the last reported camera position. Deprecated.
         # What is the alt/az location of the centre of the image?
-        centre_alt, centre_az = MotorControl.last_reported_alt_az(WarningFlags)
+        centre_alt, centre_az = last_reported_alt_az(WarningFlags)
     centre_ra, centre_dec = (
         session.target.ra_dec_degrees()
     )  # Calculations for target from observer's location. Returns decimal degree values. *Q* Does this ever vary with time?
@@ -3114,13 +3076,28 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     i_alt + linestep, i_az, centre_alt, centre_az
                 )  # Plot point relative to centre of image + 1 unit of Altitude.
                 temp_star_x, temp_star_y = plot_relative_alt_az(
-                    plot_alt, plot_az, height, width
+                    plot_alt,
+                    plot_az,
+                    height,
+                    width,
+                    camera_in_use.pixels_per_fov_degree_height,
+                    camera_in_use.pixels_per_fov_degree_width,
                 )
                 temp_star_x2, temp_star_y2 = plot_relative_alt_az(
-                    plot_alt2, plot_az2, height, width
+                    plot_alt2,
+                    plot_az2,
+                    height,
+                    width,
+                    camera_in_use.pixels_per_fov_degree_height,
+                    camera_in_use.pixels_per_fov_degree_width,
                 )  # From x,y
                 temp_star_x3, temp_star_y3 = plot_relative_alt_az(
-                    plot_alt3, plot_az3, height, width
+                    plot_alt3,
+                    plot_az3,
+                    height,
+                    width,
+                    camera_in_use.pixels_per_fov_degree_height,
+                    camera_in_use.pixels_per_fov_degree_width,
                 )  # To x,y
                 if i_alt == 0:
                     h_thick, h_color = 5, (0, 0, 127)  # Horizon
@@ -3229,11 +3206,37 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         plot_alt3, plot_az3 = relative_alt_az(alt_l3, az_l3, centre_alt, centre_az)
         plot_alt4, plot_az4 = relative_alt_az(alt_l4, az_l4, centre_alt, centre_az)
         xl1, yl1 = plot_relative_alt_az(
-            plot_alt1, plot_az1, height, width
+            plot_alt1,
+            plot_az1,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
         )  # Convert the relative positions into pixel locations.
-        xl2, yl2 = plot_relative_alt_az(plot_alt2, plot_az2, height, width)
-        xl3, yl3 = plot_relative_alt_az(plot_alt3, plot_az3, height, width)
-        xl4, yl4 = plot_relative_alt_az(plot_alt4, plot_az4, height, width)
+        xl2, yl2 = plot_relative_alt_az(
+            plot_alt2,
+            plot_az2,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
+        xl3, yl3 = plot_relative_alt_az(
+            plot_alt3,
+            plot_az3,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
+        xl4, yl4 = plot_relative_alt_az(
+            plot_alt4,
+            plot_az4,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
         new_image_buffer.draw_edge_line(
             (xl2, yl2), (xl1, yl1), edgecolor=PilomarImage.bgr("Black"), arrowpixels=20
         )  # The -ve line ends with an arrow to show direction.
@@ -3299,11 +3302,37 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         plot_alt3, plot_az3 = relative_alt_az(alt_l3, az_l3, centre_alt, centre_az)
         plot_alt4, plot_az4 = relative_alt_az(alt_l4, az_l4, centre_alt, centre_az)
         xl1, yl1 = plot_relative_alt_az(
-            plot_alt1, plot_az1, height, width
+            plot_alt1,
+            plot_az1,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
         )  # Convert the relative positions into pixel locations.
-        xl2, yl2 = plot_relative_alt_az(plot_alt2, plot_az2, height, width)
-        xl3, yl3 = plot_relative_alt_az(plot_alt3, plot_az3, height, width)
-        xl4, yl4 = plot_relative_alt_az(plot_alt4, plot_az4, height, width)
+        xl2, yl2 = plot_relative_alt_az(
+            plot_alt2,
+            plot_az2,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
+        xl3, yl3 = plot_relative_alt_az(
+            plot_alt3,
+            plot_az3,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
+        xl4, yl4 = plot_relative_alt_az(
+            plot_alt4,
+            plot_az4,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
         new_image_buffer.draw_edge_line(
             (xl2, yl2), (xl1, yl1), edgecolor=PilomarImage.bgr("Black"), arrowpixels=20
         )  # The -ve line ends with an arrow to show direction.
@@ -3415,7 +3444,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     bgcolor=PilomarImage.bgr("Black"),
                 )  # Explain and demonstrate the field rotation that the telescope is currently experiencing.
             elif abs(rotation) > 0.1:  # Big enough for an arc to appear.
-                new_image_buffer.DrawEdgeEllipse(
+                new_image_buffer.draw_edge_ellipse(
                     xpos,
                     ypos,
                     r,
@@ -3427,7 +3456,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                     edgecolor=PilomarImage.bgr("Black"),
                 )  # Draw arc representing the rotation.
             else:  # Too short for an arc to appear. Draw a dot instead.
-                new_image_buffer.DrawEdgeCircle(
+                new_image_buffer.draw_edge_circle(
                     xpos, ypos + r, 1, thickness=2, edgecolor=PilomarImage.bgr("Black")
                 )  # Draw dot representing insignificant rotation.
 
@@ -3537,426 +3566,418 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
             # If the gearing is very fine, then there's no real purpose to showing the precision circle, it will be too small to see.
             xpos = int(width / 2)
             ypos = int(height / 2)
-            new_image_buffer.DrawCircle(
+            new_image_buffer.draw_circle(
                 xpos,
                 ypos,
                 int(az_pixels_per_fullstep),
                 color=PilomarImage.bgr("Gold"),
                 thickness=3,
             )
-            new_image_buffer.DrawCircle(
+            new_image_buffer.draw_circle(
                 xpos, ypos, int(az_pixels_per_fullstep), color=PilomarImage.bgr("Black")
             )
 
-    if True:  # Draw angular scale for reference.
-        scale_list = [
-            ["1deg", 1.0, 0.0, 0.0],
-            ["30arcmin", 0.0, 30.0, 0.0],
-            ["10arcmin", 0.0, 10.0, 0.0],
-            ["1arcmin", 0.0, 1.0, 0.0],
-            ["30arcsec", 0.0, 0.0, 30.0],
-            ["10arcsec", 0.0, 0.0, 10.0],
-        ]
-        new_image_buffer.set_pen_color(PilomarImage.bgr("White"))
-        x = 200
-        y = int(height / 2) + 200
+    # Draw angular scale for reference.
+    scale_list = [
+        ["1deg", 1.0, 0.0, 0.0],
+        ["30arcmin", 0.0, 30.0, 0.0],
+        ["10arcmin", 0.0, 10.0, 0.0],
+        ["1arcmin", 0.0, 1.0, 0.0],
+        ["30arcsec", 0.0, 0.0, 30.0],
+        ["10arcsec", 0.0, 0.0, 10.0],
+    ]
+    new_image_buffer.set_pen_color(PilomarImage.bgr("White"))
+    x = 200
+    y = int(height / 2) + 200
+    new_image_buffer.add_edge_text(
+        "Angular scale", x, y, size=0.5, edgecolor=PilomarImage.bgr("Black")
+    )
+    for i, scale in enumerate(scale_list):
+        label = scale[0]
+        d = (
+            float(scale[1]) + (scale[2] / 60) + (scale[3] / (60**2))
+        )  # Convert DMS into float degrees.
+        p = int(d * camera_in_use.pixels_per_fov_degree_width)
+        if p > width - 300:  # Line is too long to be useful.
+            continue
+        y += 20
         new_image_buffer.add_edge_text(
-            "Angular scale", x, y, size=0.5, edgecolor=PilomarImage.bgr("Black")
+            label,
+            x,
+            y,
+            size=0.5,
+            hjust="r",
+            vjust="c",
+            edgecolor=PilomarImage.bgr("Black"),
         )
-        for i, scale in enumerate(scale_list):
-            label = scale[0]
-            d = (
-                float(scale[1]) + (scale[2] / 60) + (scale[3] / (60**2))
-            )  # Convert DMS into float degrees.
-            p = int(d * camera_in_use.pixels_per_fov_degree_width)
-            if p > width - 300:  # Line is too long to be useful.
-                continue
-            y += 20
-            new_image_buffer.add_edge_text(
-                label,
-                x,
-                y,
-                size=0.5,
-                hjust="r",
-                vjust="c",
-                edgecolor=PilomarImage.bgr("Black"),
-            )
-            new_image_buffer.draw_line((x + 10, y), (x + 10 + p, y), thickness=3)
-            new_image_buffer.draw_line((x + 10, y - 10), (x + 10, y + 10), thickness=1)
-            new_image_buffer.draw_line(
-                (x + 10 + p, y - 10), (x + 10 + p, y + 10), thickness=1
-            )
+        new_image_buffer.draw_line((x + 10, y), (x + 10 + p, y), thickness=3)
+        new_image_buffer.draw_line((x + 10, y - 10), (x + 10, y + 10), thickness=1)
+        new_image_buffer.draw_line(
+            (x + 10 + p, y - 10), (x + 10 + p, y + 10), thickness=1
+        )
 
-    if True:  # Parameters.MarkupShowMessier: # Mark neighbouring Messier objects ....
-        new_image_buffer.set_pen_color(PilomarImage.bgr("Green"))
-        # Find that alt/az locations of all the objects.
-        for temp_star_name, temp_star_parms in Messier_dictionary.items():  # Python3
-            temp_rah = temp_star_parms["ra"][0]  # Right Ascension HOURS
-            temp_ram = temp_star_parms["ra"][1]  # Right Ascension MINUTES
-            temp_ras = temp_star_parms["ra"][2]  # Right Ascension SECONDS
-            TempStarRA = temp_star_parms["radeg"]
-            if (
-                TempStarRA < min_ra_deg or TempStarRA > max_ra_deg
-            ):  # Outside drawing area.
-                continue  # Skip to next object
-            temp_ded = temp_star_parms["dec"][0]  # Declination DEGREES
-            temp_dem = temp_star_parms["dec"][1]  # Declination MINUTES
-            temp_des = temp_star_parms["dec"][2]  # Declination SECONDS
-            temp_star_dec = temp_star_parms["decdeg"]
-            if (
-                temp_star_dec < min_dec_deg or temp_star_dec > max_dec_deg
-            ):  # Outside drawing area.
-                continue  # Skip to next object
-            temp_star = Star(
-                ra_hours=(temp_rah, temp_ram, temp_ras),
-                dec_degrees=(temp_ded, temp_dem, temp_des),
-            )  # Create star object from RADEC co-ordinates.
-            temp_star_type = temp_star_parms["type"]
-            temp_star_width = int(
-                (
-                    temp_star_parms["widthdeg"]
-                    * camera_in_use.pixels_per_fov_degree_width
+    # Parameters.MarkupShowMessier: # Mark neighbouring Messier objects ....
+    new_image_buffer.set_pen_color(PilomarImage.bgr("Green"))
+    # Find that alt/az locations of all the objects.
+    for temp_star_name, temp_star_parms in Messier_dictionary.items():  # Python3
+        temp_rah = temp_star_parms["ra"][0]  # Right Ascension HOURS
+        temp_ram = temp_star_parms["ra"][1]  # Right Ascension MINUTES
+        temp_ras = temp_star_parms["ra"][2]  # Right Ascension SECONDS
+        TempStarRA = temp_star_parms["radeg"]
+        if TempStarRA < min_ra_deg or TempStarRA > max_ra_deg:  # Outside drawing area.
+            continue  # Skip to next object
+        temp_ded = temp_star_parms["dec"][0]  # Declination DEGREES
+        temp_dem = temp_star_parms["dec"][1]  # Declination MINUTES
+        temp_des = temp_star_parms["dec"][2]  # Declination SECONDS
+        temp_star_dec = temp_star_parms["decdeg"]
+        if (
+            temp_star_dec < min_dec_deg or temp_star_dec > max_dec_deg
+        ):  # Outside drawing area.
+            continue  # Skip to next object
+        temp_star = Star(
+            ra_hours=(temp_rah, temp_ram, temp_ras),
+            dec_degrees=(temp_ded, temp_dem, temp_des),
+        )  # Create star object from RADEC co-ordinates.
+        temp_star_type = temp_star_parms["type"]
+        temp_star_width = int(
+            (temp_star_parms["widthdeg"] * camera_in_use.pixels_per_fov_degree_width)
+            / 2
+        )  # Width given in arcminutes.
+        temp_star_height = int(
+            (temp_star_parms["heightdeg"] * camera_in_use.pixels_per_fov_degree_height)
+            / 2
+        )
+        temptarget = AstroTarget(
+            temp_star,
+            name=temp_star_name,
+            objecttype=temp_star_type,
+            constellation="",
+            description="",
+            magnitude=temp_star_parms["magnitude"],
+        )
+        temp_star_az, temp_star_alt = temptarget.az_alt_degrees(time=t)
+        if temp_star_az < 0:  # Below horizon, don't mark it up.
+            continue  # Skip to next object.
+        plot_star_alt, plot_star_az = relative_alt_az(
+            temp_star_alt, temp_star_az, centre_alt, centre_az
+        )
+        temp_star_x, temp_star_y = plot_relative_alt_az(
+            plot_star_alt,
+            plot_star_az,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
+        temp_text_x = (
+            temp_star_x + temp_star_width + 5
+        )  # Put Messier labels on the RIGHT of the object so they don't clash with NGC labels for the same thing.
+        new_image_buffer.draw_ellipse(
+            temp_star_x,
+            temp_star_y,
+            int(temp_star_width),
+            int(temp_star_height),
+            0,
+            0,
+            360,
+        )
+        if params.markup_show_labels:
+            text = az_alt_text(temp_star_az, temp_star_alt, "deg")
+            new_image_buffer.add_text(
+                text, temp_text_x, temp_star_y + lineheight, size=0.5
+            )
+            text = (
+                "RA:"
+                + temp_star_parms["ralabel"]
+                + " Dec:"
+                + temp_star_parms["declabel"]
+            )
+            new_image_buffer.add_text(
+                text, temp_text_x, new_image_buffer.next_text_y, size=0.5
+            )
+            if temp_star_name is not None:
+                new_image_buffer.add_text(
+                    temp_star_name.upper(), temp_text_x, temp_star_y - 20, size=1
                 )
-                / 2
-            )  # Width given in arcminutes.
-            temp_star_height = int(
-                (
-                    temp_star_parms["heightdeg"]
-                    * camera_in_use.pixels_per_fov_degree_height
-                )
-                / 2
-            )
-            temptarget = AstroTarget(
-                temp_star,
-                name=temp_star_name,
-                objecttype=temp_star_type,
-                constellation="",
-                description="",
-                magnitude=temp_star_parms["magnitude"],
-            )
-            temp_star_az, temp_star_alt = temptarget.az_alt_degrees(time=t)
-            if temp_star_az < 0:  # Below horizon, don't mark it up.
-                continue  # Skip to next object.
-            plot_star_alt, plot_star_az = relative_alt_az(
-                temp_star_alt, temp_star_az, centre_alt, centre_az
-            )
-            temp_star_x, temp_star_y = plot_relative_alt_az(
-                plot_star_alt, plot_star_az, height, width
-            )
+
+    # Find the alt/az locations of all the objects.
+    # NGC catalog is large, eliminate as much as possible first.
+    cam_log.log(
+        "markup_preview: NGCItems: centre_ra",
+        centre_ra,
+        DEGREE_SYMBOL,
+        "centre_dec",
+        centre_dec,
+        DEGREE_SYMBOL,
+        terminal=False,
+    )
+    cam_log.log(
+        "markup_preview: NGCItems: Start:", len(NGC_DF), "records.", terminal=False
+    )
+    boolseries = NGC_DF["radeg"].between(
+        min_ra_deg, max_ra_deg, inclusive="both"
+    )  # Create filter for items within RA range.
+    tempdf = NGC_DF[boolseries]  # Apply filter.
+    cam_log.log(
+        "markup_preview: NGCItems: RA Filtered:",
+        min_ra_deg,
+        DEGREE_SYMBOL,
+        max_ra_deg,
+        DEGREE_SYMBOL,
+        ". Leaves",
+        len(tempdf),
+        "records.",
+        terminal=False,
+    )
+    boolseries = tempdf["decdeg"].between(
+        min_dec_deg, max_dec_deg, inclusive="both"
+    )  # Create filter for items with Dec range.
+    tempdf = tempdf[boolseries]  # Apply filter.
+    cam_log.log(
+        "markup_preview: NGCItems: Dec Filtered:",
+        min_dec_deg,
+        DEGREE_SYMBOL,
+        max_dec_deg,
+        DEGREE_SYMBOL,
+        ". Leaves",
+        len(tempdf),
+        "records.",
+        terminal=False,
+    )
+    new_image_buffer.set_pen_color(PilomarImage.bgr("LightBlue"))
+    for i in range(len(tempdf)):
+        temp_star_parms = tempdf.iloc[
+            i
+        ]  # Select each row in turn from the Pandas dataframe.
+        temp_star_name = temp_star_parms["name"]
+        try:  # Earlier versions of the data file may not have this column.
+            temp_star_name2 = temp_star_parms["knownas"]
+        except:
+            temp_star_name2 = ""  # Field not available in this data set.
+        try:  # Earlier versions of the data file may not have this column.
+            ngc_type = temp_star_parms["typelabel"]
+        except:
+            ngc_type = temp_star_parms["type"]
+        temp_star = Star(
+            ra_hours=(
+                temp_star_parms["rah"],
+                temp_star_parms["ram"],
+                temp_star_parms["ras"],
+            ),
+            dec_degrees=(
+                temp_star_parms["ded"],
+                temp_star_parms["dem"],
+                temp_star_parms["des"],
+            ),
+        )  # Create star object from RADEC co-ordinates.
+        temp_star_width = int(
+            (temp_star_parms["widthdeg"] * camera_in_use.pixels_per_fov_degree_width)
+            / 2
+        )  # Convert from arcseconds to degrees & radius.
+        temp_star_height = int(
+            (temp_star_parms["heightdeg"] * camera_in_use.pixels_per_fov_degree_height)
+            / 2
+        )
+        if temp_star_width < 1 and temp_star_height < 1:
+            continue  # Too small to display.
+        temptarget = AstroTarget(
+            temp_star,
+            name=temp_star_name,
+            objecttype="ngc",
+            constellation="",
+            description="",
+            magnitude=temp_star_parms["magnitude"],
+        )
+        temp_star_az, temp_star_alt = temptarget.az_alt_degrees(time=t)
+        if temp_star_az < 0:  # Below horizon, don't mark it up.
+            continue  # Skip to next object.
+        plot_star_alt, plot_star_az = relative_alt_az(
+            temp_star_alt, temp_star_az, centre_alt, centre_az
+        )
+        temp_star_x, temp_star_y = plot_relative_alt_az(
+            plot_star_alt,
+            plot_star_az,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
+        )
+        # temp_text_x = temp_star_x - temp_star_width - 5 # Put NGC labels on the LEFT of the object so they don't clash with any matching Messier label for the same thing.
+        new_image_buffer.draw_ellipse(
+            temp_star_x,
+            temp_star_y,
+            int(temp_star_width),
+            int(temp_star_height),
+            angle=0,
+            startAngle=0,
+            endAngle=360,
+        )
+        cam_log.log(
+            "markup_preview: NGCItems: Processing entry",
+            i,
+            temp_star_name,
+            temp_star_name2,
+            ";",
+            temp_star_width,
+            "*",
+            temp_star_height,
+            ";",
+            temp_star_x,
+            ",",
+            temp_star_y,
+            terminal=False,
+        )
+        if params.markup_show_labels:
             temp_text_x = (
-                temp_star_x + temp_star_width + 5
-            )  # Put Messier labels on the RIGHT of the object so they don't clash with NGC labels for the same thing.
-            new_image_buffer.draw_ellipse(
-                temp_star_x,
-                temp_star_y,
-                int(temp_star_width),
-                int(temp_star_height),
-                0,
-                0,
-                360,
+                temp_star_x - temp_star_width - 5
+            )  # Put NGC labels on the LEFT of the object so they don't clash with any matching Messier label for the same thing.
+            text = az_alt_text(temp_star_az, temp_star_alt, "deg")
+            new_image_buffer.add_text(
+                text, temp_text_x, temp_star_y + lineheight, size=0.5, hjust="r"
             )
-            if params.markup_show_labels:
-                text = az_alt_text(temp_star_az, temp_star_alt, "deg")
+            text = (
+                "RA:"
+                + temp_star_parms["ralabel"]
+                + " Dec:"
+                + temp_star_parms["declabel"]
+            )
+            new_image_buffer.add_text(
+                text, temp_text_x, new_image_buffer.next_text_y, size=0.5, hjust="r"
+            )
+            if ngc_type is not None:  # Describe the object type.
                 new_image_buffer.add_text(
-                    text, temp_text_x, temp_star_y + lineheight, size=0.5
+                    ngc_type.title(),
+                    temp_text_x,
+                    new_image_buffer.next_text_y,
+                    size=0.5,
+                    hjust="r",
                 )
-                text = (
-                    "RA:"
-                    + temp_star_parms["ralabel"]
-                    + " Dec:"
-                    + temp_star_parms["declabel"]
-                )
+            if temp_star_name is not None:  # name - ie NGCxxx
                 new_image_buffer.add_text(
-                    text, temp_text_x, new_image_buffer.next_text_y, size=0.5
+                    temp_star_name.upper(),
+                    temp_text_x,
+                    temp_star_y - 30,
+                    size=1,
+                    hjust="r",
                 )
-                if temp_star_name is not None:
-                    new_image_buffer.add_text(
-                        temp_star_name.upper(), temp_text_x, temp_star_y - 20, size=1
-                    )
-
-    if True:  # Mark neighbouring NGC items ...
-        # Find the alt/az locations of all the objects.
-        # NGC catalog is large, eliminate as much as possible first.
-        cam_log.log(
-            "markup_preview: NGCItems: centre_ra",
-            centre_ra,
-            DEGREE_SYMBOL,
-            "centre_dec",
-            centre_dec,
-            DEGREE_SYMBOL,
-            terminal=False,
-        )
-        cam_log.log(
-            "markup_preview: NGCItems: Start:", len(NGC_DF), "records.", terminal=False
-        )
-        boolseries = NGC_DF["radeg"].between(
-            min_ra_deg, max_ra_deg, inclusive="both"
-        )  # Create filter for items within RA range.
-        tempdf = NGC_DF[boolseries]  # Apply filter.
-        cam_log.log(
-            "markup_preview: NGCItems: RA Filtered:",
-            min_ra_deg,
-            DEGREE_SYMBOL,
-            max_ra_deg,
-            DEGREE_SYMBOL,
-            ". Leaves",
-            len(tempdf),
-            "records.",
-            terminal=False,
-        )
-        boolseries = tempdf["decdeg"].between(
-            min_dec_deg, max_dec_deg, inclusive="both"
-        )  # Create filter for items with Dec range.
-        tempdf = tempdf[boolseries]  # Apply filter.
-        cam_log.log(
-            "markup_preview: NGCItems: Dec Filtered:",
-            min_dec_deg,
-            DEGREE_SYMBOL,
-            max_dec_deg,
-            DEGREE_SYMBOL,
-            ". Leaves",
-            len(tempdf),
-            "records.",
-            terminal=False,
-        )
-        new_image_buffer.set_pen_color(PilomarImage.bgr("LightBlue"))
-        for i in range(len(tempdf)):
-            temp_star_parms = tempdf.iloc[
-                i
-            ]  # Select each row in turn from the Pandas dataframe.
-            temp_star_name = temp_star_parms["name"]
-            try:  # Earlier versions of the data file may not have this column.
-                temp_star_name2 = temp_star_parms["knownas"]
-            except:
-                temp_star_name2 = ""  # Field not available in this data set.
-            try:  # Earlier versions of the data file may not have this column.
-                ngc_type = temp_star_parms["typelabel"]
-            except:
-                ngc_type = temp_star_parms["type"]
-            temp_star = Star(
-                ra_hours=(
-                    temp_star_parms["rah"],
-                    temp_star_parms["ram"],
-                    temp_star_parms["ras"],
-                ),
-                dec_degrees=(
-                    temp_star_parms["ded"],
-                    temp_star_parms["dem"],
-                    temp_star_parms["des"],
-                ),
-            )  # Create star object from RADEC co-ordinates.
-            temp_star_width = int(
-                (
-                    temp_star_parms["widthdeg"]
-                    * camera_in_use.pixels_per_fov_degree_width
-                )
-                / 2
-            )  # Convert from arcseconds to degrees & radius.
-            temp_star_height = int(
-                (
-                    temp_star_parms["heightdeg"]
-                    * camera_in_use.pixels_per_fov_degree_height
-                )
-                / 2
-            )
-            if temp_star_width < 1 and temp_star_height < 1:
-                continue  # Too small to display.
-            temptarget = AstroTarget(
-                temp_star,
-                name=temp_star_name,
-                objecttype="ngc",
-                constellation="",
-                description="",
-                magnitude=temp_star_parms["magnitude"],
-            )
-            temp_star_az, temp_star_alt = temptarget.az_alt_degrees(time=t)
-            if temp_star_az < 0:  # Below horizon, don't mark it up.
-                continue  # Skip to next object.
-            plot_star_alt, plot_star_az = relative_alt_az(
-                temp_star_alt, temp_star_az, centre_alt, centre_az
-            )
-            temp_star_x, temp_star_y = plot_relative_alt_az(
-                plot_star_alt, plot_star_az, height, width
-            )
-            # temp_text_x = temp_star_x - temp_star_width - 5 # Put NGC labels on the LEFT of the object so they don't clash with any matching Messier label for the same thing.
-            new_image_buffer.DrawEllipse(
-                temp_star_x,
-                temp_star_y,
-                int(temp_star_width),
-                int(temp_star_height),
-                angle=0,
-                startAngle=0,
-                endAngle=360,
-            )
-            cam_log.log(
-                "markup_preview: NGCItems: Processing entry",
-                i,
-                temp_star_name,
-                temp_star_name2,
-                ";",
-                temp_star_width,
-                "*",
-                temp_star_height,
-                ";",
-                temp_star_x,
-                ",",
-                temp_star_y,
-                terminal=False,
-            )
-            if params.markup_show_labels:
-                temp_text_x = (
-                    temp_star_x - temp_star_width - 5
-                )  # Put NGC labels on the LEFT of the object so they don't clash with any matching Messier label for the same thing.
-                text = az_alt_text(temp_star_az, temp_star_alt, "deg")
+            if temp_star_name2 is not None:  # Known as - ie Whirlpool Galaxy
                 new_image_buffer.add_text(
-                    text, temp_text_x, temp_star_y + lineheight, size=0.5, hjust="r"
+                    temp_star_name2.title(),
+                    temp_text_x,
+                    new_image_buffer.next_text_y,
+                    size=1,
+                    hjust="r",
                 )
-                text = (
-                    "RA:"
-                    + temp_star_parms["ralabel"]
-                    + " Dec:"
-                    + temp_star_parms["declabel"]
-                )
-                new_image_buffer.add_text(
-                    text, temp_text_x, new_image_buffer.NextTextY, size=0.5, hjust="r"
-                )
-                if ngc_type is not None:  # Describe the object type.
-                    new_image_buffer.add_text(
-                        ngc_type.title(),
-                        temp_text_x,
-                        new_image_buffer.NextTextY,
-                        size=0.5,
-                        hjust="r",
-                    )
-                if temp_star_name is not None:  # name - ie NGCxxx
-                    new_image_buffer.add_text(
-                        temp_star_name.upper(),
-                        temp_text_x,
-                        temp_star_y - 30,
-                        size=1,
-                        hjust="r",
-                    )
-                if temp_star_name2 is not None:  # Known as - ie Whirlpool Galaxy
-                    new_image_buffer.add_text(
-                        temp_star_name2.title(),
-                        temp_text_x,
-                        new_image_buffer.NextTextY,
-                        size=1,
-                        hjust="r",
-                    )
-        cam_log.log(
-            "markup_preview: NGCItems: Plot NGC objects end. (",
-            len(tempdf),
-            "/",
-            len(NGC_DF),
-            "objects selected)",
-            terminal=False,
-        )
+    cam_log.log(
+        "markup_preview: NGCItems: Plot NGC objects end. (",
+        len(tempdf),
+        "/",
+        len(NGC_DF),
+        "objects selected)",
+        terminal=False,
+    )
 
     hsat = home_site.at(t)
-    if True:  # Parameters.MarkupShowStars: # Mark neighbouring stars.
-        cam_log.log("markup_preview: ShowStars", terminal=False)
-        new_image_buffer.AvoidTextCollisions = (
-            params.markup_avoid_collisions
-        )  # Do we allow star labels to overlap?
-        # Mark neighbouring stars on the picture too. This will help with alignment.
-        # Select a subset of the Hipparcos catalog which is within 10Deg of the target (=centre of image)
-        cam_log.log("markup_preview: SelectStars start", terminal=False)
-        neighbouring_stars = local_stars.get(centre_ra, centre_dec)
-        neighbouring_star_count = len(neighbouring_stars)
-        # inbounds_idx = LocalStars.ColumnIndex('inbounds') # Which dataframe column stores the 'inbounds' counter?
-        cam_log.log(
-            "markup_preview: neighbouring_stars contains",
-            neighbouring_star_count,
-            "entries.",
-            terminal=False,
+
+    cam_log.log("markup_preview: ShowStars", terminal=False)
+    new_image_buffer.avoid_text_collisions = (
+        params.markup_avoid_collisions
+    )  # Do we allow star labels to overlap?
+    # Mark neighbouring stars on the picture too. This will help with alignment.
+    # Select a subset of the Hipparcos catalog which is within 10Deg of the target (=centre of image)
+    cam_log.log("markup_preview: SelectStars start", terminal=False)
+    neighbouring_stars = local_stars.get(centre_ra, centre_dec)
+    neighbouring_star_count = len(neighbouring_stars)
+    # inbounds_idx = LocalStars.ColumnIndex('inbounds') # Which dataframe column stores the 'inbounds' counter?
+    cam_log.log(
+        "markup_preview: neighbouring_stars contains",
+        neighbouring_star_count,
+        "entries.",
+        terminal=False,
+    )
+    new_image_buffer.set_pen_color(PilomarImage.bgr("PaleGreen"))
+    # Now convert this list of ra/dec locations into alt/az positions for plotting on the preview image.
+    plotted_star_count = (
+        0  # How many stars have been plotted? We don't want to swamp the display.
+    )
+    for i in range(neighbouring_star_count):
+        if i % 400 == 0:
+            cam_log.log("markup_preview: ShowStars. Processing star", i, terminal=False)
+        temp_star_rec = neighbouring_stars.iloc[
+            i
+        ]  # Select each row in turn from the Pandas dataframe, probably makes a COPY, not a pointer to the original row.
+        temp_star = Star.from_dataframe(
+            temp_star_rec
+        )  # Convert the Hipparcos entry into a Skyfield STAR object. *Q* Can we use temp_star_rec here?
+        temp_star_alt, temp_star_az, _ = (
+            hsat.observe(temp_star).apparent().altaz()
+        )  # Get the azimuth and altitude position of the star in the sky.
+        # Calculate the location in the preview image.
+        plot_star_alt, plot_star_az = relative_alt_az(
+            temp_star_alt.degrees, temp_star_az.degrees, centre_alt, centre_az
         )
-        new_image_buffer.set_pen_color(PilomarImage.bgr("PaleGreen"))
-        # Now convert this list of ra/dec locations into alt/az positions for plotting on the preview image.
-        plotted_star_count = (
-            0  # How many stars have been plotted? We don't want to swamp the display.
+        temp_star_x, temp_star_y = plot_relative_alt_az(
+            plot_star_alt,
+            plot_star_az,
+            height,
+            width,
+            camera_in_use.pixels_per_fov_degree_width,
+            camera_in_use.pixels_per_fov_degree_height,
         )
-        for i in range(neighbouring_star_count):
-            if i % 400 == 0:
-                cam_log.log(
-                    "markup_preview: ShowStars. Processing star", i, terminal=False
+        if new_image_buffer.out_of_bounds(temp_star_x, temp_star_y):
+            continue  # This star is off the edge of the image, skip it.
+        # We're going to plot this one.
+        plotted_star_count += 1
+        temp_star_width = int(temp_star_rec["markupradius"])
+        new_image_buffer.draw_circle(
+            temp_star_x, temp_star_y, temp_star_width, thickness=3
+        )  # cyan # circle where the star is.
+        labelx = temp_star_x + temp_star_width + 5  # X location of labels.
+        if True:  # Parameters.MarkupShowNames:
+            temp_star_name = temp_star_rec["starname"]
+            try:
+                temp_star_constellation = temp_star_rec[
+                    "constellation"
+                ].title()  # Capitalise 1st letter of each word.
+            except:
+                temp_star_constellation = ""
+            if temp_star_constellation != "" and temp_star_constellation is not None:
+                temp_star_name += " (" + temp_star_constellation + ")"
+            new_image_buffer.add_text(
+                temp_star_rec["label"], labelx, temp_star_y - 20
+            )  # Hipparcos ID
+            if len(temp_star_name) > 0:  # Add star name.
+                new_image_buffer.add_text(
+                    temp_star_name.title(),
+                    labelx,
+                    new_image_buffer.next_text_y,
+                    thickness=2,
+                    size=1,
                 )
-            temp_star_rec = neighbouring_stars.iloc[
-                i
-            ]  # Select each row in turn from the Pandas dataframe, probably makes a COPY, not a pointer to the original row.
-            temp_star = Star.from_dataframe(
-                temp_star_rec
-            )  # Convert the Hipparcos entry into a Skyfield STAR object. *Q* Can we use temp_star_rec here?
-            temp_star_alt, temp_star_az, _ = (
-                hsat.observe(temp_star).apparent().altaz()
-            )  # Get the azimuth and altitude position of the star in the sky.
-            # Calculate the location in the preview image.
-            plot_star_alt, plot_star_az = relative_alt_az(
-                temp_star_alt.degrees, temp_star_az.degrees, centre_alt, centre_az
+        if params.markup_show_labels:  # Show position labels. Alt/Az and Ra/Dec
+            text = az_alt_text(temp_star_az.degrees, temp_star_alt.degrees, "deg")
+            new_image_buffer.add_text(
+                text, labelx, new_image_buffer.next_text_y, size=0.5
             )
-            temp_star_x, temp_star_y = plot_relative_alt_az(
-                plot_star_alt, plot_star_az, height, width
+            text = (
+                "RA:" + temp_star_rec["ralabel"] + " Dec:" + temp_star_rec["declabel"]
             )
-            if new_image_buffer.OutOfBounds(temp_star_x, temp_star_y):
-                continue  # This star is off the edge of the image, skip it.
-            # We're going to plot this one.
-            plotted_star_count += 1
-            temp_star_width = int(temp_star_rec["markupradius"])
-            new_image_buffer.DrawCircle(
-                temp_star_x, temp_star_y, temp_star_width, thickness=3
-            )  # cyan # circle where the star is.
-            labelx = temp_star_x + temp_star_width + 5  # X location of labels.
-            if True:  # Parameters.MarkupShowNames:
-                temp_star_name = temp_star_rec["starname"]
-                try:
-                    temp_star_constellation = temp_star_rec[
-                        "constellation"
-                    ].title()  # Capitalise 1st letter of each word.
-                except:
-                    temp_star_constellation = ""
-                if (
-                    temp_star_constellation != ""
-                    and temp_star_constellation is not None
-                ):
-                    temp_star_name += " (" + temp_star_constellation + ")"
-                new_image_buffer.add_text(
-                    temp_star_rec["label"], labelx, temp_star_y - 20
-                )  # Hipparcos ID
-                if len(temp_star_name) > 0:  # Add star name.
-                    new_image_buffer.add_text(
-                        temp_star_name.title(),
-                        labelx,
-                        new_image_buffer.NextTextY,
-                        thickness=2,
-                        size=1,
-                    )
-            if params.markup_show_labels:  # Show position labels. Alt/Az and Ra/Dec
-                text = az_alt_text(temp_star_az.degrees, temp_star_alt.degrees, "deg")
-                new_image_buffer.add_text(
-                    text, labelx, new_image_buffer.NextTextY, size=0.5
-                )
-                text = (
-                    "RA:"
-                    + temp_star_rec["ralabel"]
-                    + " Dec:"
-                    + temp_star_rec["declabel"]
-                )
-                new_image_buffer.add_text(
-                    text, labelx, new_image_buffer.NextTextY, size=0.5
-                )
-            if (
-                plotted_star_count >= params.markup_star_label_limit
-            ):  # We're plotted enough, don't swamp the image.
-                cam_log.log(
-                    "markup_preview: ShowStars: Plotted maximum",
-                    plotted_star_count,
-                    "star labels.",
-                    terminal=False,
-                )
-                break
-        new_image_buffer.AvoidTextCollisions = (
-            False  # Turn off the label collision protection.
-        )
+            new_image_buffer.add_text(
+                text, labelx, new_image_buffer.next_text_y, size=0.5
+            )
+        if (
+            plotted_star_count >= params.markup_star_label_limit
+        ):  # We're plotted enough, don't swamp the image.
+            cam_log.log(
+                "markup_preview: ShowStars: Plotted maximum",
+                plotted_star_count,
+                "star labels.",
+                terminal=False,
+            )
+            break
+    new_image_buffer.avoid_text_collisions = (
+        False  # Turn off the label collision protection.
+    )
     # Parameters.MarkupConstellations: # Mark constellation patterns...
     # Workaround for post skyfield 1.39. Fault not fully understood yet.
     if True:
@@ -4252,7 +4273,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                 temp_star_width = int(
                     convert_arcseconds_to_pixels((0.5286 / 2) * 3600)
                 )  # Moon is approx 0.26 degrees angular radius.
-            new_image_buffer.DrawCircle(
+            new_image_buffer.draw_circle(
                 temp_star_x, temp_star_y, temp_star_width, thickness=3
             )  # cyan # circle where the planet is.
             if params.markup_show_labels:
@@ -4263,7 +4284,9 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                 text = ra_dec_text(TempStarRA, temp_star_dec, "deg")
                 # text = "RA:" + str(TempStarRA) + " Dec:" + str(temp_star_dec)
                 new_image_buffer.add_text(
-                    text, temp_star_x + temp_star_width + 5, new_image_buffer.NextTextY
+                    text,
+                    temp_star_x + temp_star_width + 5,
+                    new_image_buffer.next_text_y,
                 )
             if temp_star_name is not None:
                 new_image_buffer.add_text(
@@ -4303,7 +4326,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
                 color=PilomarImage.bgr("Red"),
                 edgecolor=PilomarImage.bgr("Black"),
             )  # Black outline showing last measured drift.
-            new_image_buffer.DrawCircle(
+            new_image_buffer.draw_circle(
                 int(width / 2) + int(drift_pixels_x),
                 int(height / 2) + int(drift_pixels_y),
                 10,
@@ -4395,7 +4418,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         new_image_buffer.add_text(
             "Hipparcos O",
             xpos,
-            new_image_buffer.NextTextY,
+            new_image_buffer.next_text_y,
             color=PilomarImage.bgr("PaleGreen"),
             hjust="r",
             bgcolor=PilomarImage.bgr("Black"),
@@ -4403,7 +4426,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         new_image_buffer.add_text(
             "Messier O",
             xpos,
-            new_image_buffer.NextTextY,
+            new_image_buffer.next_text_y,
             color=PilomarImage.bgr("Green"),
             hjust="r",
             bgcolor=PilomarImage.bgr("Black"),
@@ -4411,7 +4434,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         new_image_buffer.add_text(
             "NGC O",
             xpos,
-            new_image_buffer.NextTextY,
+            new_image_buffer.next_text_y,
             color=PilomarImage.bgr("LightBlue"),
             hjust="r",
             bgcolor=PilomarImage.bgr("Black"),
@@ -4419,7 +4442,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         new_image_buffer.add_text(
             "Planet O",
             xpos,
-            new_image_buffer.NextTextY,
+            new_image_buffer.next_text_y,
             color=PilomarImage.bgr("Gold"),
             hjust="r",
             bgcolor=PilomarImage.bgr("Black"),
@@ -4427,7 +4450,7 @@ def markup_preview(drift_pixels_x=None, drift_pixels_y=None, astrotime=None):
         new_image_buffer.add_text(
             "Constellation -",
             xpos,
-            new_image_buffer.NextTextY,
+            new_image_buffer.next_text_y,
             color=PilomarImage.bgr("Red"),
             hjust="r",
             bgcolor=PilomarImage.bgr("Black"),
@@ -9286,9 +9309,12 @@ def lens50mm():
 
 if __name__ == "__main__":
 
-    program_title = (
-        source_code().split("/")[-1].split(".")[0].lower()
-    )  # Used in display titles and also filenaming to separate different generations of the program.
+    # Extract program name from source file path (cross-platform)
+    script_path = source_code()
+    script_basename = os.path.basename(script_path)
+    script_name_no_ext = os.path.splitext(script_basename)[0]
+
+    program_title = script_name_no_ext.lower()  # Used in display titles and also filenaming to separate different generations of the program.
     print(program_title, VERSION)
 
     # Dictionary of 'toggles' so that warnings do not repeat too often.
@@ -9309,9 +9335,9 @@ if __name__ == "__main__":
     # pilomar.py is in the src/ directory, so go up one level to get project root
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     print(f"Project root: {project_root}")
-    
+
     # Create necessary subdirectories if they don't exist
-    required_dirs = ['log', 'data', 'temp', 'fonts', 'docs']
+    required_dirs = ["log", "data", "temp", "fonts", "docs"]
     for dirname in required_dirs:
         dirpath = os.path.join(project_root, dirname)
         if not os.path.exists(dirpath):
@@ -9323,7 +9349,9 @@ if __name__ == "__main__":
     # Initialize Logging.
     logdir = os.path.join(project_root, "log")
     # Main log file.
-    log_file_name = os.path.join(logdir, program_title + "_" + utc_time_stamp() + ".log")
+    log_file_name = os.path.join(
+        logdir, program_title + "_" + utc_time_stamp() + ".log"
+    )
     print("Main log to", log_file_name)
     main_log = LogFile(
         log_file_name, clockoffset=clock_offset
@@ -9343,7 +9371,7 @@ if __name__ == "__main__":
         "Main: RELOAD_DATA", RELOAD_DATA, terminal=False
     )  # Record that 'reload' has been triggered.
 
-    main_log.log("Startup parameters:", run_args, terminal=False)
+    # main_log.log("Startup parameters:", run_args, terminal=False)
     HistoryJsonFile = os.path.join(
         project_root, "data", program_title + "_sessions.json"
     )  # Chosen observation targets and settings are stored in this file.
@@ -9359,24 +9387,9 @@ if __name__ == "__main__":
     )  # Shortcut point to the execution method which returns the termination code.
 
     OS_id, OS_name, OS_type, OS_bits, OS_processor = os_version()
-    OS_systemkey = RPiNum + "/" + OS_name + "/" + str(OS_bits)
+    OS_systemkey = f"{RPiNum}/{OS_name}/{OS_bits}"
     main_log.log(
-        "RPi: Model:",
-        RPIMODEL,
-        "Num:",
-        RPiNum,
-        "OStype:",
-        OS_type,
-        "OSid:",
-        OS_id,
-        "OSname:",
-        OS_name,
-        "OSbits:",
-        OS_bits,
-        "OSproc:",
-        OS_processor,
-        "SysKey:",
-        OS_systemkey,
+        f"RPi: Model: {RPIMODEL}, Num: {RPiNum}, OStype: {OS_type}, OSid: {OS_id}, OSname: {OS_name}, OSbits: {OS_bits}, OSproc: {OS_processor}, SysKey: {OS_systemkey}",
         terminal=True,
     )
 
@@ -9387,59 +9400,32 @@ if __name__ == "__main__":
             "libcamera"  # 'bullseye' and 'bookworm' come with libcamera installed.
         )
     main_log.log(
-        OS_name, "O/S found, assuming camera driver is", camera_driver, terminal=False
+        f"{OS_name} O/S found, assuming camera driver is {camera_driver}",
+        terminal=False,
     )
-    main_log.log("GPIO driver chosen:", gpio.GPIO_DRIVER, terminal=False)
+    main_log.log(f"GPIO driver chosen: {gpio.GPIO_DRIVER}", terminal=False)
     if OS_systemkey in SUPPORTED_SYSTEMS:
-        main_log.log(program_title, "OK to run under", OS_systemkey, terminal=False)
+        main_log.log(f"{program_title} OK to run under {OS_systemkey}", terminal=False)
     else:  # Cannot proceed, wrong O/S & hardware combination.
         main_log.log(
-            program_title,
-            "is only designed to run under",
-            SUPPORTED_SYSTEMS,
+            f"{program_title} is not designed to run under {OS_name} {OS_bits} bit on {RPIMODEL} ({OS_systemkey})",
             level="error",
             terminal=True,
         )
-        main_log.log(
-            program_title,
-            "is not designed to run under",
-            OS_name,
-            OS_bits,
-            "bit on",
-            RPIMODEL,
-            "(",
-            OS_systemkey,
-            ")",
-            level="error",
-            terminal=True,
-        )
-        raise Exception(
-            str(program_title)
-            + " is not designed to run under this combination of hardware and O/S."
-        )
+        # raise Exception(
+        #     f"{program_title} is not designed to run under this combination of hardware and O/S."
+        # )
 
     # Remove out of date log files to preserve disc space.
     print(TextColor.yellow("Removing out of date log files to preserve disc space..."))
     # Show what will be deleted.
-    cmd = (
-        "find "
-        + logdir
-        + " -type f -name '"
-        + program_title
-        + "_*.log' -mtime +2 -print"
-    )
+    cmd = f"find {logdir} -type f -name '{program_title}_*.log' -mtime +2 -print"
     linelist = os_cmd(cmd)
     for line in linelist:
         if len(line) > 0:
             print(TextColor.orange("Deleting", line))
     # Now delete.
-    cmd = (
-        "find "
-        + logdir
-        + " -type f -name '"
-        + program_title
-        + "_*.log' -mtime +2 -delete"
-    )
+    cmd = f"find {logdir} -type f -name '{program_title}_*.log' -mtime +2 -delete"
     print(cmd)  # Show the user the command being executed.
     os_cmd(cmd)
     print("Done.")
@@ -9448,8 +9434,7 @@ if __name__ == "__main__":
     main_log.log("Skyfield version:", SkyfieldVersion, terminal=False)
     if SkyfieldVersion[0] > 1 or SkyfieldVersion[1] > 39:
         main_log.log(
-            "Pilomar is developed with Skyfield version 1.39: This version",
-            str(SkyfieldVersion[0]) + "." + str(SkyfieldVersion[1]),
+            f"Pilomar is developed with Skyfield version 1.39: This version {SkyfieldVersion[0]}.{SkyfieldVersion[1]} may cause unexpected behaviour.",
             terminal=False,
         )
 
@@ -9897,10 +9882,11 @@ if __name__ == "__main__":
     )  # When redrawing windows, only the changed lines are repainted.
 
     # Establish the filename of the parameters file that will be loaded.
-    parameter_file_name = project_root + "/data/" + program_title + "_params.json"
+    parameter_file_name = os.path.join(project_root, "data", program_title + "_params.json")
     params = Parameters(
         filename=parameter_file_name,
         logger=main_log,
+        camera_driver=camera_driver,
         error_window=error_window,
         dev_window=dev_window,
         camera_window=camera_window,

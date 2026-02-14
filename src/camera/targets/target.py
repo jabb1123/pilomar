@@ -227,7 +227,7 @@ class AstroTarget(AttributeMaster):
             terminal=False,
         )
         telist = zip(times, events)
-        for te in telist:
+        for te in telist: 
             self.log("target.NextRiseSetSatellite: Entry:", te, terminal=False)
             eventtime: Time = te[0]
             eventtype = te[1]  # 0=Rise, 1=Culminate, 2=Set
@@ -454,6 +454,7 @@ class AstroTarget(AttributeMaster):
         if ClockOffset is set, that many seconds are added to the result. Allowing you to run the program against other dates/times.
         if real == True, then the Clockoffset is not applied, giving the true CPU time.
         """
+
         result = skyfield_now()  # Now. # Offset supported.
         if not real and clock_offset is not None:  # Can apply time offset.
             dt = ts_to_datetime(result)

@@ -13,6 +13,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+from logging import Logger
 import os
 from enum import Enum
 from typing import Union
@@ -44,10 +45,10 @@ class DiskMonitor:  # 2 references.
         devname: str = "/dev/root",
         path: str = "/",
         disk_type: DiskType = DiskType.BOOT,
-        logger: Union = None,
-    ):
+        logger = None,
+    ): 
         # If devname = None, create a null entry.
-        self.log = logger  # Which logger to use?
+        self.log: Union[None, Logger] = logger  # Which logger to use?
         self.os_command = OSCommand(logger=logger)
         self.os_cmd = self.os_command.execute
         self.os_cmd_code = self.os_command.execute_code
