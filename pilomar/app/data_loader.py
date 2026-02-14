@@ -324,6 +324,29 @@ class CatalogLoader:
         )
         return df
     
+    def load_hipparcos(self, reload: bool = False) -> pandas.DataFrame:
+        """Load Hipparcos star catalog.
+        
+        Args:
+            reload: Force reload from internet
+            
+        Returns:
+            DataFrame of Hipparcos stars
+        """
+        if self.data.hipparcos_df is None or reload:
+            from skyfield.data import hipparcos
+            
+            self._log('Loading Hipparcos catalog from', hipparcos.URL, terminal=True)
+            
+            if self.skyfield_loader:
+                with self.skyfield_loader.open(hipparcos.URL, reload=reload) as f:
+                    self.data.hipparcos_df = hipparcos.load_dataframe(f)
+                self._log(f"Loaded {len(self.data.hipparcos_df)} Hipparcos stars", terminal=False)
+            else:
+                raise RuntimeError("Skyfield loader required for Hipparcos data")
+        
+        return self.data.hipparcos_df
+    
     def load_comets(self, reload: bool = False) -> pandas.DataFrame:
         """Load comet orbital data from Minor Planet Center.
         

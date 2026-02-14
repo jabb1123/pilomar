@@ -322,6 +322,135 @@ class ObservationLoop:
         except Exception:
             return True  # Assume OK if check fails
     
+    def _stop_motors(self) -> None:
+        """Send stop command to motors and clear trajectories."""
+        if self.ctx.mctl:
+            if hasattr(self.ctx.mctl, 'WriteFlush'):
+                self.ctx.mctl.WriteFlush(send=False)
+            if hasattr(self.ctx.mctl, 'Write'):
+                self.ctx.mctl.Write('stop')
+                self.ctx.mctl.Write('clear trajectory')
+        self._log("Motors stopped", terminal=False)
+    
+    def _goto_target(self) -> bool:
+        """Move telescope directly to target position.
+        
+        Returns:
+            True if successful, False on failure
+        """
+        if not self.ctx.target or not self.ctx.motor_controls:
+            return True  # Skip if no hardware
+        
+        try:
+            az, alt = self.ctx.target.AzAltDegrees()
+            self._log(f"GoToTarget: Moving to az={az:.2f}, alt={alt:.2f}", terminal=True)
+            
+            for motor in self.ctx.motor_controls:
+                motor_name = getattr(motor, 'MotorName', getattr(motor, 'motor_name', ''))
+                target_angle = az if motor_name == 'azimuth' else alt
+                
+                if hasattr(motor, 'GoToAngle'):
+                    motor.MonitorMove = True
+                    result = motor.GoToAngle(target_angle)
+                    motor.MonitorMove = False
+                    if not result:
+                        self._log(f"GoToTarget: {motor_name} move failed", level='error')
+                        return False
+            
+            self._stop_motors()
+            self._log("GoToTarget: Move complete", terminal=True)
+            return True
+            
+        except Exception as e:
+            self._log(f"GoToTarget failed: {e}", level='error')
+            return False
+    
+    def _extend_trajectories(self) -> None:
+        """Calculate and send trajectory extensions for all motors."""
+        if not self.ctx.motor_controls or not self.ctx.target:
+            return
+        
+        for motor in self.ctx.motor_controls:
+            if hasattr(motor, 'ExtendTrajectory'):
+                try:
+                    motor.ExtendTrajectory(self.ctx.target)
+                except Exception as e:
+                    self._log(f"Trajectory extension failed: {e}", level='error')
+    
+    def _check_target_in_range(self, az: float, alt: float) -> bool:
+        """Check if target position is within motor limits.
+        
+        Args:
+            az: Target azimuth in degrees
+            alt: Target altitude in degrees
+            
+        Returns:
+            True if in range, False otherwise
+        """
+        if not self.ctx.motor_controls:
+            return True
+        
+        for motor in self.ctx.motor_controls:
+            motor_name = getattr(motor, 'MotorName', getattr(motor, 'motor_name', ''))
+            min_angle = getattr(motor, 'MinObservationAngle', getattr(motor, 'MinAngle', 0))
+            max_angle = getattr(motor, 'MaxAngle', 360)
+            
+            if motor_name == 'altitude':
+                if alt < min_angle or alt > max_angle:
+                    self._log(f"Target altitude {alt:.1f} outside range [{min_angle}, {max_angle}]", 
+                              level='warning', terminal=True)
+                    return False
+            elif motor_name == 'azimuth':
+                if az < min_angle or az > max_angle:
+                    self._log(f"Target azimuth {az:.1f} outside range [{min_angle}, {max_angle}]",
+                              level='warning', terminal=True)
+                    return False
+        
+        return True
+    
+    def _update_camera_ready_status(self, ready: bool) -> None:
+        """Update camera about observation readiness.
+        
+        Args:
+            ready: Whether telescope is on target and ready
+        """
+        if not self.ctx.camera_control_queue:
+            return
+        
+        control_msg = {
+            'TimeStamp': self._now_utc(),
+            'ReadyToObserve': ready,
+            'BatchSize': getattr(self.ctx.parameters, 'BatchSize', 1) if self.ctx.parameters else 1
+        }
+        self.ctx.camera_control_queue.put(control_msg)
+        self._log(f"Camera ReadyToObserve: {ready}", terminal=False)
+    
+    def _is_on_target(self, az: float, alt: float) -> bool:
+        """Check if camera is pointing at target position.
+        
+        Args:
+            az: Target azimuth
+            alt: Target altitude
+            
+        Returns:
+            True if on target within tolerance
+        """
+        if not self.ctx.motor_controls:
+            return True  # Assume on target if no motors
+        
+        tolerance = 0.5  # degrees
+        
+        for motor in self.ctx.motor_controls:
+            motor_name = getattr(motor, 'MotorName', getattr(motor, 'motor_name', ''))
+            current_angle = getattr(motor, 'CurrentAngle', None)
+            
+            if current_angle is not None:
+                target_angle = az if motor_name == 'azimuth' else alt
+                if abs(current_angle - target_angle) > tolerance:
+                    return False
+        
+        return True
+    
     def run(self, batch_mode: bool = False) -> ObservationResult:
         """Execute the observation run.
         
@@ -354,6 +483,13 @@ class ObservationLoop:
             self._result.add_status(ObservationStatus.CAMERA_TIMEOUT)
             return self._result
         
+        # Initial GOTO to center target
+        if not self._goto_target():
+            self._log("Failed to move to target", level='error')
+            self._result.success = False
+            self._result.add_status(ObservationStatus.MOTOR_FAULT)
+            return self._result
+        
         # Initialize observation
         self._obs_start = self._now_utc()
         self._photo_count = 0
@@ -379,6 +515,16 @@ class ObservationLoop:
                 # Update target position
                 ra, dec, az, alt = self._update_target_position()
                 
+                # Check target still in motor range
+                if not self._check_target_in_range(az, alt):
+                    self._log("Target has moved out of motor range", terminal=True)
+                    self._result.add_status(ObservationStatus.MOTOR_RANGE)
+                    self._running = False
+                    break
+                
+                # Extend motor trajectories to track target
+                self._extend_trajectories()
+                
                 # Calculate duration
                 duration = (self._now_utc() - self._obs_start).total_seconds()
                 self._result.duration_seconds = duration
@@ -394,8 +540,15 @@ class ObservationLoop:
                 # Check target still visible
                 if not self._check_target_visible():
                     self._log("Target is no longer visible", terminal=True)
+                    self._result.add_status(ObservationStatus.TARGET_NOT_VISIBLE)
                     self._running = False
                     break
+                
+                # Update ReadyToObserve state based on pointing
+                is_on_target = self._is_on_target(az, alt)
+                if is_on_target != self._ready_to_observe:
+                    self._ready_to_observe = is_on_target
+                    self._update_camera_ready_status(is_on_target)
                 
                 # Check photo limit (if set)
                 if self.ctx.parameters:
@@ -422,6 +575,9 @@ class ObservationLoop:
             self._result.success = False
         
         # Cleanup
+        self._stop_motors()
+        self._update_camera_ready_status(False)
+        
         self._result.end_time = self._now_utc()
         self._result.photo_count = self._photo_count
         
@@ -463,7 +619,8 @@ def go_to_target(
     motor_controls: List[Any],
     mctl: Any,
     logger: Any = None,
-    timeout_seconds: float = 120
+    timeout_seconds: float = 120,
+    position_tolerance: float = 0.5
 ) -> bool:
     """Move telescope to target position.
     
@@ -473,6 +630,7 @@ def go_to_target(
         mctl: Microcontroller interface
         logger: Optional logger
         timeout_seconds: Maximum time for move
+        position_tolerance: Degrees tolerance for position matching
         
     Returns:
         True if successful, False on failure
@@ -480,6 +638,16 @@ def go_to_target(
     def _log(*args, level='info', terminal=False):
         if logger:
             logger.Log(*args, level=level, terminal=terminal)
+    
+    def _compare_angles(current: float, target_angle: float, tolerance: float) -> bool:
+        """Check if angles match within tolerance."""
+        if current is None:
+            return False
+        diff = abs(current - target_angle)
+        # Handle wraparound at 360 degrees
+        if diff > 180:
+            diff = 360 - diff
+        return diff <= tolerance
     
     try:
         az, alt = target.AzAltDegrees()
@@ -489,30 +657,92 @@ def go_to_target(
         az_motor = None
         alt_motor = None
         for motor in motor_controls:
-            if getattr(motor, 'MotorName', '') == 'azimuth':
+            name = getattr(motor, 'MotorName', getattr(motor, 'motor_name', ''))
+            if name == 'azimuth':
                 az_motor = motor
-            elif getattr(motor, 'MotorName', '') == 'altitude':
+            elif name == 'altitude':
                 alt_motor = motor
         
-        # Send move commands
-        if az_motor and hasattr(az_motor, 'GoTo'):
-            az_motor.GoTo(az)
-        if alt_motor and hasattr(alt_motor, 'GoTo'):
-            alt_motor.GoTo(alt)
+        # Use GoToAngle if available (preferred - handles retries internally)
+        # Otherwise fall back to simpler GoTo command
+        moves_started = False
         
-        # Wait for completion (simplified)
+        if az_motor:
+            if hasattr(az_motor, 'GoToAngle'):
+                az_motor.MonitorMove = True
+                result = az_motor.GoToAngle(az)
+                az_motor.MonitorMove = False
+                if not result:
+                    _log("GoToTarget: Azimuth move failed", level='warning')
+                moves_started = True
+            elif hasattr(az_motor, 'GoTo'):
+                az_motor.GoTo(az)
+                moves_started = True
+        
+        if alt_motor:
+            if hasattr(alt_motor, 'GoToAngle'):
+                alt_motor.MonitorMove = True
+                result = alt_motor.GoToAngle(alt)
+                alt_motor.MonitorMove = False
+                if not result:
+                    _log("GoToTarget: Altitude move failed", level='warning')
+                moves_started = True
+            elif hasattr(alt_motor, 'GoTo'):
+                alt_motor.GoTo(alt)
+                moves_started = True
+        
+        if not moves_started:
+            _log("GoToTarget: No motor controls available", level='warning')
+            return True  # No motors = success (nothing to move)
+        
+        # Wait for motors to reach position with actual monitoring
         start = time.time()
-        while time.time() - start < timeout_seconds:
-            # Check if motors have reached position
-            # This would check actual motor position vs target
-            time.sleep(0.5)
-            
-            # For now, just wait a fixed time
-            if time.time() - start > 5:  # Minimum wait
-                break
+        last_change_time = start
+        last_positions = {}
         
-        _log("GoToTarget: Move complete", terminal=False)
-        return True
+        while time.time() - start < timeout_seconds:
+            # Check all motor positions
+            all_in_position = True
+            
+            for motor in motor_controls:
+                name = getattr(motor, 'MotorName', getattr(motor, 'motor_name', ''))
+                current = getattr(motor, 'CurrentAngle', None)
+                target_angle = az if name == 'azimuth' else alt
+                
+                if not _compare_angles(current, target_angle, position_tolerance):
+                    all_in_position = False
+                
+                # Track if position has changed (motor is still moving)
+                if name in last_positions and current != last_positions[name]:
+                    last_change_time = time.time()
+                last_positions[name] = current
+            
+            if all_in_position:
+                _log("GoToTarget: All motors in position", terminal=False)
+                break
+            
+            # If no position change for 60 seconds, consider it stalled
+            if time.time() - last_change_time > 60:
+                _log("GoToTarget: Motors not responding for 60s, aborting", level='warning')
+                return False
+            
+            time.sleep(0.5)
+        
+        # Final position check
+        positions_ok = True
+        for motor in motor_controls:
+            name = getattr(motor, 'MotorName', getattr(motor, 'motor_name', ''))
+            current = getattr(motor, 'CurrentAngle', None)
+            target_angle = az if name == 'azimuth' else alt
+            
+            if not _compare_angles(current, target_angle, position_tolerance * 2):
+                _log(f"GoToTarget: {name} not in position: {current} vs {target_angle}", 
+                     level='warning')
+                positions_ok = False
+        
+        if positions_ok:
+            _log("GoToTarget: Move complete", terminal=False)
+        return positions_ok
         
     except Exception as e:
         _log(f"GoToTarget: Failed - {e}", level='error')

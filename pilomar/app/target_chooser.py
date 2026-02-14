@@ -497,7 +497,7 @@ class TargetChooser:
         while result == "":
             if prechosen is None:
                 chooser = self._make_list_chooser(target_list, compress=False)
-                search = chooser.Prompt() if chooser else self._input("Enter planet name: ")
+                search = chooser.Prompt() if chooser else self._input("Enter planet name: ").lower()
             else:
                 search = prechosen
             

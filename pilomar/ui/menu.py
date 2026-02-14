@@ -25,7 +25,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pytz
 
-from .text_color import TextColor
+try:
+    from .text_color import TextColor
+except ImportError:
+    from text_color import TextColor
 
 
 
@@ -645,6 +648,9 @@ class ListChooser:
         elif len(result) == 1: result = result[0] # Strip the list structure off.
         # In all other cases return the selected list.
         return result
+    
+    # Alias for compatibility with target_chooser
+    Prompt = prompt
     
 # -------------------------------------------------------------------------------------------------------------------------------- 
 

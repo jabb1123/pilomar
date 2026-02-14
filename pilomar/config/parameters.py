@@ -44,7 +44,7 @@ class Parameters(AttributeMaster):
         """
         if os.path.isfile(self.ParamFileName):
             with open(self.ParamFileName, 'r') as f:
-                self.Log("Loading parameters from file:", self.ParamFileName)
+                self.log("Loading parameters from file:", self.ParamFileName)
                 self._Dictionary = json.load(f)
         
         self._init_stepper_driver_data()
@@ -56,6 +56,7 @@ class Parameters(AttributeMaster):
         self._init_display_parameters()
         self._init_trajectory_parameters()
         self._init_filter_parameters()
+        self._init_location_parameters()
 
     def _init_stepper_driver_data(self):
         """Initialize stepper motor driver board data."""
@@ -167,7 +168,7 @@ class Parameters(AttributeMaster):
         self.CameraSaveFits = self.get_param('CameraSaveFits', False)
         
         if not (self.CameraSaveJpg or self.CameraSaveDng or self.CameraSaveFits):
-            self.Log("No image types are saved according to the parameters.",
+            self.log("No image types are saved according to the parameters.",
                     level='warning')
 
     def _init_display_parameters(self):
@@ -198,6 +199,7 @@ class Parameters(AttributeMaster):
         self.TrajectoryWindow = self.get_param('TrajectoryWindow', 1200)
         self.UseDynamicTrajectoryPeriods = self.get_param(
             'UseDynamicTrajectoryPeriods', True)
+        self.DriftTrackingEnabled = self.get_param('DriftTrackingEnabled', True)
 
     def _init_filter_parameters(self):
         """Initialize image filter parameters."""
@@ -207,6 +209,43 @@ class Parameters(AttributeMaster):
         self.SuggestionMagnitude = self.get_param('SuggestionMagnitude', 11)
         self.SuggestionPixels = self.get_param('SuggestionPixels', 100)
         self.SavedUTC = self.get_param('SavedUTC', self._now_func())
+
+    def _init_location_parameters(self):
+        """Initialize observer location parameters."""
+        # Location can be string like "51.477 N" or decimal degrees
+        self.HomeLat = self.get_param('HomeLat', None)  # e.g., "51.477 N"
+        self.HomeLon = self.get_param('HomeLon', None)  # e.g., "0.0 W"
+        self.LocalTZ = self.get_param('LocalTZ', 'utc')
+        
+        # Convert to decimal values for calculations
+        self._HomeLatVal = 0.0
+        self._HomeLonVal = 0.0
+        
+        if self.HomeLat is not None:
+            try:
+                parts = str(self.HomeLat).split()
+                self._HomeLatVal = float(parts[0])
+                if len(parts) > 1 and parts[1].upper() == 'S':
+                    self._HomeLatVal = -self._HomeLatVal
+            except (ValueError, IndexError):
+                # Try as direct float
+                try:
+                    self._HomeLatVal = float(self.HomeLat)
+                except ValueError:
+                    pass
+        
+        if self.HomeLon is not None:
+            try:
+                parts = str(self.HomeLon).split()
+                self._HomeLonVal = float(parts[0])
+                if len(parts) > 1 and parts[1].upper() == 'W':
+                    self._HomeLonVal = -self._HomeLonVal
+            except (ValueError, IndexError):
+                # Try as direct float
+                try:
+                    self._HomeLonVal = float(self.HomeLon)
+                except ValueError:
+                    pass
 
     def get_param(self, name, default, oldnames=None):
         """Get a value from the parameter file.
@@ -227,7 +266,7 @@ class Parameters(AttributeMaster):
             for oldname in oldnames:
                 if oldname in self._Dictionary:
                     result = self._Dictionary[oldname]
-                    self.Log("Parameters.get_param(", name, ") migrating from",
+                    self.log("Parameters.get_param(", name, ") migrating from",
                             oldname, "with value", result, terminal=False)
                     break
         
@@ -235,7 +274,7 @@ class Parameters(AttributeMaster):
         result = self._Dictionary.get(name, result)
         
         if result != default:
-            self.Log("Parameters.get_param(", name, ") default", default,
+            self.log("Parameters.get_param(", name, ") default", default,
                     "overridden with", result, terminal=False)
         
         return result
@@ -309,7 +348,7 @@ class Parameters(AttributeMaster):
         with open(filename, 'w') as f:
             json.dump(save_dict, f, indent=2, default=str)
         
-        self.Log("Parameters saved to:", filename, terminal=False)
+        self.log("Parameters saved to:", filename, terminal=False)
 
     def show(self):
         """Display all parameters to terminal."""
