@@ -47,7 +47,7 @@ class SessionStatus(AttributeMaster):
         self.set_logger(logger)
         self.program_start_time = now_utc()  # When the program starts.
         # No target yet. This gets set to a valid target object when the target is selected.
-        self.target: AstroTarget = None
+        self.target = None
         # Reference to the microcontroller object.
         self.mctl = microcontroller
         self.motor_controllers: List[MotorControl] = motor_controls
@@ -248,7 +248,7 @@ class SessionStatus(AttributeMaster):
         else:
             _ = "Unsynchronised"
 
-    def check_comms_stats(self, line):
+    def check_comms_stats(self, line: str):
         """Check the Microcontroller's comms status message for stats.
                comms status 20210409090929 0 0 538 0
               0      1           2       3 4  5  6
@@ -264,7 +264,7 @@ class SessionStatus(AttributeMaster):
         self.mctl_write_drops = int(lineitems[6])
 
     def check_trajectory(
-        self, line, targetobj
+        self, line: str, targetobj
     ):  # Needs reworking for actual Skyfield trajectory.
         """Check the Microcontroller's status message to see if the trajectory is known.
         If it is not known far enough into the future, extend it by a single 'TrajectoryPoint'
@@ -324,7 +324,7 @@ class SessionStatus(AttributeMaster):
         """Microcontroller reports a restart. Trigger chain of updates."""
         self.mctl.mctl_restarted()
         for i in self.motor_controllers:
-            i.Restarted()  # Need to mark that the motor is nolonger configured.
+            i.restarted()  # Need to mark that the motor is nolonger configured.
         self.log(
             "sessionstatus:CheckControllerStarted(): Microcontroller reports restart.",
             terminal=False,
@@ -343,7 +343,7 @@ class SessionStatus(AttributeMaster):
             now_hour_minute_sec() + " Microcontroller rejected goto command: " + line
         )
 
-    def check_tune_complete(self, line):  # A tune command has been processed.
+    def check_tune_complete(self, line: str):  # A tune command has been processed.
         """tune complete {name} {endtime} {delta} {starttime}
         0     1       2        3        4        5"""
         foundit = False
@@ -393,7 +393,7 @@ class SessionStatus(AttributeMaster):
                 )
         return result
 
-    def check_controller_version(self, line):
+    def check_controller_version(self, line: str):
         """Handle controller version message.
         Message looks like this :-
 

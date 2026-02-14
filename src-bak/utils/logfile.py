@@ -20,6 +20,7 @@ import traceback
 
 from utils.text.textcolor import TextColor
 from utils.time_funcs import (
+    CLOCK_OFFSET,
     now_utc,
 )  # Used to record the stacktrace if recording an error.
 
@@ -32,9 +33,7 @@ class LogFile:  # 2 references.
 
     __version__ = "0.1.1"
 
-    def __init__(
-        self, filename: str, clockoffset=None, flush: bool = False, append: bool = True
-    ):
+    def __init__(self, filename: str, flush: bool = False, append: bool = True):
         """filename is the destination log file.
         clockoffset (seconds) is used by now_utc() method to create offset timestamps.
         flush : False. Log file writes are flushed to disc efficiently and more slowly by the OS.
@@ -44,7 +43,7 @@ class LogFile:  # 2 references.
         append: True.  Existing log file is appended to.
             False. Fresh log file is started."""
         self.filename = filename
-        self.clock_offset = clockoffset  # Can establish a clock offset when replicating/simulating specific situations.
+        self.clock_offset = CLOCK_OFFSET  # Can establish a clock offset when replicating/simulating specific situations.
         self.prev_log_time = now_utc()
         self.error_window = None  # Reference to window object for displaying errors. Must offer a 'Print()' method.
         self.error_list = (

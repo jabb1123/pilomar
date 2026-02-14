@@ -131,9 +131,9 @@ def display_hms(h, m, s, length=12, rounding=1):
     ss = str(round(s, rounding))
     if len(ss.split(".")[0]) < 2:
         ss = " " + ss
-    DH = hs + "h " + ms + "m " + ss + "s"
-    DH = DH.rjust(length, " ")[(-1 * length) :]
-    return DH
+    dh = hs + "h " + ms + "m " + ss + "s"
+    dh = dh.rjust(length, " ")[(-1 * length) :]
+    return dh
 
 
 def display_degree(value, length=10, zerofill=True, symbol=None):

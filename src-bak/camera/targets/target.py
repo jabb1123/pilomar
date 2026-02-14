@@ -2,6 +2,7 @@ import math
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+import numpy as np
 from skyfield import almanac
 from skyfield.api import Angle, Star, Time, Timescale, Topos, load
 from skyfield.data import mpc  # For comet trajectory handling.
@@ -18,7 +19,133 @@ from utils.params import AttributeMaster, Parameters
 from utils.statics import DEGREE_SYMBOL, SYMBOLS
 from utils.text.human_readable import human_readable_seconds
 from utils.text.textcolor import TextColor
-from utils.time_funcs import datetime2_ts, now_utc, ts_delta, ts_to_datetime
+from utils.time_funcs import (
+    CLOCK_OFFSET,
+    datetime2_ts,
+    now_utc,
+    ts_delta,
+    ts_to_datetime,
+)
+
+
+def skyfield_now(real=False):
+    """Return skyfield format current time.
+    Available as a method so that offsets or other features can be added if needed.
+    if CLOCK_OFFSET is set, that many seconds are added to the result. Allowing you to run the program against other dates/times.
+    if real == True, then the Clockoffset is not applied, giving the true CPU time."""
+    result = ts.now()  # Now. # *Q* Offset supported.
+    if not real and CLOCK_OFFSET is not None:  # Can apply time offset.
+        dt = ts_to_datetime(result)
+        dt = +timedelta(seconds=CLOCK_OFFSET)
+        result = datetime2_ts(dt)
+    return result
+
+
+def xyz_to_alt_az(x: float, y: float, z: float) -> Tuple[float, float]:
+    """Convert 3D coordinates into altitude and azimuth."""
+    if not type(x) in [int, float, np.float64]:
+        main_log.log("XYZToAltAz: Received bad x datatype", x, type(x), level="error")
+    if not type(y) in [int, float, np.float64]:
+        main_log.log("XYZToAltAz: Received bad y datatype", y, type(y), level="error")
+    if not type(z) in [int, float, np.float64]:
+        main_log.log("XYZToAltAz: Received bad z datatype", z, type(z), level="error")
+    try:
+        r = math.sqrt(x * x + y * y)
+        alt = math.degrees(math.atan2(z, r))
+        az = math.degrees(math.atan2(x, y)) % 360
+    except Exception as e:
+        main_log.raise_exception(
+            e, comment="XYZToAltAz"
+        )  # Trap all the exception information in the main log file.
+    return alt, az
+
+
+def alt_az_to_xyz(
+    alt: float, az: float, distance: float = 1.0
+) -> Tuple[float, float, float]:
+    """Convert alt,az angles to XYZ coordinates. Based upon originlab definition on web.
+    X and Y web definitions are swapped to match alignment in Pilomar space."""
+    if not type(alt) in [int, float, np.float64]:
+        main_log.log(
+            "AltAzToXYZ: Received bad alt datatype", alt, type(alt), level="error"
+        )
+    if not type(az) in [int, float, np.float64]:
+        main_log.log(
+            "AltAzToXYZ: Received bad az datatype", az, type(az), level="error"
+        )
+    try:
+        y = distance * math.cos(math.radians(alt)) * math.cos(math.radians(az))
+        x = distance * math.cos(math.radians(alt)) * math.sin(math.radians(az))
+        z = distance * math.sin(math.radians(alt))
+    except Exception as e:
+        main_log.raise_exception(
+            e, comment="AltAzToXYZ"
+        )  # Trap all the exception information in the main log file.
+    return x, y, z
+
+
+def relative_alt_az(star_alt, star_az, look_at_alt, look_at_az):
+    """Calculate the angles of a star relative to some look-at position.
+    There will be some wonderfully clever maths to do this cleanly, quickly and precisely.
+    But this was developed with trial and error, and it works well enough for me and is modifiable as required.
+    """
+    plot_x, plot_y, plot_z = alt_az_to_xyz(
+        star_alt, star_az
+    )  # Place star on celestial sphere (unit 1)
+
+    # Swing round to LOOK-AT Azimuth.
+    new_y = plot_y * math.cos(math.radians(-1 * look_at_az)) - plot_x * math.sin(
+        math.radians(-1 * look_at_az)
+    )  # 0degrees is due north on Y axis. 90degrees is due east on X axis.
+    new_x = plot_x * math.cos(math.radians(-1 * look_at_az)) + plot_y * math.sin(
+        math.radians(-1 * look_at_az)
+    )
+    plot_x = new_x
+    plot_y = new_y
+
+    # Drop down to LOOK-AT Altitude.
+    new_y = plot_y * math.cos(math.radians(-1 * look_at_alt)) - plot_z * math.sin(
+        math.radians(-1 * look_at_alt)
+    )  # 0degrees is due north on Y axis. 90degrees is straight up on Z axis.
+    new_z = plot_z * math.cos(math.radians(-1 * look_at_alt)) + plot_y * math.sin(
+        math.radians(-1 * look_at_alt)
+    )
+    plot_y = new_y
+    plot_z = new_z
+
+    plot_star_alt, plot_star_az = xyz_to_alt_az(
+        plot_x, plot_y, plot_z
+    )  # Convert from an x,y,z location back into Alt/Az combination.
+    # Clip result to +/- 180Degrees because we're relative to the 'centre' of the map we're drawing.
+    plot_star_az = plot_star_az % 360
+    if plot_star_az > 180:
+        plot_star_az -= 360
+    plot_star_alt = plot_star_alt % 360
+    if plot_star_alt > 180:
+        plot_star_alt -= 360
+    return plot_star_alt, plot_star_az
+
+
+def plot_relative_alt_az(plot_star_alt, plot_star_az, height, width):
+    """Given a relative altitude and azimuth, return the X,Y co-ordinates on the image of dimensions (height*width)
+    plot_star_alt = +/- degrees from the centre of the image.
+    plot_star_az = +/- degrees from the centre of the image.
+    height = pixel height of the image.
+    width = pixel width of the image.
+    applydistortion = Position will be modified to simulate lens distortion."""
+    # Convert relative AltAz to a location on an image.
+    try:
+        temp_star_x = int(
+            (width / 2) + (plot_star_az * camera_in_use.pixels_per_fov_degree_width)
+        )  # Raw position
+        temp_star_y = int(
+            (height / 2) - (plot_star_alt * camera_in_use.pixels_per_fov_degree_height)
+        )  # SUBTRACT rather than ADD because Y axis in image counts down from the top, whereas ALTITUDE counts up from the bottom.
+    except Exception as e:
+        main_log.raise_exception(
+            e, comment="plot_relative_alt_az"
+        )  # Trap all the exception information in the main log file.
+    return temp_star_x, temp_star_y
 
 
 class AstroTarget(AttributeMaster):
@@ -448,7 +575,7 @@ class AstroTarget(AttributeMaster):
         )
         return risetime, settime
 
-    def current_time(self, real: bool = False, clock_offset: int = None):
+    def current_time(self, real: bool = False):
         """Return skyfield format current time.
         Available as a method so that offsets or other features can be added if needed.
         if ClockOffset is set, that many seconds are added to the result. Allowing you to run the program against other dates/times.
@@ -456,9 +583,9 @@ class AstroTarget(AttributeMaster):
         """
 
         result = skyfield_now()  # Now. # Offset supported.
-        if not real and clock_offset is not None:  # Can apply time offset.
+        if not real and CLOCK_OFFSET is not None:  # Can apply time offset.
             dt = ts_to_datetime(result)
-            dt += timedelta(seconds=clock_offset)
+            dt += timedelta(seconds=CLOCK_OFFSET)
             result = datetime2_ts(dt)
         return result
 
@@ -598,7 +725,7 @@ class AstroTarget(AttributeMaster):
         # Convert the field rotation angle into the number of pixels in the most extreme corner of the image. That will show the maximum smearing due to rotation.
         # If no angle, calculate one based upon current selected exposure.
         if angle is None:
-            angle = self.rotation_arc(span=self.camera_in_use.ExposureSeconds)
+            angle = self.rotation_arc(span=self.camera_in_use.exposure_seconds)
         # Radius of worst case rotation is the distance from the centre of the image to the corner.
         if radius is None:
             radius = math.sqrt(

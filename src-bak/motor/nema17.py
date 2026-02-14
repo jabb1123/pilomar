@@ -3,7 +3,7 @@ This module provides a class to control a Nema 17 stepper motor
 """
 
 from RpiMotorLib import RpiMotorLib
-import RPi.GPIO as GPIO
+from gpio import gpio_driver
 from enum import Enum
 
 from gpio import OutputPinGPIO
@@ -63,7 +63,7 @@ class MotorNema17:
     ) -> None:
 
         self.motor_name = motor_name
-        self.enable_pin = enable_pin
+        self.enable_pin: OutputPinGPIO = enable_pin
         self.motor = RpiMotorLib.A4988Nema(
             direction_pin=dir_pin.pin,
             step_pin=step_pin.pin,
@@ -92,7 +92,7 @@ class MotorNema17:
         """
         Disable the motor
         """
-        GPIO.output(self.enable_pin, GPIO.HIGH)
+        gpio_driver.output(self.enable_pin, gpio_driver.HIGH)
 
     def move_motor(self, direction: MotorDirection, steps):
         """
@@ -104,8 +104,5 @@ class MotorNema17:
         :type steps: int
         """
         self.motor.motor_go(
-            direction=direction.value,
-            steps=steps,
-            stepdelay=0.005,
-            stepdelaymode="time",
+            clockwise=direction.value, steptype="full", steps=steps, stepdelay=0.005
         )

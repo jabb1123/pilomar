@@ -12,6 +12,63 @@ from utils.time_funcs import now_utc
 from utils.timer import ProgressTimer, Timer
 
 
+def dim_channel(channel, ratio):
+    """simple multiplier for single color channel."""
+    channel = channel * ratio
+    channel = max(channel, 0)  # Cannot be < 0
+    channel = min(channel, 255)  # Cannot be > 255
+    return int(channel)
+
+
+def hip_color(bv):
+    """Return b,g,r values for the color of any star given its B-V value from the hipparcos catalog."""
+    bv = pandas_float(bv)  # Make sure it's a float, trap NaN values.
+    try:
+        if is_float(bv):  # Some entries are BLANK in Hipparcos data set.
+            color_bv = float(bv)
+            b, g, r = b_vto_bgr(color_bv)
+            # Make all the stars quite bright, so rescale the values to 128 - 255.
+            b = int(b / 2) + 127
+            g = int(g / 2) + 127
+            r = int(r / 2) + 127
+        else:
+            main_log.log(
+                "HipColor:",
+                str(bv),
+                "isn't float, setting (255,255,255)",
+                terminal=False,
+            )
+            b = g = r = 255
+    except Exception as e:
+        main_log.log("HipColor:", str(bv), "failed:", str(e), level="warning")
+        b = g = r = 255
+    return (b, g, r)
+
+
+def magnitude2_radius(mag, dimmest, brightest=-6, radius_max=20):
+    """Calculate star radius based upon a sliding scale of magnitudes.
+    Returns a scaled 'radius' and a 'ratio' for dimming colours based upon the magnitude of the item.
+    dimmest = High value magnitude (dimmest star to represent). (Radius 1)
+    brightest = Low value magnitude (brightest star to represent). (Radius 10)
+    NOTE: If you are tempted to alter this, test it carefully first. Magnitudes run negatively!
+    """
+    rmag = min(mag, dimmest)  # Magnitudes are inverted!
+    rmag = max(rmag, brightest)  # Magnitudes are inverted!
+    span = dimmest - brightest  # Span of magnitudes to be handled.
+    offset = rmag - brightest  # Start point on magnitude scale.
+    ratio = round(
+        (radius_max - 1) * (offset / span), 0
+    )  # How far along the magnitude scale is this item?
+    radius = int(radius_max - ratio)  # Convert to a radius.
+    brightnessratio = float(offset) / float(
+        span
+    )  # How far along the brightest - dimmest scale are we?
+    brightnessratio = 1.0 - (
+        brightnessratio / 2
+    )  # Invert the scale and make sure we don't dim below 50% so stuff stays visible.
+    return radius, brightnessratio
+
+
 class LocalStars(AttributeMaster):
     """Smart cache of neighbouring stars, to make rendering and markup of images faster.
     Creates a pandas dataframe of stars near the target.

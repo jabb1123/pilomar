@@ -109,6 +109,7 @@ import glob  # file system.
 import json  # json file handling.
 import math  # Math and trig functions.
 import os  # OS Command execution.
+import pathlib
 import sys
 
 # Configure UTF-8 encoding for Windows console to support Unicode box-drawing characters
@@ -222,6 +223,7 @@ from utils.text.textcolor import (  # Basic colour and cursor control codes for 
     TextColor,
 )
 from utils.time_funcs import (
+    CLOCK_OFFSET,
     datetime2_ts,
     hms_from_stamp,
     now_hour_minute_sec,
@@ -251,12 +253,6 @@ else:
     # )
 print("Got through imports")
 
-VERSION = "1.1.0"  # Shared with microcontroller. # Make sure the microcontroller accepts any new version number.
-# print("Version:",VERSION)
-ACCEPTABLECONTROLLERVERSIONS = [
-    "1.0"
-]  # Microcontroller versions that this will work with. Ignore patch level.
-
 
 def os_version():
     """Return the version of operating system.
@@ -268,7 +264,7 @@ def os_version():
     versionid = None
     versioncodename = None
     ostype = None
-    for line in os_cmd("cat /etc/os-release"):
+    for line in os_command.execute("cat /etc/os-release"):
         if len(line) > 0:
             elements = line.split("=")
             if elements[0] == "VERSION_ID":
@@ -277,14 +273,14 @@ def os_version():
                 versioncodename = elements[1]
             elif elements[0] == "ID":
                 ostype = elements[1]
-    osbits = int(os_cmd("getconf LONG_BIT")[0])  # Check 32 vs 64 bit O/S
-    osproc = os_cmd("uname -m")[0]
+    osbits = int(os_command.execute("getconf LONG_BIT")[0])  # Check 32 vs 64 bit O/S
+    osproc = os_command.execute("uname -m")[0]
     return versionid, versioncodename, ostype, osbits, osproc
 
 
 def r_pi_model():
     """Calculate a label for the model of RPI in use."""
-    lines = os_cmd("cat /sys/firmware/devicetree/base/model")
+    lines = os_command.execute("cat /sys/firmware/devicetree/base/model")
     rpimodel = "Raspberry Pi"
     for line in lines:
         if len(line) > 0:
@@ -302,22 +298,6 @@ def r_pi_model():
         1
     ]  # Pull the '4' out of "RPi 4 B 1.4" format response.
     return rpimodel, rpinum
-
-
-RPIMODEL, RPiNum = r_pi_model()
-
-RASPISTILL_SYSTEMS = [
-    "wheezy",
-    "jessie",
-    "stretch",
-    "buster",
-]  # These all came with raspistill for camera support.
-SUPPORTED_SYSTEMS = [
-    "3/buster/32",
-    "4/buster/32",
-    "4/bookworm/64",
-    "5/bookworm/64",
-]  # The software is designed to run under these hardware/os combinations.
 
 
 def restart_required():
@@ -351,8 +331,8 @@ def now_local(real=False) -> datetime:  # Many references.
     dt = utc_to_local(
         now_utc(real=real)
     )  # Offset supported, Convert to local timezone.
-    if not real and clock_offset is not None:  # Can apply time offset.
-        dt = dt + timedelta(seconds=clock_offset)
+    if not real and CLOCK_OFFSET is not None:  # Can apply time offset.
+        dt = dt + timedelta(seconds=CLOCK_OFFSET)
     return dt
 
 
@@ -488,33 +468,6 @@ def recheck_disc():
     return True
 
 
-def verify_folder(fn):
-    """Check that all directorys in the list exist.
-    If they don't create them."""
-    result = False
-    try:
-        if fn[-1:] == "/":
-            fn = fn[:-1]  # Remove trailing directory separator if found.
-        if os.path.isdir(fn):  # Directory exists already.
-            main_log.log("VerifyFolder: Found", fn, terminal=False)
-        else:
-            main_log.log("VerifyFolder: Missing", fn, terminal=False)
-            cmd = "mkdir " + fn  # Create the directory.
-            os_cmd(cmd)
-            cmd = (
-                "chown pi:pi " + fn
-            )  # Make sure that the directory's owner is the pi user.
-            os_cmd(cmd)
-            cmd = "chmod +w " + fn  # Make sure there is write access to the directory.
-            os_cmd(cmd)
-            result = True
-    except Exception as e:
-        main_log.report_exception(
-            e, comment="VerifyFolder"
-        )  # Trap all the exception information in the main log file.
-    return result
-
-
 def define_session_folders(campaign_name, exposure=None):
     """Given a campaign name, generate the hierarchy of folders for this specific observation session.
     /home/pi/pilomar/
@@ -561,10 +514,10 @@ def detect_raspistill(canenable=False, candisable=False):
     )  # Or use /dev/null ? We don't need this file.
     # Remove any earlier copy of the file.
     tempcmd = "rm " + filename
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     tempcmd = "raspistill -o " + filename  # Simple command to test the camera.
     main_log.log("DetectRaspistill:", tempcmd, terminal=False)
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     if os.path.exists(filename):  # file exists so assume camera is available.
         tempresult = True
     else:  # file doesn't exist, so assume camera is unavailable.
@@ -592,7 +545,7 @@ def detect_raspistill(canenable=False, candisable=False):
                     "When the camera is available, you can re-enable it from the Camera Tools menu.",
                     level="warning",
                 )
-    templist = os_cmd("rm " + filename)  # Cleanup. Ignore errors.
+    templist = os_command.execute("rm " + filename)  # Cleanup. Ignore errors.
     main_log.log("DetectRaspistill:", tempresult, terminal=False)
     return tempresult
 
@@ -611,12 +564,12 @@ def detect_libcamera(canenable=False, candisable=False):
     )  # Or use /dev/null ? We don't need this file.
     # Remove any earlier copy of the file.
     tempcmd = "rm " + filename
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     tempcmd = (
         "libcamera-still --output " + filename + " --nopreview --timeout 10"
     )  # Simple command to test the camera.
     main_log.log("DetectLibcamera:", tempcmd, terminal=False)
-    _ = os_cmd(tempcmd)
+    _ = os_command.execute(tempcmd)
     if os.path.exists(filename):  # file exists so assume camera is available.
         tempresult = True
     else:  # file doesn't exist, so assume camera is unavailable.
@@ -644,7 +597,7 @@ def detect_libcamera(canenable=False, candisable=False):
                     "When the camera is available, you can re-enable it from the Camera Tools menu.",
                     level="warning",
                 )
-    templist = os_cmd("rm " + filename)  # Cleanup. Ignore errors.
+    templist = os_command.execute("rm " + filename)  # Cleanup. Ignore errors.
     main_log.log("DetectLibcamera:", tempresult, terminal=False)
     return tempresult
 
@@ -816,7 +769,7 @@ def initiate_mctl():
         TextColor.text_box(linelist, fg=TextColor.WHITE, bg=TextColor.RED)
         print("")
         print(TextColor.yellow("pilomar processes currently running:-"))
-        os_cmd("ps -ef | grep pilomar", output="terminal")
+        os_command.execute("ps -ef | grep pilomar", output="terminal")
         print(TextColor.yellow("This copy of the pilomar is pid", os.getpid()))
         main_log.raise_exception(
             e, comment="initiate_mctl:Exception"
@@ -1078,20 +1031,6 @@ def comet_data_age():
                     terminal=True,
                 )
     return filedays
-
-
-def skyfield_now(real=False):
-    """Return skyfield format current time.
-    Available as a method so that offsets or other features can be added if needed.
-    if clock_offset is set, that many seconds are added to the result. Allowing you to run the program against other dates/times.
-    if real == True, then the Clockoffset is not applied, giving the true CPU time."""
-    global clock_offset
-    result = ts.now()  # Now. # *Q* Offset supported.
-    if not real and clock_offset is not None:  # Can apply time offset.
-        dt = ts_to_datetime(result)
-        dt = +timedelta(seconds=clock_offset)
-        result = datetime2_ts(dt)
-    return result
 
 
 def choose_messier(prechosen=None, sizewarning=True):
@@ -6101,7 +6040,7 @@ def shutdown_camera():
             ]
             TextColor.text_box(lines, fg=TextColor.RED, bg=TextColor.BLACK)
             # Record the process stack to the log file just in case there's something useful there.
-            lines = os_cmd("ps -ef")
+            lines = os_command.execute("ps -ef")
             cam_log.log("ps -ef\n", terminal=False)
             for line in lines:
                 cam_log.log(line.strip() + "\n", terminal=False)
@@ -6606,7 +6545,7 @@ def generate_preview_movie(folder=None, filename=None):
         + "' -vf scale='iw/2:ih/2' "
         + avifilename
     )
-    os_cmd(cmd)
+    os_command.execute(cmd)
     print(TextColor.yellow("Generated"), avifilename)
     main_log.log(
         "GeneratePreviewAvi: Completed animation of observation previews.",
@@ -6634,7 +6573,7 @@ def generate_light_movie(folder=None, filename=None):
         + "' -vf scale='iw/2:ih/2' "
         + avifilename
     )
-    os_cmd(cmd)
+    os_command.execute(cmd)
     print(TextColor.yellow("Generated"), avifilename)
     main_log.log(
         "GenerateLightAvi: Completed animation of observation light images.",
@@ -7196,7 +7135,7 @@ def observation_run():
             fg=OSW_TEXT_GOOD,
             bg=OSW_TEXT_BG,
         )  # Which folder is the observation data saved in.
-        if clock_offset is not None:  # The clock is not running in realtime.
+        if CLOCK_OFFSET is not None:  # The clock is not running in realtime.
             observation_status_window.field_value(
                 "CLOCK",
                 str(now_utc()).split("+")[0],
@@ -7631,7 +7570,7 @@ def observation_run():
                     + folder_handler.get_path("session")
                 )
                 if (
-                    clock_offset is not None
+                    CLOCK_OFFSET is not None
                 ):  # Warn that tracking clock is not running in realtime.
                     print(
                         TextColor.red(
@@ -8093,7 +8032,7 @@ def show_parameters():  # For menu
 def edit_parameters():  # For menu
     # global Parameters
     params.save_attributes(params.param_filename)  # Save current values.
-    os_cmd(
+    os_command.execute(
         "cp "
         + params.param_filename
         + " "
@@ -8110,7 +8049,7 @@ def edit_parameters():  # For menu
 
 
 def edit_target_history():  # For menu
-    os_cmd(
+    os_command.execute(
         "cp "
         + HistoryJsonFile
         + " "
@@ -8937,25 +8876,25 @@ def about():
     main_log.log("RPi processor:", OS_processor)
     main_log.log("RPi systemkey:", OS_systemkey)
 
-    for line in os_cmd("cat /sys/firmware/devicetree/base/model"):
+    for line in os_command.execute("cat /sys/firmware/devicetree/base/model"):
         if len(line) > 0:
             main_log.log("Firmware:", line, terminal=True)
-    for line in os_cmd("cat /etc/os-release"):
+    for line in os_command.execute("cat /etc/os-release"):
         if len(line) > 0:
             main_log.log("OS release:", line, terminal=True)
-    for line in os_cmd("cat /proc/version"):
+    for line in os_command.execute("cat /proc/version"):
         if len(line) > 0:
             main_log.log("OS version:", line, terminal=True)
-    for line in os_cmd("cat /proc/cpuinfo"):
+    for line in os_command.execute("cat /proc/cpuinfo"):
         if len(line) > 0:
             main_log.log("CPU info:", line, terminal=True)
-    for line in os_cmd("vcgencmd get_mem arm"):
+    for line in os_command.execute("vcgencmd get_mem arm"):
         if len(line) > 0:
             main_log.log("CPU memory allocation:", line, terminal=True)
-    for line in os_cmd("vcgencmd get_mem gpu"):
+    for line in os_command.execute("vcgencmd get_mem gpu"):
         if len(line) > 0:
             main_log.log("GPU memory allocation:", line, terminal=True)
-    for line in os_cmd("uptime"):
+    for line in os_command.execute("uptime"):
         if len(line) > 0:
             main_log.log("Uptime:", line, terminal=True)
     # Print program ID
@@ -9320,7 +9259,6 @@ if __name__ == "__main__":
     # Dictionary of 'toggles' so that warnings do not repeat too often.
     resume_observation = False  # Set this to TRUE to automatically load the previous observation and resume.
     StartupClock = None  # No initial datetime set for start of program. Means we use the current system clock.
-    clock_offset = None  # Number of seconds to apply to clocks to make the program appear to run in a different period of time.  Use with caution.
 
     # During an observation run we need to interrupt the processing. Python doesn't do this natively and
     # <ctrl-c> will stop the program brutally, so we use the curses library to provide a keyboard scanner.
@@ -9383,8 +9321,9 @@ if __name__ == "__main__":
         OSCommand.execute
     )  # Shortcut point to the execution method which returns the output.
     osCmdCode = (
-        OSCommand.execute_code
+        os_command.execute_code
     )  # Shortcut point to the execution method which returns the termination code.
+    RPIMODEL, RPiNum = r_pi_model()
 
     OS_id, OS_name, OS_type, OS_bits, OS_processor = os_version()
     OS_systemkey = f"{RPiNum}/{OS_name}/{OS_bits}"
@@ -9427,7 +9366,7 @@ if __name__ == "__main__":
     # Now delete.
     cmd = f"find {logdir} -type f -name '{program_title}_*.log' -mtime +2 -delete"
     print(cmd)  # Show the user the command being executed.
-    os_cmd(cmd)
+    os_command.execute(cmd)
     print("Done.")
 
     # Log details about the environment.
@@ -10214,8 +10153,8 @@ if __name__ == "__main__":
         logger=main_log,
     )
     motor_contollers: List[MotorControl] = (
-        MotorControl.AllMotors
-    )  #  Alias for the list of ALL defined motors held in the motorcontrol class.
+        MOTOR_CONTROL_LIST  #  Alias for the list of ALL defined motors held in the motorcontrol class.
+    )
 
     # Assign filename for the 'observation running' flag file.
     # Thie file indicates that an observation started, but has not yet cleanly finished.

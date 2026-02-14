@@ -3,7 +3,7 @@ import threading
 import time
 import serial
 from queue import Queue
-from utils.disk import DiskMonitor
+from utils.files.disk import DiskMonitor
 from utils.logfile import LogFile
 from utils.text.display import ask_yes_no
 from utils.text.human_readable import clean_datetime_string

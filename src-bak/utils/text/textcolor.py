@@ -18,6 +18,136 @@ import curses  # For non-blocking keyboard scan.
 from datetime import datetime
 
 
+def b_vto_bgr(BV):
+    """Convert a B-V color value from Hipparcos catalog to an approximate BGR color code.
+    B-V     R G B (hex)
+    -0.33   706ffe
+    -0.3    519ffe
+    -0.02   bfd0ff
+    0.3     cdfdff
+    0.58    eeffdf
+    0.81    ffff7f
+    1.40    fe7f7d
+    """
+    r = g = b = 255
+    # List of sample B-V values and their approximate R,G,B equivalents. Found online.
+    color_points = [
+        (-0.33, [0x70, 0x6F, 0xFE]),
+        (-0.3, [0x51, 0x9F, 0xFE]),
+        (-0.02, [0xBF, 0xD0, 0xFF]),
+        (0.3, [0xCD, 0xFD, 0xFF]),
+        (0.58, [0xEE, 0xFF, 0xDF]),
+        (0.81, [0xFF, 0xFF, 0x7F]),
+        (1.4, [0xFE, 0x7F, 0x7D]),
+    ]
+
+    def b_vrange(BV):
+        # Given a B-V value, pick the pair of color_points that will be used to calculate the RGB equivalent.
+        fromi = 0
+        toi = 1  # If BV is too low, we use the lowest pair of entries. (We will extrapolate a value)
+        try:
+            for i, cp in enumerate(color_points):  # Consider each sample point in turn.
+                if BV >= cp[0]:  # Above lower threshold of this sample point.
+                    fromi = i  # Interpolation starts with this lower entry.
+                    toi = i + 1  # Interpolation ends with the next entry.
+            if toi >= len(
+                color_points
+            ):  # If BV is too high, we are off the end of the list, so use the highest pair of entries.
+                toi = len(color_points) - 1
+                fromi = toi - 1
+        except Exception as e:
+            main_log.log("BVRange:", str(BV), "failed:", str(e), level="error")
+            fromi = 0
+            toi = 1
+        return fromi, toi
+
+    def b_vd_x(fromi, toi):
+        # Span of BV values from LOWER to UPPER sample limits.
+        try:
+            result = color_points[toi][0] - color_points[fromi][0]
+        except Exception as e:
+            main_log.log(
+                "BVdX:", str(fromi), str(toi), "failed:", str(e), level="error"
+            )
+            result = 0
+        return result
+
+    def b_vd_r(fromi, toi):
+        # Span of BLUE channel values from LOWER to UPPER sample limits.
+        try:
+            result = color_points[toi][1][0] - color_points[fromi][1][0]
+        except Exception as e:
+            main_log.log(
+                "BVdR:", str(fromi), str(toi), "failed:", str(e), level="error"
+            )
+            result = 0
+        return result
+
+    def b_vd_g(fromi, toi):
+        # Span of GREEN channel values from LOWER to UPPER sample limits.
+        try:
+            result = color_points[toi][1][1] - color_points[fromi][1][1]
+        except Exception as e:
+            main_log.log(
+                "BVdG:", str(fromi), str(toi), "failed:", str(e), level="error"
+            )
+            result = 0
+        return result
+
+    def b_vd_b(fromi, toi):
+        try:
+            result = color_points[toi][1][2] - color_points[fromi][1][2]
+        except Exception as e:
+            main_log.log(
+                "BVdB:", str(fromi), str(toi), "failed:", str(e), level="error"
+            )
+            result = 0
+        return result
+
+    def bv_interpolate(BV, fromi, toi):
+        try:
+            bv_proportion = (BV - color_points[fromi][0]) / b_vd_x(
+                fromi, toi
+            )  # Position of our point between the two reference points. This is the scale applied to R,G,B channels.
+            r = round(
+                (bv_proportion * b_vd_r(fromi, toi)) + color_points[fromi][1][0], 0
+            )  # Scale RED channel relative to the BV position.
+            r = max(0, r)  # Colour channel values must be 0-255
+            r = min(255, r)
+            g = round(
+                (bv_proportion * b_vd_g(fromi, toi)) + color_points[fromi][1][1], 0
+            )  # Scale GREEN channel relative to the BV position.
+            g = max(0, g)
+            g = min(255, g)
+            b = round(
+                (bv_proportion * b_vd_b(fromi, toi)) + color_points[fromi][1][2], 0
+            )  # Scale BLUE channel relative to the BV position.
+            b = max(0, b)
+            b = min(255, b)
+        except Exception as e:
+            main_log.log(
+                "BVInterpolate:",
+                str(BV),
+                str(fromi),
+                str(toi),
+                "failed:",
+                str(e),
+                level="error",
+            )
+            r = b = g = 255
+        return (int(b), int(g), int(r))
+
+    try:
+        fromi, toi = b_vrange(
+            BV
+        )  # Which pair of sample colour points do we interpolate from?
+        b, g, r = bv_interpolate(BV, fromi, toi)
+    except Exception as e:
+        main_log.log("BVtoBGR:", str(BV), "failed:", str(e), level="warning")
+        b = g = r = 255
+    return (b, g, r)
+
+
 class KeyboardScanner:
     """Use curses library to scan the keyboard (non-blocking).
     Example: if keyboardscanner.Check().lower() == "x": break

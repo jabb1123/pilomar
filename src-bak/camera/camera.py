@@ -36,7 +36,7 @@ from gpio.micro import Microcontroller
 from motor.control import last_reported_alt_az
 from oscommand import OSCommand  # Pilomar's OS command executor.
 from session.status import SessionStatus
-from utils.disk import DiskMonitor
+from utils.files.disk import DiskMonitor
 from utils.files.folder import FolderHandler
 from utils.logfile import LogFile
 from utils.math_func import is_int, text_to_int
@@ -838,7 +838,7 @@ class AstroCamera:
         self.log("astrocamera.CleanupLastjpg()", terminal=False)
         if self.lastjpg is not None:
             cmd = "rm " + self.lastjpg
-            self.os_cmd(cmd)
+            self.os_command.execute(cmd)
             self.lastjpg = None  # Clear the saved filename.
 
     def fake_aurora(self, srcimg):  # Generate a fake aurora effect.
@@ -1294,7 +1294,7 @@ class AstroCamera:
             )
             self.capture_start = now_utc()
             if self.parameters.camera_enabled:  # Camera is enabled. Take real photo.
-                self.os_cmd(cmd, output="none")
+                self.os_command.execute(cmd, output="none")
                 retc = (
                     self.os_command.return_code
                 )  # What did the camera command exit with ?
@@ -1450,7 +1450,7 @@ class AstroCamera:
                             terminal=False,
                         )
                         cmd = "rm " + dngname
-                        self.os_cmd(cmd, output="log")
+                        self.os_command.execute(cmd, output="log")
                     else:
                         if self.parameters.camera_window is not None:
                             self.parameters.camera_window.print(
@@ -1472,7 +1472,7 @@ class AstroCamera:
                         )  # Just the dng filename.
             if tempfile:  # Delete the temporary file.
                 cmd = "rm " + outputfile
-                self.os_cmd(cmd, output="log")
+                self.os_command.execute(cmd, output="log")
             # Estimate ETA. If we're looping through a batch of photos.
             if batch_size > 1:
                 dt_now = now_utc()  # Current time.
@@ -1589,7 +1589,7 @@ class AstroCamera:
             )
             self.capture_start = now_utc()
             if self.parameters.camera_enabled:  # Camera is in use. Take real photo.
-                self.os_cmd(cmd, output="none")
+                self.os_command.execute(cmd, output="none")
                 retc = (
                     self.os_command.return_code
                 )  # What did the camera command exit with ?
@@ -2072,7 +2072,7 @@ class AstroCamera:
                             terminal=False,
                         )
                         cmd = "rm " + file
-                        self.os_cmd(cmd, output="log")
+                        self.os_command.execute(cmd, output="log")
         else:
             print(TextColor.yellow("No suitable unprocessed files were found."))
             print(
@@ -2550,6 +2550,6 @@ class AstroCamera:
             )
             camera_command = camera_command.replace("{&output}", filename)
             # *Q* TODO: Perform safety check for remaining & symbols.
-            self.os_cmd(camera_command)
+            self.os_command.execute(camera_command)
             print("-", filename)
         return True

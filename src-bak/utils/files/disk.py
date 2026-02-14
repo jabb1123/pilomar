@@ -16,9 +16,10 @@
 from logging import Logger
 import os
 from enum import Enum
-from typing import Union
+from typing import List, Union
 
 from oscommand import OSCommand  # OS Command execution.
+from utils.logfile import LogFile
 from utils.text.textcolor import TextColor  # Text interface color utility.
 from utils.timer import Timer  # Pilomar's timer class.
 
@@ -50,8 +51,6 @@ class DiskMonitor:  # 2 references.
         # If devname = None, create a null entry.
         self.log: Union[None, Logger] = logger  # Which logger to use?
         self.os_command = OSCommand(logger=logger)
-        self.os_cmd = self.os_command.execute
-        self.os_cmd_code = self.os_command.execute_code
         self.name = name  # A label to refer to this instance.
         self.dev_name = devname  # The storage mapping device name as seen by the operating system. /dev/root for example.
         self.disk_type = disk_type  # 'boot' or 'usb'. 'usb' triggers some processing to check it is mounted and available.
@@ -121,8 +120,12 @@ class DiskMonitor:  # 2 references.
             ["%", 1],
         ]  # Conversions from 'human readable' forms back to float/integers.
         c_cmd = "df -h"  # Use the df command in human readable format.
-        lines = self.os_cmd(c_cmd)  # Execute command and gather result.
-        fieldnames = None  # This will be a list of the column headers from the first line of the 'df' command output.
+        lines: str = self.os_command.execute(
+            c_cmd
+        )  # Execute command and gather result.
+        fieldnames: List = (
+            []  # This will be a list of the column headers from the first line of the 'df' command output.
+        )
         for i, line in enumerate(lines):  # Read the output lines one at a time.
             lineitems = line.strip().split()  # Split into individual fields.
             if len(lineitems) > 0:  # Poll through the devices.
@@ -225,7 +228,9 @@ class DiskMonitor:  # 2 references.
             devname in self.usb_scan_list
         ):  # Safety check. Don't run commands with values we don't trust.
             c_cmd = "sudo blkid " + devname
-            lines = self.os_cmd(c_cmd)  # Run the command and gather the results.
+            lines = self.os_command.execute(
+                c_cmd
+            )  # Run the command and gather the results.
             # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
             #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
             # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
@@ -348,7 +353,7 @@ class DiskMonitor:  # 2 references.
                 print(
                     TextColor.yellow("Executing: " + c_cmd)
                 )  # Show the user exactly what's being executed.
-                temp = self.os_cmd_code(c_cmd)  # Check return code.
+                temp = self.os_command.execute_code(c_cmd)  # Check return code.
                 if temp == 0:  # Return code '0' means success.
                     print("Thank you.")
                     if self.log is not None:
@@ -450,7 +455,7 @@ class DiskMonitor:  # 2 references.
 
         """
         result = None
-        lines = self.os_cmd("sudo blkid")  # List all connected devices.
+        lines = self.os_command.execute("sudo blkid")  # List all connected devices.
         for line in lines:
             items = self.split_spaces(
                 line
@@ -503,7 +508,7 @@ class DiskMonitor:  # 2 references.
 
         """
         result = []
-        lines = self.os_cmd("sudo blkid")  # List all connected devices.
+        lines = self.os_command.execute("sudo blkid")  # List all connected devices.
         for line in lines:
             if len(line) < 1:
                 continue  # Ignore blank lines.
@@ -563,7 +568,9 @@ class DiskMonitor:  # 2 references.
             devname in self.usb_scan_list
         ):  # Safety check. Don't run commands with values we don't trust.
             c_cmd = "sudo blkid " + devname
-            lines = self.os_cmd(c_cmd)  # Run the command and gather the results.
+            lines = self.os_command.execute(
+                c_cmd
+            )  # Run the command and gather the results.
             # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
             #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
             # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
@@ -685,7 +692,7 @@ class DiskMonitor:  # 2 references.
                 while (
                     retries >= 0
                 ):  # Try this command a few times in case password is wrong.
-                    temp = self.os_cmd_code(c_cmd)  # Check return code.
+                    temp = self.os_command.execute_code(c_cmd)  # Check return code.
                     if temp == 0:  # Return code '0' means success.
                         print("Thank you.")
                         if self.log is not None:

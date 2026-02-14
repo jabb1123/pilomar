@@ -29,10 +29,6 @@ class MotorControl(AttributeMaster):
     this class contains an image of important parameters for
     the motor so that this program can direct it."""
 
-    AllMotors = (
-        []
-    )  # A list of all sibling motors which is common to all instances of motorcontrol. So any single motor instance can refer to all the other motors if needed via motorcontrol.AllMotors.
-
     def __init__(
         self,
         name,
@@ -67,6 +63,7 @@ class MotorControl(AttributeMaster):
             parameters  # Inherited from attributemaster: Set up references to chosen parameters (or disable if no parameters defined).
         )
         # Reference to the microcontroller.
+        self.os_command = OSCommand(logger=logger)  # Create OS command executor.
         self.microcontroller: Microcontroller = microcontroller
         self.motor_name = name  # A unique name to identify the motor, should be the same as the motor's name in the microcontroller side too.
         self.driver = driver  # What driver board is being used?
@@ -255,8 +252,8 @@ class MotorControl(AttributeMaster):
         self.recovery_file_name = (
             self.recovery_folder + "/" + utc_time_stamp() + ".log"
         )  # Used to record the position of the motor, this can then recover the situation in the event of any failures.
-        verify_folder(
-            self.recovery_folder
+        FolderHandler.verify_folder(
+            self.recovery_folder, self.log
         )  # Make sure that the recovery folder exists.
         self.restore_angle()
         self.last_recovery_angle = (
@@ -270,7 +267,7 @@ class MotorControl(AttributeMaster):
             + DEGREE_SYMBOL,
             terminal=False,
         )
-        self.AllMotors.append(
+        MOTOR_CONTROL_LIST.append(
             self
         )  # Class attribute AllMotors points to ALL sibling motors. Can be used to check condition of any other motors too.
         self.status_mctl_timestamp = (
@@ -285,7 +282,7 @@ class MotorControl(AttributeMaster):
 
     def __del__(self):
         """When deleted, remove this motor from the global list of all available motors."""
-        self.AllMotors.remove(
+        MOTOR_CONTROL_LIST.remove(
             self
         )  # Class attribute AllMotors points to ALL sibling motors. Remove this motor from the list when deleted.
 
@@ -502,7 +499,7 @@ class MotorControl(AttributeMaster):
             ]  # Sort alphabetically. This is equivalent to chronological sequence. Ignore the last 2 files, we want to keep these.
             for thisfile in oldfiles:
                 cmd = "rm " + thisfile
-                os_cmd(cmd)
+                self.os_command.execute(cmd)
                 self.log(
                     "Motor.RestoreAngle(",
                     self.motor_name,
@@ -878,7 +875,7 @@ class MotorControl(AttributeMaster):
             )
         return age
 
-    def receive_status(self, line):
+    def receive_status(self, line: str):
         """Receive Status of a motor and store important parameters
           in this local motor image.
 
@@ -891,13 +888,13 @@ class MotorControl(AttributeMaster):
             0      1          2           3   4         5      6   7     8   9 10 11  12
         2: IntToTimeString(Clock.Now()) Current local timestamp.
         3: self.motor_name
-        4: BoolToString(self.trajectory.Valid) TrajectoryValid
+        4: bool_to_string(self.trajectory.Valid) TrajectoryValid
         5: self.trajectory.ValidUntilString()
         6: str(len(self.trajectory.TrajectoryList))
         7: str(self.current_position)
         8: str(self.current_angle)
-        9: BoolToString(self.motor_configured) MotorConfigured
-        10: BoolToString(self.on_target) Motor is on target.
+        9: bool_to_string(self.motor_configured) MotorConfigured
+        10: bool_to_string(self.on_target) Motor is on target.
         11: str(self.wait_time) Current speed of motor.
         12: str(VMot()) Current motor power supply voltage. - Feature withdrawn, now always '0'.
         13: Reason. Code explaining WHY the status message was sent.
@@ -1109,7 +1106,7 @@ class MotorControl(AttributeMaster):
             terminal=False,
         )
 
-    def extend_trajectory(self, targetobj: AstroTarget):
+    def extend_trajectory(self, targetobj):
         """Generate next trajectory segment and send it.
 
         The trajectory is a series of short straight line movements chained together to create a path across the sky.
@@ -1172,7 +1169,7 @@ class MotorControl(AttributeMaster):
         if startutc < nowutc:  # Don't create OLD entries.
             startutc = nowutc
         # Calculate START angle for trajectory segment.
-        az, alt = targetobj.AzAltDegrees(
+        az, alt = targetobj.az_alt_degrees(
             time=datetime2_ts(startutc)
         )  # Needs to be Skyfield time!
         line += clean_datetime_string(str(startutc)) + " "
@@ -1181,14 +1178,14 @@ class MotorControl(AttributeMaster):
         else:
             startangle = az
         line += str(startangle) + " "
-        if targetobj.IsFixedPoint():  # Fixed points can have a larger segment size.
+        if targetobj.is_fixed_point():  # Fixed points can have a larger segment size.
             endutc = startutc + timedelta(
                 seconds=segmentsize * 2
             )  # But not too large because we need multiple segments queued up on the microcontroller, otherwise it may send an off target signal if the trajectory list expires.
         else:
             endutc = startutc + timedelta(seconds=segmentsize)
         # Calculate END angle for trajectory segment.
-        az, alt = targetobj.AzAltDegrees(
+        az, alt = targetobj.az_alt_degrees(
             time=datetime2_ts(endutc)
         )  # Needs to be Skyfield time!
         if self.motor_name == "altitude":
@@ -1206,7 +1203,7 @@ class MotorControl(AttributeMaster):
         #               This is slightly more precise, but has more segments to pass to the microcontroller.
         if (
             self.parameters.use_dynamic_trajectory_periods
-            and not targetobj.IsFixedPoint()
+            and not targetobj.is_fixed_point()
         ):  # Cannot solve dynamic trajectories for fixed points!
             # We have the 'fixed time period' trajectory extent already calculated.
             # Maximise the time period for this extent so that we don't need to pass as many segments to the microcontroller.
@@ -1219,7 +1216,7 @@ class MotorControl(AttributeMaster):
                 nextutc = startutc + timedelta(
                     seconds=segmentsize
                 )  # Timestamp of the larger segment size.
-                az, alt = targetobj.AzAltDegrees(
+                az, alt = targetobj.az_alt_degrees(
                     time=datetime2_ts(nextutc)
                 )  # Needs to be Skyfield time!
                 if self.motor_name == "altitude":
@@ -1302,14 +1299,17 @@ class MotorControl(AttributeMaster):
             )
 
 
+MOTOR_CONTROL_LIST: List[MotorControl] = []
+
+
 def last_reported_alt_az(
-    warning_flags: WarningFlags = WarningFlags(),
+    warning_flags: WarningFlags = WarningFlags(), log: LogFile = None
 ) -> Tuple[float, float]:
     """Retrieve the current physical position of the camera.
     Returns values based upon the data stored in the MotorControl objects."""
     az_degree = 0.0
     alt_degree = 0.0
-    for i in MotorControl.AllMotors:
+    for i in MOTOR_CONTROL_LIST:
         warning_flag_name = (
             "LastReportedAltAz_Stale_" + i.motor_name
         )  # Which warning message are we considering?
@@ -1320,7 +1320,7 @@ def last_reported_alt_az(
             ):  # Position is > 20 seconds old. Expect an update more regularly than this.
                 # Only issue the warning message once, don't keep repeating it.
                 if warning_flags.first_warning_flag(warning_flag_name):
-                    main_log.log(
+                    log.log(
                         "last_reported_alt_az(",
                         i.motor_name,
                         ") position ",
@@ -1336,7 +1336,7 @@ def last_reported_alt_az(
             else:
                 warning_flags.reset_warning_flag(warning_flag_name)
         else:
-            main_log.log(
+            log.log(
                 "last_reported_alt_az(",
                 i.motor_name,
                 ") StatusMctlTimestamp is None.",
