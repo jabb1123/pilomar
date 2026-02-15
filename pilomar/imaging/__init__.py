@@ -25,33 +25,27 @@ from .image import PilomarImage
 from .keogram import PilomarKeogram
 
 # FITS support (requires astropy and picamera2)
-try:
-    from .fits import (
-        FitsCapture,
-        date_to_jd,
-        normalize_array,
-        color_gain,
-        analog_gain,
-        rotate_image,
-        now_utc,
-    )
-    _FITS_AVAILABLE = True
-except ImportError:
-    _FITS_AVAILABLE = False
+from .fits import (
+    FitsCapture,
+    date_to_jd,
+    normalize_array,
+    color_gain,
+    analog_gain,
+    rotate_image,
+)
 
 __all__ = [
-    'PilomarImage',
-    'PilomarKeogram',
-    'DataSet',
-    'DataPoint',
-    'FdObject',
-    'FdEdge',
+    "PilomarImage",
+    "PilomarKeogram",
+    "DataSet",
+    "DataPoint",
+    "FdObject",
+    "FdEdge",
     # FITS (when available)
-    'FitsCapture',
-    'date_to_jd',
-    'normalize_array',
-    'color_gain',
-    'analog_gain',
-    'rotate_image',
-    'now_utc',
+    "FitsCapture",
+    "date_to_jd",
+    "normalize_array",
+    "color_gain",
+    "analog_gain",
+    "rotate_image",
 ]

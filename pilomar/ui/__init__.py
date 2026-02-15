@@ -30,33 +30,19 @@ from .menu import (
 
 __all__ = [
     # Keyboard
-    'KeyboardScanner',
+    "KeyboardScanner",
     # Text formatting
-    'TextColor',
+    "TextColor",
     # Display components
-    'CdSprite',
-    'MessageWindow',
-    'BigLetters',
-    'Field',
-    'ColorDisplay',
+    "CdSprite",
+    "MessageWindow",
+    "BigLetters",
+    "Field",
+    "ColorDisplay",
     # Menus
-    'Menu',
-    'ProcedureMenu',
-    'OptionMenu',
-    'ListChooser',
-    'FileChooser',
+    "Menu",
+    "ProcedureMenu",
+    "OptionMenu",
+    "ListChooser",
+    "FileChooser",
 ]
-
-# Backward compatibility aliases
-keyboardscanner = KeyboardScanner
-textcolor = TextColor
-cdsprite = CdSprite
-messagewindow = MessageWindow
-bigletters = BigLetters
-field = Field
-colordisplay = ColorDisplay
-menu = Menu
-proceduremenu = ProcedureMenu
-optionmenu = OptionMenu
-listchooser = ListChooser
-filechooser = FileChooser

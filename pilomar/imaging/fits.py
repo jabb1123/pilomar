@@ -17,29 +17,15 @@ import math
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
+from astropy.io import fits
+from picamera2 import Picamera2
 
-# Optional imports - may not be available on all systems
-try:
-    from astropy.io import fits
-    ASTROPY_AVAILABLE = True
-except ImportError:
-    ASTROPY_AVAILABLE = False
-
-try:
-    from picamera2 import Picamera2
-    PICAMERA2_AVAILABLE = True
-except ImportError:
-    PICAMERA2_AVAILABLE = False
-
-
-def now_utc() -> datetime:
-    """Return system UTC timestamp as a datetime object."""
-    return datetime.now(timezone.utc)
+from pilomar.core.time_utils import now_utc
 
 
 def date_to_jd(input_datetime: datetime) -> float:
@@ -172,20 +158,20 @@ def normalize_array(
     input_array = input_array.astype(np.float32)
     c_min = np.min(input_array)
     c_max = np.max(input_array)
-    
+
     if min_in is not None:
         c_min = min(c_min, min_in)
     if max_in is not None:
         c_max = max(c_max, max_in)
-    
+
     c_span = c_max - c_min
-    
+
     try:
         output_array = ((max_out - min_out) * (input_array - c_min) / c_span) + min_out
-    except Exception as e:
+    except Exception:
         # Fallback: clip instead of normalize
         output_array = np.clip(input_array.astype(np.float32), 0, max_out)
-    
+
     return output_array
 
 
@@ -312,7 +298,7 @@ class FitsCapture:
         verbose: Whether to print log messages to terminal
         debug: Whether to enable debug analysis
     """
-    
+
     # Control parameter definitions
     CONTROL_DICT = {
         '--shutter': {
@@ -331,7 +317,7 @@ class FitsCapture:
             'type': float
         },
     }
-    
+
     def __init__(
         self,
         logger: Any = None,
@@ -351,10 +337,10 @@ class FitsCapture:
         self.camera = None
         self.camera_model = "IMX477"
         self.processing_data = {}
-        
+
         if PICAMERA2_AVAILABLE:
             self._detect_camera()
-    
+
     def _detect_camera(self) -> None:
         """Detect attached camera model."""
         try:
@@ -363,13 +349,13 @@ class FitsCapture:
                 self.camera_model = cam.get('Model', 'IMX477').upper()
         except Exception:
             pass
-    
+
     def log(self, *args, **kwargs) -> None:
         """Log a message if logger is available."""
         if self.logger:
             terminal = kwargs.pop('terminal', self.verbose)
             self.logger.log(*args, terminal=terminal, **kwargs)
-    
+
     def build_controls(
         self,
         arguments: Dict[str, Dict],
@@ -385,13 +371,13 @@ class FitsCapture:
             Dictionary of camera controls to apply
         """
         controls = {}
-        
+
         for arg_name, element_dict in arguments.items():
             if arg_name in self.CONTROL_DICT:
                 ctrl_entry = self.CONTROL_DICT[arg_name]
                 value = ctrl_entry['default']
                 dtype = ctrl_entry['type']
-                
+
                 if 'list' in element_dict and element_dict['list']:
                     option = element_dict['list'][0]
                     if dtype == float:
@@ -400,12 +386,12 @@ class FitsCapture:
                         value = int(float(option))
                     else:
                         value = option
-                
+
                 controls[ctrl_entry['attribute']] = value
-        
+
         # Noise reduction off
         controls['NoiseReductionMode'] = 0
-        
+
         if not shutter_specified:
             controls['AeEnable'] = True
         else:
@@ -416,9 +402,9 @@ class FitsCapture:
                 controls['ColourGains'] = (1.0, 1.0)
             if 'AnalogueGain' not in controls:
                 controls['AnalogueGain'] = 1.0
-        
+
         return controls
-    
+
     def capture(
         self,
         output_filename: str,
@@ -465,15 +451,15 @@ class FitsCapture:
             raise RuntimeError("Picamera2 not available")
         if save_fits and not ASTROPY_AVAILABLE:
             raise RuntimeError("Astropy not available for FITS output")
-        
+
         startup_time = now_utc()
-        
+
         # Prepare filenames
         jpg_filename = output_filename.replace('.fits', '.jpg')
         fits_filename = jpg_filename.replace('.jpg', '.fits')
         numpy_filename = jpg_filename.replace('.jpg', '.npy')
         json_filename = jpg_filename.replace('.jpg', '.json')
-        
+
         # Build controls
         controls = {
             'NoiseReductionMode': 0,
@@ -485,21 +471,21 @@ class FitsCapture:
             controls['AwbEnable'] = False
             controls['ColourGains'] = (1.0, 1.0)
             controls['AnalogueGain'] = analog_gain
-        
+
         # Initialize camera
         tuning = Picamera2.load_tuning_file(tuning_file)
         self.camera = Picamera2(tuning=tuning)
         properties = self.camera.camera_properties
-        
+
         config = self.camera.create_still_configuration(
             raw={'format': 'SBGGR12', 'size': (width, height)}
         )
         self.camera.configure(config)
         self.camera.set_controls(controls)
         self.camera.start()
-        
+
         time.sleep(2)  # Allow camera to stabilize
-        
+
         # Capture
         capture_start = now_utc()
         request = self.camera.capture_request()
@@ -508,11 +494,11 @@ class FitsCapture:
         capture_end = now_utc()
         capture_midpoint = capture_start + (capture_end - capture_start) / 2
         request.release()
-        
+
         # Unpack 12-bit data from 8-bit stream
         raw_12bit = raw_array.view(np.uint16).astype(np.uint16)
         data_32 = raw_12bit.astype(np.float32) / (2 ** 4)
-        
+
         # Save FITS
         fits_save_start = now_utc()
         if save_fits:
@@ -522,39 +508,39 @@ class FitsCapture:
                 capture_start, capture_midpoint, fits_tags
             )
         fits_save_end = now_utc()
-        
+
         # Debayer to color
         bayer_start = now_utc()
         bayer = data_32.astype(np.uint16)
         color = cv2.cvtColor(bayer, cv2.COLOR_BAYER_BGGR2BGR)
         color = color[:, :-8, :]  # Remove dead columns
-        
+
         # Apply gains
         if red_gain != 1.0 or blue_gain != 1.0:
             color = color_gain(color, red=red_gain, blue=blue_gain)
         if analog_gain != 1.0:
             color = analog_gain(color, gain=analog_gain)
         bayer_end = now_utc()
-        
+
         # Save numpy
         numpy_start = now_utc()
         if save_numpy:
             np.save(numpy_filename, color.astype(np.uint16))
         numpy_end = now_utc()
-        
+
         # Normalize to 8-bit for JPEG
         color = color.clip(0, 4095)
         color = np.rint(normalize_array(color, 0, 255, min_in=0))
-        
+
         # Rotate if needed
         if rotation:
             color = rotate_image(color, rotation % 360)
-        
+
         # Save JPEG
         jpg_start = now_utc()
         cv2.imwrite(jpg_filename, color, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
         jpg_end = now_utc()
-        
+
         # Add EXIF tags if provided
         exif_start = now_utc()
         if exif_tags:
@@ -565,7 +551,7 @@ class FitsCapture:
             except ImportError:
                 pass
         exif_end = now_utc()
-        
+
         # Build result metadata
         result = {
             'startup_time': startup_time,
@@ -584,15 +570,15 @@ class FitsCapture:
             'camera_metadata': metadata,
             'camera_properties': properties,
         }
-        
+
         # Save metadata
         if save_metadata:
             result['json_filename'] = json_filename
             with open(json_filename, 'w') as f:
                 json.dump(result, f, indent=4, default=str)
-        
+
         return result
-    
+
     def _save_fits(
         self,
         filename: str,
@@ -623,7 +609,7 @@ class FitsCapture:
             extra_tags: Additional header tags
         """
         tags = {}
-        
+
         # Exposure time
         exp_time = controls.get('ExposureTime')
         if exp_time is None:
@@ -632,16 +618,16 @@ class FitsCapture:
             exp_time_sec = float(exp_time) / 1.0e6
             tags['EXPTIME'] = {'value': exp_time_sec, 'comment': 'Exposure time (s)'}
             tags['EXPOSURE'] = {'value': exp_time_sec, 'comment': 'Exposure time (s)'}
-        
+
         tags['XBINNING'] = {'value': 1.0, 'comment': 'No X binning'}
         tags['YBINNING'] = {'value': 1.0, 'comment': 'No Y binning'}
         tags['ROWORDER'] = {'value': 'TOP-DOWN', 'comment': 'Image row order'}
         tags['BAYERPAT'] = {'value': 'RGGB', 'comment': 'Bayer pattern'}
-        
+
         sensor_temp = metadata.get('SensorTemperature')
         if sensor_temp is not None:
             tags['CCD-TEMP'] = {'value': sensor_temp, 'comment': 'Sensor temperature (C)'}
-        
+
         tags['IMAGETYP'] = {'value': image_type, 'comment': 'Image type'}
         tags['XPIXSZ'] = {'value': 3.76, 'comment': 'X pixel size (um)'}
         tags['YPIXSZ'] = {'value': 3.76, 'comment': 'Y pixel size (um)'}
@@ -654,21 +640,21 @@ class FitsCapture:
         tags['JD'] = {'value': date_to_jd(capture_start), 'comment': 'Julian date'}
         tags['DATE-OBS'] = {'value': capture_start.isoformat(), 'comment': 'Start of exposure'}
         tags['MIDPOINT'] = {'value': capture_midpoint.isoformat(), 'comment': 'Midpoint of exposure'}
-        
+
         # Merge extra tags
         if extra_tags:
             tags.update(extra_tags)
-        
+
         # Write FITS file
         hdu_list = fits.HDUList()
         hdu_list.append(fits.ImageHDU(data=cv2.flip(data, 0), name='SCI'))
-        
+
         header = hdu_list[0].header
         for key, details in tags.items():
             header.append((key, details['value'], details['comment']), end=True)
-        
+
         hdu_list.writeto(filename, overwrite=True)
-    
+
     def close(self) -> None:
         """Close camera connection."""
         if self.camera:

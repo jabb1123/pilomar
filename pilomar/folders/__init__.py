@@ -7,9 +7,8 @@ campaigns, and image storage.
 Copyright: GNU General Public License v3.0
 """
 
-from .folder_handler import FolderHandler, folderhandler
+from .folder_handler import FolderHandler
 
 __all__ = [
-    'FolderHandler',
-    'folderhandler',
+    "FolderHandler",
 ]

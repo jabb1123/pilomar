@@ -7,8 +7,8 @@ Version: 2.0.0 (Refactored)
 License: GNU General Public License v3.0
 """
 
-__version__ = '2.0.0'
-__author__ = 'Pilomar Project'
+__version__ = "2.0.0"
+__author__ = "Pilomar Project"
 
 # Core utilities
 from .core.base import AttributeMaster
@@ -30,7 +30,7 @@ from .hardware.gpio import InputPinGpio, OutputPinGpio, InputPinGpiod, OutputPin
 
 # System monitoring
 from .monitoring.cpu import CpuMonitor
-from .monitoring.memory import MemoryMonitor  
+from .monitoring.memory import MemoryMonitor
 from .monitoring.disk import DiskMonitor
 
 # Utilities
@@ -39,175 +39,142 @@ from .utils.os_command import OsCommand
 # Celestial calculations
 from .celestial.celestrak import Celestrak
 from .celestial.trig import (
-    CompassPoint, AngleToHMS, AngleToDMS, HMSToAngle, DMSToAngle,
-    AltAzToXYZ, XYZToAltAz, RelativeAltAz, AzAltText, RaDecText,
+    compass_point,
+    angle_to_hms,
+    angle_to_dms,
+    hms_to_angle,
+    dms_to_angle,
+    alt_az_to_xyz,
+    xyz_to_alt_az,
+    relative_alt_az,
+    az_alt_text,
+    ra_dec_text,
 )
 
 # Imaging (requires opencv)
-try:
-    from .imaging.image import PilomarImage
-    from .imaging.keogram import PilomarKeogram
-    from .imaging.data_types import DataSet, DataPoint, FdObject, FdEdge
-    _IMAGING_AVAILABLE = True
-except ImportError:
-    _IMAGING_AVAILABLE = False
+from .imaging.image import PilomarImage
+from .imaging.keogram import PilomarKeogram
+from .imaging.data_types import DataSet, DataPoint, FdObject, FdEdge
+from .imaging.fits import FitsCapture, date_to_jd, normalize_array
 
-# FITS support (requires astropy)
-try:
-    from .imaging.fits import FitsCapture, date_to_jd, normalize_array
-    _FITS_AVAILABLE = True
-except ImportError:
-    _FITS_AVAILABLE = False
+from .ui.keyboard import KeyboardScanner
+from .ui.text_color import TextColor
+from .ui.display import CdSprite, MessageWindow, BigLetters, Field, ColorDisplay
+from .ui.menu import Menu, ProcedureMenu, OptionMenu, ListChooser, FileChooser
 
-# UI components (requires curses)
-try:
-    from .ui.keyboard import KeyboardScanner
-    from .ui.text_color import TextColor
-    from .ui.display import CdSprite, MessageWindow, BigLetters, Field, ColorDisplay
-    from .ui.menu import Menu, ProcedureMenu, OptionMenu, ListChooser, FileChooser
-    _UI_AVAILABLE = True
-except ImportError:
-    _UI_AVAILABLE = False
 
-# Config modules
-try:
-    from .config.hardware import Hardware
-    from .config.parameters import Parameters
-    _CONFIG_AVAILABLE = True
-except ImportError:
-    _CONFIG_AVAILABLE = False
+from .config.hardware import Hardware
+from .config.parameters import Parameters
 
-# Control modules
-try:
-    from .control.motor import MotorControl
-    from .control.microcontroller import Microcontroller
-    _CONTROL_AVAILABLE = True
-except ImportError:
-    _CONTROL_AVAILABLE = False
+
+from .control.motor import MotorControl
+from .control.microcontroller import Microcontroller
 
 # Session modules
-try:
-    from .session.status import SessionStatus
-    from .session.entry import SessionEntry
-    from .session.list import SessionList
-    _SESSION_AVAILABLE = True
-except ImportError:
-    _SESSION_AVAILABLE = False
 
-# Targets modules
-try:
-    from .targets.fixed_point import FixedPoint
-    from .targets.quickstar import QuickStar
-    from .targets.local_stars import LocalStars
-    from .targets.sky_context import SkyContext, TimeContext, HardwareContext
-    _TARGETS_AVAILABLE = True
-except ImportError:
-    _TARGETS_AVAILABLE = False
+from .session.status import SessionStatus
+from .session.entry import SessionEntry
+from .session.list import SessionList
 
-# Targets - Target (requires Skyfield)
-try:
-    from .targets.target import Target
-    _TARGET_AVAILABLE = True
-except ImportError:
-    _TARGET_AVAILABLE = False
-    Target = None
+from .targets.fixed_point import FixedPoint
+from .targets.quickstar import QuickStar
+from .targets.local_stars import LocalStars
+from .targets.sky_context import SkyContext, TimeContext, HardwareContext
+
+
+from .targets.target import Target
+
 
 # Targets - ImageTracker (requires astroalign)
-try:
-    from .targets.image_tracker import ImageTracker
-    _IMAGETRACKER_AVAILABLE = True
-except ImportError:
-    _IMAGETRACKER_AVAILABLE = False
-    ImageTracker = None
+
+from .targets.image_tracker import ImageTracker
+
 
 # Folders module
-try:
-    from .folders.folder_handler import FolderHandler
-    _FOLDERS_AVAILABLE = True
-except ImportError:
-    _FOLDERS_AVAILABLE = False
+
+from .folders.folder_handler import FolderHandler
 
 __all__ = [
     # Core
-    'AttributeMaster',
-    'Timer',
-    'ProgressTimer',
-    'LogFile',
-    'utc_string_to_datetime',
-    'dts_to_datetime',
-    'string_to_datetime',
-    'is_float',
-    'is_int',
-    'text_to_int',
-    'text_to_float',
+    "AttributeMaster",
+    "Timer",
+    "ProgressTimer",
+    "LogFile",
+    "utc_string_to_datetime",
+    "dts_to_datetime",
+    "string_to_datetime",
+    "is_float",
+    "is_int",
+    "text_to_int",
+    "text_to_float",
     # Hardware
-    'AstroLens',
-    'AstroSensor',
-    'AstroCamera',
-    'InputPinGpio',
-    'OutputPinGpio',
-    'InputPinGpiod',
-    'OutputPinGpiod',
+    "AstroLens",
+    "AstroSensor",
+    "AstroCamera",
+    "InputPinGpio",
+    "OutputPinGpio",
+    "InputPinGpiod",
+    "OutputPinGpiod",
     # Monitoring
-    'CpuMonitor',
-    'MemoryMonitor',
-    'DiskMonitor',
-    # Utilities 
-    'OsCommand',
+    "CpuMonitor",
+    "MemoryMonitor",
+    "DiskMonitor",
+    # Utilities
+    "OsCommand",
     # Celestial
-    'Celestrak',
-    'CompassPoint',
-    'AngleToHMS',
-    'AngleToDMS',
-    'HMSToAngle',
-    'DMSToAngle',
-    'AltAzToXYZ',
-    'XYZToAltAz',
-    'RelativeAltAz',
-    'AzAltText',
-    'RaDecText',
+    "Celestrak",
+    "compass_point",
+    "angle_to_hms",
+    "angle_to_dms",
+    "hms_to_angle",
+    "dms_to_angle",
+    "alt_az_to_xyz",
+    "xyz_to_alt_az",
+    "relative_alt_az",
+    "az_alt_text",
+    "ra_dec_text",
     # Imaging (when available)
-    'PilomarImage',
-    'PilomarKeogram',
-    'DataSet',
-    'DataPoint',
-    'FdObject',
-    'FdEdge',    # FITS (when available)
-    'FitsCapture',
-    'date_to_jd',
-    'normalize_array',
+    "PilomarImage",
+    "PilomarKeogram",
+    "DataSet",
+    "DataPoint",
+    "FdObject",
+    "FdEdge",  # FITS (when available)
+    "FitsCapture",
+    "date_to_jd",
+    "normalize_array",
     # UI (when available)
-    'KeyboardScanner',
-    'TextColor',
-    'CdSprite',
-    'MessageWindow',
-    'BigLetters',
-    'Field',
-    'ColorDisplay',
-    'Menu',
-    'ProcedureMenu',
-    'OptionMenu',
-    'ListChooser',
-    'FileChooser',
+    "KeyboardScanner",
+    "TextColor",
+    "CdSprite",
+    "MessageWindow",
+    "BigLetters",
+    "Field",
+    "ColorDisplay",
+    "Menu",
+    "ProcedureMenu",
+    "OptionMenu",
+    "ListChooser",
+    "FileChooser",
     # Config (when available)
-    'Hardware',
-    'Parameters',
+    "Hardware",
+    "Parameters",
     # Control (when available)
-    'MotorControl',
-    'Microcontroller',
+    "MotorControl",
+    "Microcontroller",
     # Session (when available)
-    'SessionStatus',
-    'SessionEntry',
-    'SessionList',
+    "SessionStatus",
+    "SessionEntry",
+    "SessionList",
     # Targets (when available)
-    'Target',
-    'FixedPoint',
-    'QuickStar',
-    'LocalStars',
-    'ImageTracker',
-    'SkyContext',
-    'TimeContext',
-    'HardwareContext',
+    "Target",
+    "FixedPoint",
+    "QuickStar",
+    "LocalStars",
+    "ImageTracker",
+    "SkyContext",
+    "TimeContext",
+    "HardwareContext",
     # Folders (when available)
-    'FolderHandler',
+    "FolderHandler",
 ]

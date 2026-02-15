@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+recursive-include pilomar/data *
+recursive-include pilomar/fonts *
+recursive-include pilomar/gerber *
+recursive-include pilomar/circuitpython *

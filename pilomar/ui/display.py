@@ -14,21 +14,24 @@ Classes:
 
 # This software is published under the GNU General Public License v3.0.
 
-__version__ = '0.1.0'
+__version__ = "0.1.0"
 
-from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
+import json
+from typing import Dict, List, Union
+
+from pilomar.ui.menu import ProcedureMenu
 from .text_color import TextColor
 
 
 class CdSprite:
-    """ This is a subclass of the colordisplay class.
-        It represents 'sprites' that can be defined to move across the colordisplay buffer. 
-        Originally intended to create moving markers against a set background grid. """
-        
-    __version__ = '0.0.1'
-        
-    def __init__(self,name,symbol,row=None,col=None,fg=0,bg=15,level=0):
+    """This is a subclass of the ColorDisplay class.
+    It represents 'sprites' that can be defined to move across the ColorDisplay buffer.
+    Originally intended to create moving markers against a set background grid."""
+
+    __version__ = "0.0.1"
+
+    def __init__(self, name, symbol, row=None, col=None, fg=0, bg=15, level=0):
         self.row = row
         self.column = col
         self.fg = fg
@@ -39,1164 +42,1721 @@ class CdSprite:
         self.level = level
 
     def colored_symbol(self):
-        """ Return symbol with embedded terminal colour codes set. """
-        result = result = TextColor.fgbgcolor(self.fg,self.bg,self.symbol)
-        return result
-        
-    def label(self,color=False):
-        """ Return colour coded label for the sprite. 
-            Used in the key to a display.
-            color=False means color is not set, plaintext is returned instead. """
-        if color: result = TextColor.fgbgcolor(self.fg,self.bg,self.symbol)
-        else: result = self.symbol
-        result += ' = ' + self.name
+        """Return symbol with embedded terminal colour codes set."""
+        result = result = TextColor.fgbgcolor(self.fg, self.bg, self.symbol)
         return result
 
-# -------------------------------------------------------------------------------------------------------------------------------- 
+    def label(self, color=False):
+        """Return colour coded label for the sprite.
+        Used in the key to a display.
+        color=False means color is not set, plaintext is returned instead."""
+        if color:
+            result = TextColor.fgbgcolor(self.fg, self.bg, self.symbol)
+        else:
+            result = self.symbol
+        result += " = " + self.name
+        return result
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
+
 
 class MessageWindow:
-    """ Class to create a simple scrolling text window and to display on the terminal as needed. 
-        Superceded by colordisplay class now - which contains all same functionalities. """
-    
-    __version__ = '0.0.1'
-    
-    def __init__(self,rows,columns,row=None,col=None,fg=15,bg=0,title=None):
-        print (TextColor.red('TextColor.messagewindow(): Deprecated in favour of TextColor.ColorDisplay().'))
-        self.display_rows = rows # How many rows deep is the display?
-        self.display_columns = columns # How many columns wide is the display?
-        self.display_row = row # What's the location of the 1st cell in the display on the actual terminal?
+    """Class to create a simple scrolling text window and to display on the terminal as needed.
+    Superceded by ColorDisplay class now - which contains all same functionalities."""
+
+    __version__ = "0.0.1"
+
+    def __init__(self, rows, columns, row=None, col=None, fg=15, bg=0, title=None):
+        print(
+            TextColor.red(
+                "TextColor.messagewindow(): Deprecated in favour of TextColor.ColorDisplay()."
+            )
+        )
+        # How many rows deep is the display?
+        self.display_rows = rows
+        # How many columns wide is the display?
+        self.display_columns = columns
+        # What's the location of the 1st cell in the display on the actual terminal?
+        self.display_row = row
         self.display_col = col
-        if row == None: # Location of the last row in the display.
+        # Location of the last row in the display.
+        if row is None:
             self.last_display_row = None
         else:
             self.last_display_row = row + rows - 1
-        if col == None: # Location of the last column in the display.
+        # Location of the last column in the display.
+        if col is None:
             self.last_display_col = None
         else:
             self.last_display_col = col + columns - 1
-        self.DefaultFG = fg # What's the default foreground colour?
-        self.DefaultBG = bg # What's the default background colour?
-        self.DefaultChar = ' '
-        self.Lines = []
-        self.title = title # Is there a title to the window? (Will keep 1st row static)
-        if self.title != None:
-            self.Lines.append(' ') # Occupy the first line of the display, because the title will overwrite it.
-            if len(self.title) > self.display_columns: # Title cannot exceed window width.
-                self.title = self.title[:self.display_columns]
-        self.Wrap = True # Long text will wrap onto multiple lines.
-        self.Log = None # Can store handle to a 'Log' method for logging messages. Needs to be defined and assigned by the calling program.
-        self.RefreshRate = None # Can specify how quickly the display refreshes (in seconds).
-        self.LastRefresh = None # When did the display last update?
+        # What's the default foreground colour?
+        self.default_fg = fg
+        # What's the default background colour?
+        self.default_bg = bg
+        self.default_char = " "
+        self.lines = []
+        # Is there a title to the window? (Will keep 1st row static)
+        self.title = title
+        if self.title is not None:
+            # Occupy the first line of the display, because the title will overwrite it.
+            self.lines.append(" ")
+            # Title cannot exceed window width.
+            if len(self.title) > self.display_columns:
+                self.title = self.title[: self.display_columns]
+        # Long text will wrap onto multiple lines.
+        self.wrap = True
+        # Can store handle to a 'Log' method for logging messages.
+        # Needs to be defined and assigned by the calling program.
+        self.log = None
+        # Can specify how quickly the display refreshes (in seconds).
+        self.refresh_rate = None
+        self.last_refresh = None  # When did the display last update?
 
-    def SetRefreshRate(self,rate):
-        """ Set selected refresh rate and reset the refresh timer. """
-        self.RefreshRate = rate
-        self.LastRefresh = None
-        
-    def RefreshDue(self):
-        """ Return True if refresh is due, else False. """
+    def set_refresh_rate(self, rate):
+        """Set selected refresh rate and reset the refresh timer."""
+        self.refresh_rate = rate
+        self.last_refresh = None
+
+    def refresh_due(self):
+        """Return True if refresh is due, else False."""
         result = False
-        if self.RefreshRate == None: result = True # There's no restriction so always refresh. 
-        elif self.LastRefresh == None: result = True # Need to do initial drawing. 
-        elif (datetime.now() - self.LastRefresh).total_seconds() >= self.RefreshRate: result = True # Refresh is due.
-        return result 
+        if self.refresh_rate is None:
+            result = True  # There's no restriction so always refresh.
+        elif self.last_refresh is None:
+            result = True  # Need to do initial drawing.
+        elif (datetime.now() - self.last_refresh).total_seconds() >= self.refresh_rate:
+            result = True  # Refresh is due.
+        return result
 
-    def Clear(self,immediate=False):
-        """ Clear the window. """
-        self.Lines = []
-        if self.title != None: self.Lines.append(' ')
-        if immediate: self.display()
+    def clear(self, immediate=False):
+        """Clear the window."""
+        self.lines = []
+        if self.title is not None:
+            self.lines.append(" ")
+        if immediate:
+            self.display()
 
-    def display(self,screenheight=None,screenwidth=None,immediate=False):
-        """ Display the window.
-            If specific location has been given for the window AND the current screen size is given in screenheight/screenwidth
-            this can check that the space exists in the current display size. It will only draw the window if there is enough space. """
-        if immediate == False and self.RefreshDue() == False: return # Don't perform a refresh yet.
-        if self.last_display_row != None and screenheight != None: # We have a specific location to use, check if that location is in the current display dimensions.
-            if screenheight < self.last_display_row: # Not enough height.
-                return # Don't try to display.
-        if self.last_display_col != None and screenwidth != None:
-            if screenwidth < self.last_display_col: # Not enough width.
-                return # Don't try to display.
+    def display(self, screenheight=None, screenwidth=None, immediate=False):
+        """Display the window.
+        If specific location has been given for the window AND the current screen size is given in screenheight/screenwidth
+        this can check that the space exists in the current display size. It will only draw the window if there is enough space.
+        """
+        if not immediate and not self.refresh_due():
+            # Don't perform a refresh yet.
+            return
+        # We have a specific location to use,
+        # check if that location is in the current display dimensions.
+        if self.last_display_row is not None and screenheight is not None:
+            # Not enough height.
+            if screenheight < self.last_display_row:
+                return  # Don't try to display.
+        if self.last_display_col is not None and screenwidth is not None:
+            # Not enough width.
+            if screenwidth < self.last_display_col:
+                return  # Don't try to display.
         for r in range(self.display_rows):
-            if len(self.Lines) >= r + 1:
-                line = self.Lines[r]
+            if len(self.lines) >= r + 1:
+                line = self.lines[r]
             else:
-                line = ' '
-            if r == 0 and self.title != None:
-                line = self.title # 1st row is always the 'title' if specified. 
-                line = TextColor.fgbgcolor(self.DefaultBG,self.DefaultFG,line.ljust(self.display_columns,' '))
+                line = " "
+            if r == 0 and self.title is not None:
+                line = self.title  # 1st row is always the 'title' if specified.
+                line = TextColor.fgbgcolor(
+                    self.default_bg,
+                    self.default_fg,
+                    line.ljust(self.display_columns, " "),
+                )
             else:
-                line = TextColor.fgbgcolor(self.DefaultFG,self.DefaultBG,line.ljust(self.display_columns,' '))
-            if self.display_row != None and self.display_col != None:
+                line = TextColor.fgbgcolor(
+                    self.default_fg,
+                    self.default_bg,
+                    line.ljust(self.display_columns, " "),
+                )
+            if self.display_row is not None and self.display_col is not None:
                 # The display has a specific location on the terminal window. Place it there.
                 dr = self.display_row + r
                 dc = self.display_col
-                line = TextColor.cursor(dc,dr) + line
+                line = TextColor.cursor(dc, dr) + line
             print(line)
-        self.LastRefresh = datetime.now()
+        self.last_refresh = datetime.now()
 
-    def Print(self,*args):
-        line = ''
+    def print(self, *args):
+        line = ""
         for i in args:
-            if len(line) > 0: line += ' '
+            if len(line) > 0:
+                line += " "
             line += str(i)
-        if not self.Wrap: # Don't wrap text, just truncate if it is wider than display.
-            line = line[:self.display_columns] # Truncate the line.
-        else: # Wrap long text onto multiple display lines.
+        # Don't wrap text, just truncate if it is wider than display.
+        if not self.wrap:
+            line = line[: self.display_columns]  # Truncate the line.
+        # Wrap long text onto multiple display lines.
+        else:
             while len(line) > 0:
-                self.Lines.append(line[:self.display_columns])
+                self.lines.append(line[: self.display_columns])
                 if len(line) > self.display_columns:
-                    line = line[self.display_columns:] # Remainder of text not yet displayed.
+                    # Remainder of text not yet displayed.
+                    line = line[self.display_columns :]
                 else:
-                    line = '' # Nothing left to display.
-        while len(self.Lines) > self.display_rows:
-            # temp = self.Lines.pop(0)
-            self.Lines.pop(0)
+                    # Nothing left to display.
+                    line = ""
+        while len(self.lines) > self.display_rows:
+            # temp = self.lines.pop(0)
+            self.lines.pop(0)
 
-# -------------------------------------------------------------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------------------------------------------------------------
+
 
 class BigLetters:
-    """ Primitive large font sizes. """
-    def __init__(self):
-        self.LetterDictionary = {}
-        self.InitialiseLD()
-        
-    def InitialiseLD(self):
-        self.LetterDictionary = {}
-        self.LetterDictionary['unknown'] = ["#####","# # #","## ##","# # #","#####"]
-        self.LetterDictionary[' '] =       ["     ","     ","     ","     ","     "]
-        self.LetterDictionary['"'] =       [" # # "," # # ","     ","     ","     "]
-        self.LetterDictionary["'"] =       ["  #  ","  #  ","     ","     ","     "]
-        self.LetterDictionary['0'] =       ["#####","#  ##","# # #","##  #","#####"]
-        self.LetterDictionary['1'] =       ["   # ","  ## ","   # ","   # "," ####"]                                      
-        self.LetterDictionary['2'] =       ["#####","    #","#####","#    ","#####"]                                      
-        self.LetterDictionary['3'] =       ["#####","    #","#####","    #","#####"]                                      
-        self.LetterDictionary['4'] =       ["#   #","#   #","#####","    #","    #"]                                      
-        self.LetterDictionary['5'] =       ["#####","#    ","#####","    #","#####"]                                      
-        self.LetterDictionary['6'] =       ["#####","#    ","#####","#   #","#####"]                                      
-        self.LetterDictionary['7'] =       ["#####","    #","    #","    #","    #"]                                      
-        self.LetterDictionary['8'] =       ["#####","#   #","#####","#   #","#####"]                                      
-        self.LetterDictionary['9'] =       ["#####","#   #","#####","    #","    #"]                                      
-        self.LetterDictionary['.'] =       ["     ","     ","     ","     ","  #  "]                                      
-        self.LetterDictionary[','] =       ["     ","     ","     ","  ## ","   # "]                                      
-        self.LetterDictionary[':'] =       ["     ","  #  ","     ","  #  ","     "]                                      
-        self.LetterDictionary['!'] =       ["  #  ","  #  ","  #  ","     ","  #  "]                                      
-        self.LetterDictionary['-'] =       ["     ","     "," ### ","     ","     "]                                      
-        self.LetterDictionary['+'] =       ["     ","  #  "," ### ","  #  ","     "]                                      
-        self.LetterDictionary['*'] =       ["  #  ","# # #"," ### "," # # ","#   #"]                                      
-        self.LetterDictionary['='] =       ["     "," ### ","     "," ### ","     "]                                      
-        self.LetterDictionary['?'] =       [" ### ","#   #","  ## ","     ","  #  "]                                      
+    """Primitive large font sizes."""
 
-    def GetLetter(self,letter):
-        """ Return letter pattern. """
-        if letter in self.LetterDictionary: return self.LetterDictionary[letter]
-        else: return self.LetterDictionary['unkown']
-        
-    def GenerateText(self,originaltext):
-        """ Given original text, generate the BigLetters version of it. """
-        lines = [[] for i in range(5)] # Create 5 empty lines.
+    def __init__(self):
+        self.letter_dictionary: Dict[str, List[str]] = {}
+        self.initialise_ld()
+
+    def initialise_ld(self):
+        """Initialise the letter dictionary with patterns for each character."""
+        self.letter_dictionary = {}
+        self.letter_dictionary["unknown"] = [
+            "#####",
+            "# # #",
+            "## ##",
+            "# # #",
+            "#####",
+        ]
+        self.letter_dictionary[" "] = ["     ", "     ", "     ", "     ", "     "]
+        self.letter_dictionary['"'] = [" # # ", " # # ", "     ", "     ", "     "]
+        self.letter_dictionary["'"] = ["  #  ", "  #  ", "     ", "     ", "     "]
+        self.letter_dictionary["0"] = ["#####", "#  ##", "# # #", "##  #", "#####"]
+        self.letter_dictionary["1"] = ["   # ", "  ## ", "   # ", "   # ", " ####"]
+        self.letter_dictionary["2"] = ["#####", "    #", "#####", "#    ", "#####"]
+        self.letter_dictionary["3"] = ["#####", "    #", "#####", "    #", "#####"]
+        self.letter_dictionary["4"] = ["#   #", "#   #", "#####", "    #", "    #"]
+        self.letter_dictionary["5"] = ["#####", "#    ", "#####", "    #", "#####"]
+        self.letter_dictionary["6"] = ["#####", "#    ", "#####", "#   #", "#####"]
+        self.letter_dictionary["7"] = ["#####", "    #", "    #", "    #", "    #"]
+        self.letter_dictionary["8"] = ["#####", "#   #", "#####", "#   #", "#####"]
+        self.letter_dictionary["9"] = ["#####", "#   #", "#####", "    #", "    #"]
+        self.letter_dictionary["."] = ["     ", "     ", "     ", "     ", "  #  "]
+        self.letter_dictionary[","] = ["     ", "     ", "     ", "  ## ", "   # "]
+        self.letter_dictionary[":"] = ["     ", "  #  ", "     ", "  #  ", "     "]
+        self.letter_dictionary["!"] = ["  #  ", "  #  ", "  #  ", "     ", "  #  "]
+        self.letter_dictionary["-"] = ["     ", "     ", " ### ", "     ", "     "]
+        self.letter_dictionary["+"] = ["     ", "  #  ", " ### ", "  #  ", "     "]
+        self.letter_dictionary["*"] = ["  #  ", "# # #", " ### ", " # # ", "#   #"]
+        self.letter_dictionary["="] = ["     ", " ### ", "     ", " ### ", "     "]
+        self.letter_dictionary["?"] = [" ### ", "#   #", "  ## ", "     ", "  #  "]
+
+    def get_letter(self, letter):
+        """Return letter pattern."""
+        if letter in self.letter_dictionary:
+            return self.letter_dictionary[letter]
+        else:
+            return self.letter_dictionary["unknown"]
+
+    def generate_text(self, originaltext):
+        """Given original text, generate the BigLetters version of it."""
+        lines = [[] for i in range(5)]  # Create 5 empty lines.
         for character in originaltext:
-            LD = self.GetLetter(character) # Returns 5 character lines.
-            for i,LL in enumerate(LD): # Parse each line in turn.
-                lines[i].append(LL + ' ')
+            LD = self.get_letter(character)  # Returns 5 character lines.
+            for i, LL in enumerate(LD):  # Parse each line in turn.
+                lines[i].append(LL + " ")
         return lines
 
-# -------------------------------------------------------------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------------------------------------------------------------
+
 
 class Field:
-    """ A data field in a colordisplay window.
+    """A data field in a ColorDisplay window.
 
-        Field can be regular data fields or progress bars. """
-    
-    __version__ = '0.0.2'
-    
-    def __init__(self,name,row,col,length=10,justify='l'):
-        """ justify = 'l' left, 'r' right. """
+    Field can be regular data fields or progress bars."""
+
+    __version__ = "0.0.2"
+
+    def __init__(self, name, row, col, length=10, justify="l"):
+        """justify = 'l' left, 'r' right."""
         # Common attributes
-        self.Name = name
-        self.Row = row
-        self.Column = col
-        self.Length = length
-        self.Value = None
-        self.Justify = justify # 'left','centre','right'
-        self.Type = 'Data' # 'Data' field or 'ProgressBar'
-        self.FGColor = None # Current color if it differs from the display defaults.
-        self.BGColor = None
+        self.name = name
+        self.row = row
+        self.column = col
+        self.length = length
+        self.value = None
+        self.justify: str = justify  # 'left','centre','right'
+        self.type: str = "Data"  # 'Data' field or 'ProgressBar'
+        # Current color if it differs from the display defaults.
+        self.fg_color: Union[int, None] = None
+        self.bg_color: Union[int, None] = None
         # Progress bar specific attributes.
-        self.PBMin = None # Minimum value of a progress bar field.
-        self.PBMax = None # Maximum value of a progress bar field.
-        self.PBFG = TextColor.GREEN # 'done' color of bar.
-        self.PBBG = TextColor.YELLOW # 'todo' color of bar.
+        self.pb_min: Union[int, None] = None  # Minimum value of a progress bar field.
+        self.pb_max: Union[int, None] = None  # Maximum value of a progress bar field.
+        self.pb_fg: int = TextColor.GREEN  # 'done' color of bar.
+        self.pb_bg: int = TextColor.YELLOW  # 'todo' color of bar.
         # Colors used for ranges of values.
-        self.BadFG = None # LOWLOW and HIGHHIGH values use these colors
-        self.BadBG = None # LOWLOW and HIGHHIGH values use these colors
-        self.PoorFG = None # LOW and HIGH values use these colors
-        self.PoorBG = None # LOW and HIGH values use these colors
+        # LOWLOW and HIGHHIGH values use these colors
+        self.bad_fg: Union[int, None] = None
+        # LOWLOW and HIGHHIGH values use these colors
+        self.bad_bg: Union[int, None] = None
+        # LOW and HIGH values use these colors
+        self.poor_fg: Union[int, None] = None
+        # LOW and HIGH values use these colors
+        self.poor_bg: Union[int, None] = None
         # Special effects.
-        self.BlinkRate = 0 # Seconds between changing FG/BG colors when blinking. 0 = No blink.
-        self.BlinkColors = [[TextColor.WHITE,TextColor.BLACK],[TextColor.RED,TextColor.BLACK]] # FG/BG pairs to alternate between when blinking.
-        
-    def Justified(self):
-        sval = str(self.Value) # Convert to string.
-        jcode = self.Justify[0].lower()
-        if len(sval) < self.Length: # Does the field need padding?
-            if jcode == 'r': sval = sval.strip().rjust(self.Length)
-            elif jcode == 'c': sval = sval.strip().center(self.Length)
-            else: sval = sval.strip().ljust(self.Length)
+        # Seconds between changing FG/BG colors when blinking. 0 = No blink.
+        self.blink_rate: int = 0
+        # FG/BG pairs to alternate between when blinking.
+        self.blink_colors: List[List[int]] = [
+            [TextColor.WHITE, TextColor.BLACK],
+            [TextColor.RED, TextColor.BLACK],
+        ]
+
+    def justified(self) -> str:
+        """Return the field value as a justified string of the correct length."""
+        sval = str(self.value)  # Convert to string.
+        jcode = self.justify[0].lower()
+        if len(sval) < self.length:  # Does the field need padding?
+            if jcode == "r":
+                sval = sval.strip().rjust(self.length)
+            elif jcode == "c":
+                sval = sval.strip().center(self.length)
+            else:
+                sval = sval.strip().ljust(self.length)
         return sval
 
-# -------------------------------------------------------------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------------------------------------------------------------
+
 
 class ColorDisplay:
-    """ Class to create a coloured character display buffer, and to display on the terminal as needed.
-    
-        Offers three basic modes of operation:
-        1) Operate as addressible screen space
-        2) Operate as simple scrolling text windows
-        3) Operate as a form with defined data fields
-        
-        Supports sprites. """
-    
-    __version__ = '0.0.6'
-    DefinedWindows = [] # Handles of all defined windows. Useful for scanning/updating all available windows.
-                        # The defining class contains some methods which can perform general updates via this list.
-    CDLayout = [] # Array of major rows/columns that colordisplay instances can self-align with.
-                  # Each entry defines a high level 'column' of colordisplay locations. [[fromcol,colwidth],[fromcol,colwidth],...]
-                  # When defining new colordisplay instances you can then just refer to these columns rather than tailoring the coordinates of each individual window.
+    """Class to create a coloured character display buffer, and to display on the terminal as needed.
+
+    Offers three basic modes of operation:
+    1) Operate as addressible screen space
+    2) Operate as simple scrolling text windows
+    3) Operate as a form with defined data fields
+
+    Supports sprites."""
+
+    __version__ = "0.0.6"
+    # Handles of all defined windows. Useful for scanning/updating all available windows.
+    # The defining class contains some methods which can perform general updates via this list.
+    defined_windows: List["ColorDisplay"] = []
+
+    # Array of major rows/columns that ColorDisplay instances can self-align with.
+    cd_layout: List[List[int]] = []
+    # Each entry defines a high level 'column' of ColorDisplay locations.
+    # [[fromcol,colwidth],[fromcol,colwidth],...]
+    # When defining new ColorDisplay instances you can then just refer to
+    # these columns rather than tailoring the coordinates of each individual window.
 
     @staticmethod
-    def AddCDEntry(colwidth,startcol=None):
-        """ Add new entry to the colordisplay.CDLayout list.
-            You must assign colwidth, but startcol is optional.
-            If startcol is not specified, the next available one is assigned. 
-            
-            CDLayout is a list of display columns that individual colordisplay instances can be placed in. 
-            This is used to simplify the creation of multi-panel displays. """
-        if startcol == None: # Starting column isn't specified, so calculate the next available one.
-            startcol = 1 # Find the next free one. 1st column if nothing exists yet.
-            for cd in colordisplay.CDLayout: # Check each layout already defined.
+    def add_cd_entry(colwidth: int, startcol: Union[int, None] = None):
+        """Add new entry to the ColorDisplay.CDLayout list.
+        You must assign colwidth, but startcol is optional.
+        If startcol is not specified, the next available one is assigned.
+
+        CDLayout is a list of display columns that individual ColorDisplay instances can be placed in.
+        This is used to simplify the creation of multi-panel displays."""
+        # Starting column isn't specified, so calculate the next available one.
+        if startcol is None:
+            startcol = 1  # Find the next free one. 1st column if nothing exists yet.
+            for cd in ColorDisplay.cd_layout:  # Check each layout already defined.
                 temp = cd[0] + cd[1]
-                if temp >= startcol: startcol = temp + 1 # Start at next free column (with 1 space for border).
-        startcol = max(startcol,1) # Must be at least 1 (1st column)
-        colordisplay.CDLayout.append([startcol,colwidth])
+                if temp >= startcol:
+                    # Start at next free column (with 1 space for border).
+                    startcol = temp + 1
+        # Must be at least 1 (1st column)
+        startcol = max(startcol, 1)
+        ColorDisplay.cd_layout.append([startcol, colwidth])
         return True
-    
-    def __init__(self,rows,columns=None,name='',row=None,col=None,fg=15,bg=0,FirstScrollRow=0,title=None,rjtitle=None,titlefg=None,titlebg=None,borderfg=None,borderbg=None,cdlayout=None):
-        """ fg and bg parameters can be single integer value (0-255) or a list of values [(0-255),(0-255),..] 
-            The Print() method will cycle through the colors if lists are given. 
-            Other modes operate with just the first given fg and bg values, the rest of any lists are ignored. 
-            rows = Number of ROWS in the window.
-            columns = Number of COLUMNS in the window.
-            row = Display ROW number where window starts.
-            col = Display COLUMN number where window starts.
-            fg = Foreground. Single color code (0-255) or list of values to cycle through.
-            bg = Background. Single color code (0-255) of list of values to cycle through.
-            FirstScrollRow = When printing to window, this is the first row that will scroll up as new lines are printed. (allows titles to stay fixed etc)
-            title = Window title.
-            rjtitle = Extra text for window title that will be right justified. It overwrites basic window title.
-            titlefg = Title foreground. Single color code (0-255). None will use window bg value.
-            titlebg = Title background. Single color code (0-255). None will use window fg value. 
-            cdlayout = index of the colordisplay.CDLayout list. A shortcut to set col and or row values more dynamically.
-            -------------------------
-            After instantiation, you can also set self.ClipWindow = True to allow the window to truncate display if insufficient realestate available.
-               Otherwise the entire window will be suppressed until the display is big enough to accomodate the entire window. """
-        self.DisplayName = name # A label for the display instance.
-        if columns == None and cdlayout == None:
-            raise Exception("colordisplay.__init__(): You must specify columns or cdlayout parameter to define a window.")
-        if self.DisplayName == '':
-            self.DisplayName = "win_" + str(len(colordisplay.DefinedWindows)) # Generate a default name.
-        self.display_rows = rows # How many rows deep is the display?
-        self.CDEntry = cdlayout # If using predefined columns, make a note which one we're using.
-        if self.CDEntry != None and self.CDEntry >= 0 and self.CDEntry < len(colordisplay.CDLayout): # Automatically assign location on the screen.
+
+    def __init__(
+        self,
+        rows,
+        columns=None,
+        name="",
+        row=None,
+        col=None,
+        fg=15,
+        bg=0,
+        first_scroll_row=0,
+        title=None,
+        rjtitle=None,
+        titlefg=None,
+        titlebg=None,
+        borderfg=None,
+        borderbg=None,
+        cdlayout=None,
+    ):
+        """fg and bg parameters can be single integer value (0-255) or a list of values [(0-255),(0-255),..]
+        The Print() method will cycle through the colors if lists are given.
+        Other modes operate with just the first given fg and bg values, the rest of any lists are ignored.
+        rows = Number of ROWS in the window.
+        columns = Number of COLUMNS in the window.
+        row = Display ROW number where window starts.
+        col = Display COLUMN number where window starts.
+        fg = Foreground. Single color code (0-255) or list of values to cycle through.
+        bg = Background. Single color code (0-255) of list of values to cycle through.
+        FirstScrollRow = When printing to window, this is the first row that will scroll up as new lines are printed. (allows titles to stay fixed etc)
+        title = Window title.
+        rjtitle = Extra text for window title that will be right justified. It overwrites basic window title.
+        titlefg = Title foreground. Single color code (0-255). None will use window bg value.
+        titlebg = Title background. Single color code (0-255). None will use window fg value.
+        cdlayout = index of the ColorDisplay.CDLayout list. A shortcut to set col and or row values more dynamically.
+        -------------------------
+        After instantiation, you can also set self.ClipWindow = True to allow the window to truncate display if insufficient realestate available.
+           Otherwise the entire window will be suppressed until the display is big enough to accomodate the entire window.
+        """
+        # A label for the display instance.
+        self.display_name = name
+        if columns is None and cdlayout is None:
+            raise RuntimeError(
+                "ColorDisplay.__init__(): You must specify columns or cdlayout parameter to define a window."
+            )
+        if self.display_name == "":
+            # Generate a default name.
+            self.display_name = f"win_{len(ColorDisplay.defined_windows)}"
+        # How many rows deep is the display?
+        self.display_rows = rows
+        # If using predefined columns, make a note which one we're using.
+        self.cd_entry = cdlayout
+        # Automatically assign location on the screen.
+        if (
+            self.cd_entry is not None
+            and self.cd_entry >= 0
+            and self.cd_entry < len(ColorDisplay.cd_layout)
+        ):
             # Use the CDLayout list of window columns to define the start column.
-            col = colordisplay.CDLayout[self.CDEntry][0] # Pull the start character column from the CDLayout list.
-            columns = colordisplay.CDLayout[self.CDEntry][1] # Pull the character column width from the CDLayout list.
+            # Pull the start character column from the CDLayout list.
+            col = ColorDisplay.cd_layout[self.cd_entry][0]
+            # Pull the character column width from the CDLayout list.
+            columns = ColorDisplay.cd_layout[self.cd_entry][1]
             row = 1
-            for cd in colordisplay.DefinedWindows: # Stack each new window beneath previous ones in a column.
-                if cd.CDEntry == self.CDEntry and cd.last_display_row >= row: row = cd.last_display_row + 2 # Start at next free row (with 1 row for border).
-        self.display_columns = columns # How many columns wide is the display?
-        self.display_row = row # What's the location of the 1st cell in the display on the actual terminal?
-        self.display_col = col
-        if self.display_row != None and self.display_rows != None:
-            self.last_display_row = self.display_row + self.display_rows - 1 # Where does the display END ?  
+            # Stack each new window beneath previous ones in a column.
+            for cd in ColorDisplay.defined_windows:
+                if cd.CDEntry == self.cd_entry and cd.last_display_row >= row:
+                    # Start at next free row (with 1 row for border).
+                    row = cd.last_display_row + 2
+        # How many columns wide is the display?
+        if columns is None:
+            raise RuntimeError(
+                "ColorDisplay.__init__(): You must specify columns or cdlayout parameter to define a window."
+            )
+        self.display_columns: int = columns
+        # What's the location of the 1st cell in the display on the actual terminal?
+        self.display_row: Union[int, None] = row
+        self.display_col: Union[int, None] = col
+        if self.display_row is not None and self.display_rows is not None:
+            # Where does the display END ?
+            self.last_display_row: Union[int, None] = (
+                self.display_row + self.display_rows - 1
+            )
         else:
             self.last_display_row = None
-        if self.display_col != None and self.display_columns != None:
-            self.last_display_col = self.display_col + self.display_columns
+        if self.display_col is not None and self.display_columns is not None:
+            self.last_display_col: Union[int, None] = (
+                self.display_col + self.display_columns
+            )
         else:
             self.last_display_col = None
-        if type(fg) == list: # For scrolling displays you can provide a list of alternating text colors to use. This visually separates individual entries.
-            self.DefaultFG = fg[0] # What's the default foreground color?
-            self.DefaultFGs = fg
+        # For scrolling displays you can provide a list of alternating text colors to use.
+        # This visually separates individual entries.
+        if isinstance(fg, list):
+            # What's the default foreground color?
+            self.default_fg = fg[0]
+            self.default_fgs = fg
         else:
-            self.DefaultFG = fg # What's the default foreground color?
-            self.DefaultFGs = [fg]
-        self.FGColorCount = len(self.DefaultFGs) # How many colors are available?
-        self.FGColorIndex = 0 # Which color do we start with if multiple available?
-        if type(bg) == list: # For scrolling displays you can provide a list of alternating background colors to use. This visually separates individual entries.
-            self.DefaultBG = bg[0] # What's the default background color?
-            self.DefaultBGs = bg # List of all background colors.
+            # What's the default foreground color?
+            self.default_fg = fg
+            self.default_fgs = [fg]
+        # How many colors are available?
+        self.fg_color_count = len(self.default_fgs)
+        # Which color do we start with if multiple available?
+        self.fg_color_index = 0
+        # For scrolling displays you can provide a list
+        # of alternating background colors to use.
+        # This visually separates individual entries.
+        if isinstance(bg, list):
+            # What's the default background color?
+            self.default_bg = bg[0]
+            # List of all background colors.
+            self.default_bgs = bg
         else:
-            self.DefaultBG = bg # What's the default background color?
-            self.DefaultBGs = [bg] # List of all background colors.
-        self.BGColorCount = len(self.DefaultBGs) # How many colors are available?
-        self.BGColorIndex = 0 # Which color do we start with if multiple available?
-        self.titleFG = titlefg # What color is the title row?
-        if self.titleFG == None: self.titleFG = self.DefaultBG # Default to inverse.
-        self.titleBG = titlebg # What color is the title row?
-        if self.titleBG == None: self.titleBG = self.DefaultFG # Default to inverse.
-        self.BorderFG = borderfg # What color is the border?
-        if self.BorderFG == None: self.BorderFG = self.DefaultFG # Default is same as general window.
-        self.BorderBG = borderbg # What color is the border.
-        if self.BorderBG == None: self.BorderBG = self.DefaultBG # Default is same as general window.
-        # Create array of each cell in the window, we need character, foreground color and background color.
-        self.fgcolor = [[self.DefaultFG for c in range(self.display_columns)] for r in range(self.display_rows)] # Foreground colour of each character.
-        self.bgcolor = [[self.DefaultBG for c in range(self.display_columns)] for r in range(self.display_rows)] # Background colour of each character.
-        self.character = [[" " for c in range(self.display_columns)] for r in range(self.display_rows)] # Characters to display.
+            # What's the default background color?
+            self.default_bg = bg
+            # List of all background colors.
+            self.default_bgs = [bg]
+        # How many colors are available?
+        self.bg_color_count = len(self.default_bgs)
+        # Which color do we start with if multiple available?
+        self.bg_color_index = 0
+        # What color is the title row?
+        self.title_fg = titlefg
+        if self.title_fg is None:
+            # Default to inverse.
+            self.title_fg = self.default_bg
+        # What color is the title row?
+        self.title_bg = titlebg
+        if self.title_bg is None:
+            # Default to inverse.
+            self.title_bg = self.default_fg
+        # What color is the border?
+        self.border_fg = borderfg
+        if self.border_fg is None:
+            # Default is same as general window.
+            self.border_fg = self.default_fg
+        # What color is the border.
+        self.border_bg = borderbg
+        if self.border_bg is None:
+            # Default is same as general window.
+            self.border_bg = self.default_bg
+        # Create array of each cell in the window,
+        # we need character, foreground color and background color.
+        # Foreground colour of each character.
+        self.fg_color = [
+            [self.default_fg for c in range(self.display_columns)]
+            for r in range(self.display_rows)
+        ]
+        # Background colour of each character.
+        self.bg_color = [
+            [self.default_bg for c in range(self.display_columns)]
+            for r in range(self.display_rows)
+        ]
+        # Characters to display.
+        self.character = [
+            [" " for c in range(self.display_columns)] for r in range(self.display_rows)
+        ]
         # Store the default state of the window here. This is used if the window is 'cleared'.
-        self.default_fgcolor = [[self.DefaultFG for c in range(self.display_columns)] for r in range(self.display_rows)] # Foreground colour of each character.
-        self.default_bgcolor = [[self.DefaultBG for c in range(self.display_columns)] for r in range(self.display_rows)] # Background colour of each character.
-        self.default_character = [[" " for c in range(self.display_columns)] for r in range(self.display_rows)] # Characters to display.
-        self.PrevLineStrings = [None for r in range(self.display_rows)] # List of the display commands last issued to paint the display. Used to check for changes.
-        self.ReduceIO = False # If set to true, Display() method will only update lines of the display that it thinks have changed.
-        self.sprites = [] # List of any active sprites in the display.
-        self.PrintHistory = [] # Cache of recently printed lines, used for repainting and exporting.
-        self.FirstScrollRow = FirstScrollRow # 0 means data starts at the first row of the window, 1 means there's a title or something in row 0, etc. Scrolling takes this into account.
-        self.Log = None # Can store handle to a 'Log' method for logging messages. Needs to be defined and assigned by the calling program.
-        self.RefreshRate = None # Can specify how quickly the display refreshes (in seconds).
-        self.LastRefresh = None # When did the display last update?
-        self.Fields = [] # List of fields if defined.
-        self.MarkDisplay = False # If TRUE the corners are highlighted in RED, and the FIELDS are highlighted in YELLOW(for layout checking)
-        if title != None: self.WindowTitle = ' ' + title.strip()
-        else: self.WindowTitle = None
-        if rjtitle != None: self.RJTitle = rjtitle.strip() + ' ' # A secondary title that is right justified on top of the title line.
-        else: self.RJTitle = None
-        if self.WindowTitle != None: self.SetTitle()
-        self.ClipWindow = False # If TRUE, the window can be clipped to fit available terminal display. This will simply truncate.
-        self.DrawBorder = False # If TRUE, an additional single line border is drawn on the RIGHT and BOTTOM of the window. Takes 1 extra character in each dimension.
-        self.BorderFG = self.DefaultFG
-        self.BorderBG = self.DefaultBG
-        colordisplay.DefinedWindows.append(self) # Add this window to the global list of all windows.
+        # Foreground colour of each character.
+        self.default_fgcolor = [
+            [self.default_fg for c in range(self.display_columns)]
+            for r in range(self.display_rows)
+        ]
+        # Background colour of each character.
+        self.default_bgcolor = [
+            [self.default_bg for c in range(self.display_columns)]
+            for r in range(self.display_rows)
+        ]
+        # Characters to display.
+        self.default_character = [
+            [" " for c in range(self.display_columns)] for r in range(self.display_rows)
+        ]
+        # List of the display commands last issued to paint the display.
+        # Used to check for changes.
+        self.prev_line_strings: List[Union[str, None]] = [
+            None for r in range(self.display_rows)
+        ]
+        # If set to true, Display() method will only update
+        # lines of the display that it thinks have changed.
+        self.reduce_io = False
+        # List of any active sprites in the display.
+        self.sprites: List[CdSprite] = []
+        # Cache of recently printed lines, used for repainting and exporting.
+        self.print_history: List[str] = []
+        # 0 means data starts at the first row of the window,
+        # 1 means there's a title or something in row 0, etc.
+        # Scrolling takes this into account.
+        self.first_scroll_row = first_scroll_row
+        # Can store handle to a 'Log' method for logging messages.
+        # Needs to be defined and assigned by the calling program.
+        self.log = None
+        # Can specify how quickly the display refreshes (in seconds).
+        self.refresh_rate = None
+        # When did the display last update?
+        self.last_refresh = None
+        # List of fields if defined.
+        self.fields: List[Field] = []
+        # If TRUE the corners are highlighted in RED,
+        # and the FIELDS are highlighted in YELLOW(for layout checking)
+        self.mark_display = False
+        if title is not None:
+            self.window_title = " " + title.strip()
+        else:
+            self.window_title = None
+        if rjtitle is not None:
+            # A secondary title that is right justified on top of the title line.
+            self.rj_title = rjtitle.strip() + " "
+        else:
+            self.rj_title = None
+        if self.window_title is not None:
+            self.set_title()
+        # If TRUE, the window can be clipped to fit available terminal display.
+        # This will simply truncate.
+        self.clip_window = False
+        # If TRUE, an additional single line border is drawn on the RIGHT and BOTTOM of the window.
+        # Takes 1 extra character in each dimension.
+        self.draw_border = False
+        self.border_fg = self.default_fg
+        self.border_bg = self.default_bg
+        ColorDisplay.defined_windows.append(
+            self
+        )  # Add this window to the global list of all windows.
 
     def __del__(self):
-        """ Remove this window from the list of defined windows.
-            *Q* This is called by the garbage collector (not guaranteed), so may not be the smartest way to do this. """
-        for i,w in enumerate(colordisplay.DefinedWindows):
-            if w == self: # Found myself in the list. Remove and quit.
-                del colordisplay.DefinedWindows[i]
+        """Remove this window from the list of defined windows.
+        *Q* This is called by the garbage collector (not guaranteed), so may not be the smartest way to do this.
+        """
+        for i, w in enumerate(ColorDisplay.defined_windows):
+            # Found myself in the list. Remove and quit.
+            if w == self:
+                del ColorDisplay.defined_windows[i]
                 break
 
-    def SetTitle(self):
-        """ Turn first row of a window into a title row.
-            Color appropriately and change the scroll behaviour of the window.
-            1st line nolonger scrolls. """
-        if self.WindowTitle == None: # Deactivate the title line.
-            self.FirstScrollRow = 0
+    def set_title(self):
+        """Turn first row of a window into a title row.
+        Color appropriately and change the scroll behaviour of the window.
+        1st line nolonger scrolls."""
+        # Deactivate the title line.
+        if self.window_title is None:
+            self.first_scroll_row = 0
             for c in range(self.display_columns):
-                self.fgcolor[0][c] = self.DefaultFG # Regular colors if no title.
-                self.bgcolor[0][c] = self.DefaultBG # Regular colors if no title.
-        else: # Activate the title line.
-            self.FirstScrollRow = 1
-            temp = (self.WindowTitle + (' ' * self.display_columns))[:self.display_columns] # Pad out to full window width.
+                # Regular colors if no title.
+                self.fg_color[0][c] = self.default_fg
+                # Regular colors if no title.
+                self.bg_color[0][c] = self.default_bg
+        else:  # Activate the title line.
+            self.first_scroll_row = 1
+            temp = (self.window_title + (" " * self.display_columns))[
+                : self.display_columns
+            ]  # Pad out to full window width.
             for c in range(self.display_columns):
-                self.character[0][c] = temp[c] # Add title to window display top line.
-                self.fgcolor[0][c] = self.titleFG # Invert colors for titles.
-                self.bgcolor[0][c] = self.titleBG # Invert colors for titles.
-            if self.RJTitle != None: # There is a right justified element to the title to add.
-                sc = self.display_columns - len(self.RJTitle)
-                for i in range(len(self.RJTitle)): # Work backwards because we are right justifying this on top of existing title.
-                    c = sc + i # Where does the character go?
-                    self.character[0][c] = self.RJTitle[i]
+                # Add title to window display top line.
+                self.character[0][c] = temp[c]
+                # Invert colors for titles.
+                self.fg_color[0][c] = self.title_fg
+                # Invert colors for titles.
+                self.bg_color[0][c] = self.title_bg
+            # There is a right justified element to the title to add.
+            if self.rj_title is not None:
+                sc = self.display_columns - len(self.rj_title)
+                # Work backwards because we are right justifying this on top of existing title.
+                for i, char in enumerate(self.rj_title):
+                    c = sc + i  # Where does the character go?
+                    self.character[0][c] = char
 
-    def ReadTitleRow(self):
-        """ Read the title row directly from the buffer. """
-        line = ''
+    def read_title_row(self):
+        """Read the title row directly from the buffer."""
+        line = ""
         for c in range(self.display_columns):
             line += self.character[0][c]
         return line
 
-    def AddField(self,name,row,column,length=10,justify='l'):
-        """ Add a field to the list of fields recognised in this window. 
-            Duplicates are allowed. """
-        self.Fields.append(Field(name=name,row=row,col=column,length=length,justify=justify))
+    def add_field(self, name, row, column, length=10, justify="l"):
+        """Add a field to the list of fields recognised in this window.
+        Duplicates are allowed."""
+        self.fields.append(
+            Field(name=name, row=row, col=column, length=length, justify=justify)
+        )
         return True
 
-    def InitializeProgressBar(self,name,minval,maxval,fg=None,bg=None):
-        """ Prime a field as a progress bar. """
-        FoundIt = False
-        for f in self.Fields:
-            if f.Name == name: # Will initialize multiple fields with same name.
-                FoundIt = True
-                f.PBMin = minval
-                f.PBMax = maxval
-                f.Type = 'ProgressBar'
-                if fg != None: f.PBFG = fg # Set the 'DONE' color
-                if bg != None: f.PBBG = bg # Set the 'TODO' color
-        return FoundIt
-    
-    def ScanForFields(self,startchar='[',endchar=']'):
-        """ Scan the current display looking for fields.
-            Fields are marked by '[name    ]' strings.
-            If no name, then a sequence number is assigned as a name. 
-            '[]' would represent a 2 character field (assigned a sequence number name automatically). 
-            ']' would represent a 1 character field (assigned a sequence number name automatically).
-            Set the 'default' display before calling this. 
-            Start and End field characters are '[' and ']' by default, but you can change 'em if needed
-            via the startchar and endchar parameters. """
-        startchar = (startchar.strip() + '[')[0] # 1 character only, and failsafe to the default char.
-        endchar = (endchar.strip() + ']')[0] # 1 character only, and failsafe to the default char.
-        nextid = 0 # Default ID for fields with no name.
-        for r in range(self.display_rows): # Process each display row individually.
-            start = None # Fields cannot span multiple lines.
-            name = ''
-            for c in range(self.display_columns): # Scan across the characters of the line.
-                if self.character[r][c] == endchar and start != None: # End of field marker, and there was a start marker!
+    def initialize_progress_bar(self, name, minval, maxval, fg=None, bg=None):
+        """Prime a field as a progress bar."""
+        found_it = False
+        for f in self.fields:
+            # Will initialize multiple fields with same name.
+            if f.name == name:
+                found_it = True
+                f.pb_min = minval
+                f.pb_max = maxval
+                f.type = "ProgressBar"
+                if fg is not None:
+                    # Set the 'DONE' color
+                    f.pb_fg = fg
+                if bg is not None:
+                    # Set the 'TODO' color
+                    f.pb_bg = bg
+        return found_it
+
+    def scan_for_fields(self, startchar="[", endchar="]"):
+        """Scan the current display looking for fields.
+        Fields are marked by '[name    ]' strings.
+        If no name, then a sequence number is assigned as a name.
+        '[]' would represent a 2 character field (assigned a sequence number name automatically).
+        ']' would represent a 1 character field (assigned a sequence number name automatically).
+        Set the 'default' display before calling this.
+        Start and End field characters are '[' and ']' by default, but you can change 'em if needed
+        via the startchar and endchar parameters."""
+        # 1 character only, and failsafe to the default char.
+        startchar = (startchar.strip() + "[")[0]
+        # 1 character only, and failsafe to the default char.
+        endchar = (endchar.strip() + "]")[0]
+        # Default ID for fields with no name.
+        nextid = 0
+        # Process each display row individually.
+        for r in range(self.display_rows):
+            # Fields cannot span multiple lines.
+            start = None
+            name = ""
+            # Scan across the characters of the line.
+            for c in range(self.display_columns):
+                # End of field marker, and there was a start marker!
+                if self.character[r][c] == endchar and start is not None:
                     nextid += 1
-                    if name == '': # No name yet. Assign default.
+                    # No name yet. Assign default.
+                    if name == "":
                         name = str(nextid)
-                    self.AddField(name=name,row=r,column=start,length=(c - start) + 1)
-                    start = None # Clear the 'working' field name values ready for next field we find.
-                    name = ''
-                if self.character[r][c] == startchar: # Start of field marker.
+                    self.add_field(
+                        name=name, row=r, column=start, length=(c - start) + 1
+                    )
+                    # Clear the 'working' field name values ready for next field we find.
+                    start = None
+                    name = ""
+                # Start of field marker.
+                if self.character[r][c] == startchar:
                     start = c
-                if start != None: # We're in a field.
-                    if not self.character[r][c] in [startchar,endchar,' ']:
-                        name += self.character[r][c] # Add to name.
+                # We're in a field.
+                if start is not None:
+                    if self.character[r][c] not in [startchar, endchar, " "]:
+                        # Add to name.
+                        name += self.character[r][c]
         return True
 
-    def GetFloatValue(self,input):
-        """ Convert an input value into a float.
-            Removing special characters such as "%","C" etc. """
-        allowedchars = ['0','1','2','3','4','5','6','7','8','9','.']
-        sinp = str(input) # Make sure it's a string.
-        cinp = '' # Cleaned input.
+    def get_float_value(self, input):
+        """Convert an input value into a float.
+        Removing special characters such as "%","C" etc."""
+        allowedchars = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "."]
+        # Make sure it's a string.
+        sinp = str(input)
+        cinp = ""  # Cleaned input.
         for s in sinp:
-            if s in allowedchars: cinp += s
+            if s in allowedchars:
+                cinp += s
         finp = float(cinp)
         return finp
 
-    def ExportFields(self,filename,initialdictionary={}):
-        """ Export field values to json file.
-            Data is appended to any values already existing in initialdictionary. """
+    def export_fields(self, filename, initialdictionary={}):
+        """Export field values to json file.
+        Data is appended to any values already existing in initialdictionary."""
         tempdict = initialdictionary
-        for field in self.Fields:
-            tempdict[self.DisplayName + "." + field.Name] = field.Value
-        tempdict[self.DisplayName + '.PrintHistory'] = self.PrintHistory
-        with open(filename,'w') as f:
-            json.dump(tempdict,f)
+        for field in self.fields:
+            tempdict[self.display_name + "." + field.name] = field.value
+        tempdict[self.display_name + ".PrintHistory"] = self.print_history
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(tempdict, f)
         return True
 
-    def UpdateBlinkStatus(self):
-        """ Check for any fields with 'BlinkRate' set. 
-            Adjust colors accordingly. """
-        for f in self.Fields:
-            if f.BlinkRate != 0: # This field is in BLINK mode.
+    def update_blink_status(self):
+        """Check for any fields with 'BlinkRate' set.
+        Adjust colors accordingly."""
+        for f in self.fields:
+            if f.blink_rate != 0:  # This field is in BLINK mode.
                 # Choose an appropriate color scheme.
-                t = datetime.now().timestamp() # Current time as seconds.
-                c = round(t / f.BlinkRate,0) % len(self.BlinkColors) # Cycle through the list of BlinkColor pairs.
-                self.FieldValue(f.name,fg=self.BlinkColors[c][0],bg=self.BlinkColors[c][1])
+                # Current time as seconds.
+                t = datetime.now().timestamp()
+                # Cycle through the list of BlinkColor pairs.
+                c = round(t / f.blink_rate, 0) % len(f.blink_colors)
+                self.field_value(
+                    f.name, c, fg=f.blink_colors[c][0], bg=f.blink_colors[c][1]
+                )
         return True
 
-    def SetBlinkStatus(self,name,blinkrate,blinkcolors=[[TextColor.WHITE,TextColor.BLACK],[TextColor.BLACK,TextColor.WHITE]]):
-        """ Setup blink data.
-                    """
+    def set_blink_status(
+        self,
+        name,
+        blinkrate,
+        blinkcolors=[
+            [TextColor.WHITE, TextColor.BLACK],
+            [TextColor.BLACK, TextColor.WHITE],
+        ],
+    ):
+        """Setup blink data."""
         # Validate the color list.
         lOK = True
         for a in blinkcolors:
-            if len(a) != 2: # Must be 2 colors listed in each entry.
+            # Must be 2 colors listed in each entry.
+            if len(a) != 2:
                 lOK = False
                 break
-        if lOK: 
-            for f in self.Fields:
-                if f.Name == name:
-                    f.BlinkRate = blinkrate
-                    f.BlinkColors = blinkcolors
-        
-    def FieldValue(self,name,value,fg=None,bg=None):
-        """ Update the value of a field and display it. """
-        FoundIt = False
-        for f in self.Fields:
-            if f.Name == name: # Will update multiple fields with the same name.
-                FoundIt = True
-                f.Value = value
-                if fg != None: f.FGColor = fg # Tell the field what color it is.
-                if bg != None: f.BGColor = bg # Tell the field what color it is.
-                sValue = f.Justified() # Make sure the value is a character string and correctly formatted.
-                if f.Type == "ProgressBar":
-                    pval = float(max(min(self.GetFloatValue(value),f.PBMax),f.PBMin)) # Limit value to progress bar limits.
-                    if fg == None: fg = f.PBFG # Default to predefined progress bar colors.
-                    if bg == None: bg = f.PBBG
-                    pc = round(f.Length * (pval - f.PBMin) / (f.PBMax - f.PBMin)) - 1 # Calculate % complete (offset by -1 to allow for Python 'range' function)
-                    for i in range(f.Length):
-                        if i <= pc: # 'completed' section of progress bar.
-                            self.fgcolor[f.Row][f.Column + i] = fg
-                            self.bgcolor[f.Row][f.Column + i] = bg
-                        else: # 'todo' section of progress bar (colors swapped).
-                            self.fgcolor[f.Row][f.Column + i] = bg
-                            self.bgcolor[f.Row][f.Column + i] = fg
-                        self.character[f.Row][f.Column + i] = sValue[i]
-                else: # 'Data' field.
-                    for i in range(f.Length): # Set the characters one at a time.
-                        self.character[f.Row][f.Column + i] = sValue[i]
-                        if fg != None: self.fgcolor[f.Row][f.Column + i] = fg
-                        if bg != None: self.bgcolor[f.Row][f.Column + i] = bg
-        return FoundIt
+        if lOK:
+            for f in self.fields:
+                if f.name == name:
+                    f.blink_rate = blinkrate
+                    f.blink_colors = blinkcolors
 
-    def RenameField(self,oldname,newname):
-        """ Change the name of a data field to something more useful. """
-        FoundIt = False
-        for f in self.Fields: # Check all fields. 
-            if f.Name == oldname: # Found original fieldname.
-                FoundIt = True
-                f.Name = newname # Assign new fieldname. 
-        return FoundIt
+    def field_value(
+        self, name, value, fg: Union[int, None] = None, bg: Union[int, None] = None
+    ):
+        """Update the value of a field and display it."""
+        found_it = False
+        pc = 0
+        for f in self.fields:
+            # Will update multiple fields with the same name.
+            if f.name == name:
+                found_it = True
+                f.value = value
+                if fg is not None:
+                    # Tell the field what color it is.
+                    f.fg_color = fg
+                if bg is not None:
+                    # Tell the field what color it is.
+                    f.bg_color = bg
+                # Make sure the value is a character string and correctly formatted.
+                s_value = f.justified()
+                if f.type == "ProgressBar":
+                    # Limit value to progress bar limits.
+                    if f.pb_max is not None and f.pb_min is not None:
+                        pval = float(
+                            max(min(self.get_float_value(value), f.pb_max), f.pb_min)
+                        )
+                    if fg is None:
+                        # Default to predefined progress bar colors.
+                        fg = f.pb_fg
+                    if bg is None:
+                        bg = f.pb_bg
+                    # Calculate % complete (offset by -1 to allow for Python 'range' function)
+                    if f.pb_max is not None and f.pb_min is not None:
+                        pc = (
+                            round(f.length * (pval - f.pb_min) / (f.pb_max - f.pb_min))
+                            - 1
+                        )
+                    for i in range(f.length):
+                        # 'completed' section of progress bar.
+                        if i <= pc:
+                            self.fg_color[f.row][f.column + i] = fg
+                            self.bg_color[f.row][f.column + i] = bg
+                        # 'todo' section of progress bar (colors swapped).
+                        else:
+                            self.fg_color[f.row][f.column + i] = bg
+                            self.bg_color[f.row][f.column + i] = fg
+                        self.character[f.row][f.column + i] = s_value[i]
+                # 'Data' field.
+                else:
+                    # Set the characters one at a time.
+                    for i in range(f.length):
+                        self.character[f.row][f.column + i] = s_value[i]
+                        if fg is not None:
+                            self.fg_color[f.row][f.column + i] = fg
+                        if bg is not None:
+                            self.bg_color[f.row][f.column + i] = bg
+        return found_it
 
-    def FieldFormat(self,name, justify=None, pattern=None, bwz=None):
-        """ Change the format of a data field to something more useful. """
-        FoundIt = False
-        for f in self.Fields: # Check all fields. 
-            if f.Name == name: # Found original fieldname.
-                FoundIt = True
-                if justify != None: f.Justify = justify
-        return FoundIt
+    def rename_field(self, oldname, newname):
+        """Change the name of a data field to something more useful."""
+        found_it = False
+        # Check all fields.
+        for f in self.fields:
+            # Found original fieldname.
+            if f.name == oldname:
+                found_it = True
+                # Assign new fieldname.
+                f.name = newname
+        return found_it
 
-    def CopyFieldColor(self,fromname,toname):
-        """ Copy color of one field to another. """
-        FoundIt = False
-        fromfield = None # Handle to the FROM instance.
-        tofield = None # Handle to the TO instance.
-        for f in self.Fields: # Find the source field.
-            if f.Name == fromname: # Found the FROM instance.
+    def field_format(self, name, justify=None, pattern=None, bwz=None):
+        """Change the format of a data field to something more useful."""
+        found_it = False
+        # Check all fields.
+        for f in self.fields:
+            # Found original fieldname.
+            if f.name == name:
+                found_it = True
+                if justify is not None:
+                    f.justify = justify
+        return found_it
+
+    def copy_field_color(self, fromname, toname):
+        """Copy color of one field to another."""
+        found_it = False
+        # Handle to the FROM instance.
+        fromfield = None
+        # Handle to the TO instance.
+        tofield = None
+        # Find the source field.
+        for f in self.fields:
+            # Found the FROM instance.
+            if f.name == fromname:
                 fromfield = f
                 break
-        for g in self.Fields: # Find the target field.
-            if g.Name == toname: # Found the TO instance.
+        # Find the target field.
+        for g in self.fields:
+            # Found the TO instance.
+            if g.name == toname:
                 tofield = g
                 break
-        if fromfield != None and tofield != None: # Transfer the colors.
-            FoundIt = self.FieldColor(toname,fg=f.FGColor,bg=f.BGColor)
-        return FoundIt
+        # Transfer the colors.
+        if fromfield is not None and tofield is not None:
+            found_it = self.field_color(
+                toname, fg=fromfield.fg_color, bg=fromfield.bg_color
+            )
+        return found_it
 
-    def FieldColor(self,name, fg=None, bg=None):
-        """ Update the color of a field and display it. """
-        FoundIt = False
-        if fg == None: fg = self.DefaultFG # Set defaults if no value given.
-        if bg == None: bg = self.DefaultBG
-        for f in self.Fields: # Find the Field(s) by name.
-            if f.Type in ['ProgressBar']: continue # ProgressBars select their color differently.
-            if f.Name == name: # Will update multiple fields with the same name.
-                FoundIt = True
-                if fg != None: f.FGColor = fg # Tell the field what color it is.
-                if bg != None: f.BGColor = bg # Tell the field what color it is.
-                for i in range(f.Length): # Color every character in the field.
-                    self.fgcolor[f.Row][f.Column + i] = fg
-                    self.bgcolor[f.Row][f.Column + i] = bg
-                f.FGColor = fg
-                f.BGColor = bg
-        return FoundIt
+    def field_color(self, name, fg=None, bg=None):
+        """Update the color of a field and display it."""
+        found_it = False
+        if fg is None:
+            fg = self.default_fg  # Set defaults if no value given.
+        if bg is None:
+            bg = self.default_bg
+        for f in self.fields:  # Find the Field(s) by name.
+            if f.type in ["ProgressBar"]:
+                continue  # ProgressBars select their color differently.
+            if f.name == name:  # Will update multiple fields with the same name.
+                found_it = True
+                if fg is not None:
+                    f.fg_color = fg  # Tell the field what color it is.
+                if bg is not None:
+                    f.bg_color = bg  # Tell the field what color it is.
+                for i in range(f.length):  # Color every character in the field.
+                    self.fg_color[f.row][f.column + i] = fg
+                    self.bg_color[f.row][f.column + i] = bg
+                f.fg_color = fg
+                f.bg_color = bg
+        return found_it
 
-    def InitializeColorRange(self,name,badfg=None,badbg=None,poorfg=None,poorbg=None):
-        """ Set colour range for a field. """
-        FoundIt = False # Not found the field yet.
-        for f in self.Fields: # Search the field list.
-            if f.Name == name: # Will update multiple fields with the same name.
-                FoundIt = True # Found the field.
-                f.BadFG = badfg # Set the color values for each range.
-                f.BadBG = badbg
-                f.PoorFG = poorfg
-                f.PoorBG = poorbg
-        return FoundIt
-        
-    def RangeFieldColor(self,name,lowlow=None,low=None,high=None,highhigh=None):
-        """ Update the color of a field based upon a range of values. """
-        FoundIt = False # Not found the field yet.
-        for f in self.Fields: # Find the field in the field list.
-            if f.Type in ['ProgressBar']: continue # ProgressBars select their color differently.
-            if f.Name == name: # Will update multiple fields with the same name.
-                FoundIt = True # Found the field.
-                if f.Value <= lowlow or f.Value >= highhigh: # We have a LOW LOW or HIGH HIGH value, this is BAD.
-                    fg = f.BadFG
-                    bg = f.BadBG
-                elif f.Value <= low or f.Value >= high: # We have a LOW or HIGH value, this is POOR.
-                    fg = f.PoorFG
-                    bg = f.PoorBG
-                else: # We have a GOOD value.
-                    fg = self.DefaultFG
-                    bg = self.DefaultBG
-                self.FieldColor(name,fg=fg,bg=bg)
-        return FoundIt
+    def initialize_color_range(
+        self, name, badfg=None, badbg=None, poorfg=None, poorbg=None
+    ):
+        """Set colour range for a field."""
+        found_it = False  # Not found the field yet.
+        for f in self.fields:  # Search the field list.
+            if f.name == name:  # Will update multiple fields with the same name.
+                found_it = True  # Found the field.
+                f.bad_fg = badfg  # Set the color values for each range.
+                f.bad_bg = badbg
+                f.poor_fg = poorfg
+                f.poor_bg = poorbg
+        return found_it
 
-    def ListFields(self):
-        """ Return dictionary of fields recognised in the window. """
-        dict = {}
-        for f in self.Fields:
-            dict[f.Name] = {'row': f.Row, 'col': f.Column, 'len': f.Length, 'just': f.Justify, 'type': f.Type}
-        return dict
+    def range_field_color(self, name, lowlow=None, low=None, high=None, highhigh=None):
+        """Update the color of a field based upon a range of values."""
+        found_it = False  # Not found the field yet.
+        for f in self.fields:  # Find the field in the field list.
+            if f.type in ["ProgressBar"]:
+                continue  # ProgressBars select their color differently.
+            if f.name == name:  # Will update multiple fields with the same name.
+                found_it = True  # Found the field.
+                # We have a LOW LOW or HIGH HIGH value, this is BAD.
+                if f.value <= lowlow or f.value >= highhigh:
+                    fg = f.bad_fg
+                    bg = f.bad_bg
+                # We have a LOW or HIGH value, this is POOR.
+                elif f.value <= low or f.value >= high:
+                    fg = f.poor_fg
+                    bg = f.poor_bg
+                # We have a GOOD value.
+                else:
+                    fg = self.default_fg
+                    bg = self.default_bg
+                self.field_color(name, fg=fg, bg=bg)
+        return found_it
 
-    def SetRefreshRate(self,rate):
-        """ Set selected refresh rate and reset the refresh timer. """
-        self.RefreshRate = rate
-        self.LastRefresh = None
+    def list_fields(self) -> dict:
+        """Return dictionary of fields recognised in the window."""
+        dict_obj: Dict[str, Dict[str, Union[int, str]]] = {}
+        for f in self.fields:
+            dict_obj[f.name] = {
+                "row": f.row,
+                "col": f.column,
+                "len": f.length,
+                "just": f.justify,
+                "type": f.type,
+            }
+        return dict_obj
 
-    def SetDefault(self):
-        """ Store the current display as a default image. 
-            When the display is cleared, this default image is restored. """
+    def set_refresh_rate(self, rate):
+        """Set selected refresh rate and reset the refresh timer."""
+        self.refresh_rate = rate
+        self.last_refresh = None
+
+    def set_default(self):
+        """Store the current display as a default image.
+        When the display is cleared, this default image is restored."""
         for c in range(self.display_columns):
             for r in range(self.display_rows):
-                self.default_fgcolor[r][c] = self.fgcolor[r][c]
-                self.default_bgcolor[r][c] = self.bgcolor[r][c]
+                self.default_fgcolor[r][c] = self.fg_color[r][c]
+                self.default_bgcolor[r][c] = self.bg_color[r][c]
                 self.default_character[r][c] = self.character[r][c]
 
-    def ConvertLines(self):
-        """ Scan the current layout for '-','|','+' symbols and convert to primitive line drawing. """
+    def convert_lines(self):
+        """Scan the current layout for '-','|','+' symbols and convert to primitive line drawing."""
         # Not yet implemented.
         return True
 
-    def ClipRow(self,row):
-        if row < 0: row = 0
-        if row >= self.display_rows: row = self.display_rows - 1
+    def clip_row(self, row):
+        if row < 0:
+            row = 0
+        if row >= self.display_rows:
+            row = self.display_rows - 1
         return row
-        
-    def ClipCol(self,col):
-        if col < 0: col = 0
-        if col >= self.display_columns: col = self.display_columns - 1
-        return col
-        
-    def draw_box(self,fromloc,toloc,fg=None,bg=None,border=True,fill=True,overwritelist=['+','-','|',' ']):
-        """ Use unicode line characters to draw a box on a colordisplay window. 
-            fromloc = (fromrow,fromcol)
-            toloc = (torow,tocol) 
-            fg = Optional Foreground color.
-            bg = Optional Background color.
-            border = True : Draw border line. 
-                   = False : Just color the box. 
-            fill = True : Color the interior cells of the box.
-                   False : Leave interior cell colors unchanged. 
-            overwritelist = [] List of characters that linedrawing is allowed to overwrite. 
-                            So you can 'draw' the box using these characters when you define 
-                            the display and ONLY these characters get overwritten, this lets
-                            you have overlapping titles or gaps in the box if needed by using
-                            other characters that are not in the overwritelist """
-        (fromrow, fromcol) = fromloc
-        (torow, tocol) = toloc
-        fromrow = self.ClipRow(fromrow)
-        torow = self.ClipRow(torow)
-        fromcol = self.ClipCol(fromcol)
-        tocol = self.ClipCol(tocol)
-        if border: # Draw lines around box.
-            for c in range(fromcol,tocol + 1):
-                # Draw top
-                if c == fromcol: char = TextColor.SYMBOLS['corner_tl']
-                elif c == tocol: char = TextColor.SYMBOLS['corner_tr']
-                else: char = TextColor.SYMBOLS['horizontal']
-                cv, _ , _ = self.CellValue(fromrow,c)
-                if cv in overwritelist:
-                    self.PlaceString(char,fromrow,c,fg=fg,bg=bg)
-                # Draw bottom
-                if c == fromcol: char = TextColor.SYMBOLS['corner_bl']
-                elif c == tocol: char = TextColor.SYMBOLS['corner_br']
-                else: char = TextColor.SYMBOLS['horizontal']
-                cv , _ , _ = self.CellValue(torow,c)
-                if cv in overwritelist:
-                    self.PlaceString(char,torow,c,fg=fg,bg=bg)
-            char = TextColor.SYMBOLS['vertical']
-            if (torow - fromrow) > 1:
-                for r in range(fromrow + 1,torow):
-                    # Draw left
-                    cv , _ , _ = self.CellValue(r,fromcol)
-                    if cv in overwritelist:
-                        self.PlaceString(char,r,fromcol,fg=fg,bg=bg)
-                    # Draw right
-                    cv , _ , _ = self.CellValue(r,tocol)
-                    if cv in overwritelist:
-                        self.PlaceString(char,r,tocol,fg=fg,bg=bg)
-        if fill: # Fill the rectangle with the color.
-            for c in range(fromcol,tocol + 1):
-                for r in range(fromrow,torow + 1):
-                    self.ColorCell(r,c,fg,bg)
 
-    def RefreshDue(self):
-        """ Return True if refresh is due, else False. """
+    def clip_col(self, col):
+        if col < 0:
+            col = 0
+        if col >= self.display_columns:
+            col = self.display_columns - 1
+        return col
+
+    def draw_box(
+        self,
+        fromloc,
+        toloc,
+        fg=None,
+        bg=None,
+        border=True,
+        fill=True,
+        overwritelist=["+", "-", "|", " "],
+    ):
+        """Use unicode line characters to draw a box on a ColorDisplay window.
+        fromloc = (fromrow,fromcol)
+        toloc = (torow,tocol)
+        fg = Optional Foreground color.
+        bg = Optional Background color.
+        border = True : Draw border line.
+               = False : Just color the box.
+        fill = True : Color the interior cells of the box.
+               False : Leave interior cell colors unchanged.
+        overwritelist = [] List of characters that linedrawing is allowed to overwrite.
+                        So you can 'draw' the box using these characters when you define
+                        the display and ONLY these characters get overwritten, this lets
+                        you have overlapping titles or gaps in the box if needed by using
+                        other characters that are not in the overwritelist"""
+        fromrow, fromcol = fromloc
+        torow, tocol = toloc
+        fromrow = self.clip_row(fromrow)
+        torow = self.clip_row(torow)
+        fromcol = self.clip_col(fromcol)
+        tocol = self.clip_col(tocol)
+        if border:  # Draw lines around box.
+            for c in range(fromcol, tocol + 1):
+                # Draw top
+                if c == fromcol:
+                    char = TextColor.SYMBOLS["corner_tl"]
+                elif c == tocol:
+                    char = TextColor.SYMBOLS["corner_tr"]
+                else:
+                    char = TextColor.SYMBOLS["horizontal"]
+                cv, _, _ = self.cell_value(fromrow, c)
+                if cv in overwritelist:
+                    self.place_string(char, fromrow, c, fg=fg, bg=bg)
+                # Draw bottom
+                if c == fromcol:
+                    char = TextColor.SYMBOLS["corner_bl"]
+                elif c == tocol:
+                    char = TextColor.SYMBOLS["corner_br"]
+                else:
+                    char = TextColor.SYMBOLS["horizontal"]
+                cv, _, _ = self.cell_value(torow, c)
+                if cv in overwritelist:
+                    self.place_string(char, torow, c, fg=fg, bg=bg)
+            char = TextColor.SYMBOLS["vertical"]
+            if (torow - fromrow) > 1:
+                for r in range(fromrow + 1, torow):
+                    # Draw left
+                    cv, _, _ = self.cell_value(r, fromcol)
+                    if cv in overwritelist:
+                        self.place_string(char, r, fromcol, fg=fg, bg=bg)
+                    # Draw right
+                    cv, _, _ = self.cell_value(r, tocol)
+                    if cv in overwritelist:
+                        self.place_string(char, r, tocol, fg=fg, bg=bg)
+        if fill:  # Fill the rectangle with the color.
+            for c in range(fromcol, tocol + 1):
+                for r in range(fromrow, torow + 1):
+                    self.color_cell(r, c, fg, bg)
+
+    def refresh_due(self):
+        """Return True if refresh is due, else False."""
         result = False
-        if self.RefreshRate == None: result = True # There's no restriction so always refresh. 
-        elif self.LastRefresh == None: result = True # Need to do initial drawing. 
-        elif (datetime.now() - self.LastRefresh).total_seconds() > self.RefreshRate: result = True # Refresh is due.
-        return result 
-        
-    def add_sprite(self,name,text,row=None,col=None,fg=15,bg=0,level=0):
-        """ Create a sprite. 
-            If name is unique, it creates an instance of cdsprite subclass and adds it to the 
-            list of sprites managed by this display buffer. """
-        lFound = False
+        if self.refresh_rate is None:
+            result = True  # There's no restriction so always refresh.
+        elif self.last_refresh is None:
+            result = True  # Need to do initial drawing.
+        elif (datetime.now() - self.last_refresh).total_seconds() > self.refresh_rate:
+            result = True  # Refresh is due.
+        return result
+
+    def add_sprite(self, name, text, row=None, col=None, fg=15, bg=0, level=0):
+        """Create a sprite.
+        If name is unique, it creates an instance of cdsprite subclass and adds it to the
+        list of sprites managed by this display buffer."""
+        l_found = False
         for s in self.sprites:
             if s.name == name:
-                lFound = True
-        if lFound == False: # Safe to add.
-            self.sprites.append(CdSprite(name,text,row,col,fg,bg,level))
+                l_found = True
+        if not l_found:  # Safe to add.
+            self.sprites.append(CdSprite(name, text, row, col, fg, bg, level))
             # Sort the sprites by level. The higher the level the more to the foreground it is.
             self.sprites = sorted(self.sprites, key=lambda sprite: sprite.level)
         else:
-            print ("colordisplay: addsprite (" + name + ") rejected because a sprite by this name already exists.")
+            print(
+                "ColorDisplay: addsprite ("
+                + name
+                + ") rejected because a sprite by this name already exists."
+            )
 
-    def SpriteLabel(self,name,color=False):
-        """ Return sprite label (optionally colored). """
+    def sprite_label(self, name, color=False):
+        """Return sprite label (optionally colored)."""
         result = None
         for s in self.sprites:
             if s.name == name:
                 result = s.label(color=color)
         return result
 
-    def ColoredSprite(self,name):
-        """ Return sprite character with embedded colour codes. """
+    def colored_sprite(self, name):
+        """Return sprite character with embedded colour codes."""
         result = None
         for s in self.sprites:
             if s.name == name:
                 result = s.colored_symbol()
         return result
 
-    def move_sprite(self,name,row,col):
+    def move_sprite(self, name, row, col):
         for s in self.sprites:
             if s.name == name:
                 s.row = row
                 s.column = col
 
-    def ColorSprite(self,name,fg=None,bg=None):
+    def color_sprite(self, name, fg=None, bg=None):
         for s in self.sprites:
             if s.name == name:
-                if fg != None: s.fg = fg
-                if bg != None: s.bg = bg
+                if fg is not None:
+                    s.fg = fg
+                if bg is not None:
+                    s.bg = bg
 
-    def hide_sprite(self,name):
+    def hide_sprite(self, name):
         for s in self.sprites:
             if s.name == name:
                 s.display = False
 
-    def show_sprite(self,name):
+    def show_sprite(self, name):
         for s in self.sprites:
             if s.name == name:
                 s.display = True
-                
-    def ClearSprites(self):
+
+    def clear_sprites(self):
         self.sprites = []
 
-    def ChangeSprite(self,name,symbol):
+    def change_sprite(self, name, symbol):
         for s in self.sprites:
             if s.name == name:
                 s.symbol = symbol
 
-    def SetBorderColors(self,borderfg,borderbg):
-        if borderfg == None: self.BorderFG = self.DefaultFG
-        else: self.BorderFG = borderfg
-        if borderbg == None: self.BorderBG = self.DefaultBG
-        else: self.BorderBG = borderbg
+    def set_border_colors(self, borderfg, borderbg):
+        if borderfg is None:
+            self.border_fg = self.default_fg
+        else:
+            self.border_fg = borderfg
+        if borderbg is None:
+            self.border_bg = self.default_bg
+        else:
+            self.border_bg = borderbg
 
-    def Clear(self,fg=None,bg=None,immediate=False):
-        """ Clear the display buffer, setting all characters to back to their defaults.
-            Default image can be updated using the SetDefault() method if needed.
-            It does not clear the sprites! You need to do that separately (ClearSprites() method.)        
-            Jan.2022 0.0.2 : fg and bg parameters nolonger used. """
-        if fg != None: print ('TextColor.colordisplay.Clear() fg parameter is nolonger supported.')
-        if bg != None: print ('TextColor.colordisplay.Clear() bg parameter is nolonger supported.')
+    def clear(self, fg=None, bg=None, immediate=False):
+        """Clear the display buffer, setting all characters to back to their defaults.
+        Default image can be updated using the set_default() method if needed.
+        It does not clear the sprites! You need to do that separately (clear_sprites() method.)
+        Jan.2022 0.0.2 : fg and bg parameters nolonger used."""
+        if fg is not None:
+            print("TextColor.ColorDisplay.clear() fg parameter is nolonger supported.")
+        if bg is not None:
+            print("TextColor.ColorDisplay.clear() bg parameter is nolonger supported.")
         for r in range(self.display_rows):
             for c in range(self.display_columns):
                 self.character[r][c] = self.default_character[r][c]
-                self.fgcolor[r][c] = self.default_fgcolor[r][c]
-                self.bgcolor[r][c] = self.default_bgcolor[r][c]
+                self.fg_color[r][c] = self.default_fgcolor[r][c]
+                self.bg_color[r][c] = self.default_bgcolor[r][c]
         # Reconstruct the title if it is set.
-        self.SetTitle()
-        if immediate: self.Draw() # Clear the display immediately.
+        self.set_title()
+        if immediate:
+            self.draw()  # Clear the display immediately.
 
-    def CellValue(self,row,col):
-        """ Return cell contents. Character, fg and bg colors. """
-        fg, bg = self.CellColor(row,col)
+    def cell_value(self, row, col):
+        """Return cell contents. Character, fg and bg colors."""
+        fg, bg = self.cell_color(row, col)
         char = self.character[row][col]
-        return char,fg,bg
-        
-    def ColorCell(self,row,col,fg,bg):
-        """ Change colour of a cell, but don't change the text. """
-        self.fgcolor[row][col] = fg
-        self.bgcolor[row][col] = bg
+        return char, fg, bg
 
-    def CellColor(self,row,col):
-        """ Return current color of a cell. """
-        if row < 0 or row >= self.display_rows: fg = self.DefaultFG
-        else: fg = self.fgcolor[row][col]
-        if col < 0 or col >= self.display_columns: bg = self.DefaultBG
-        else: bg = self.bgcolor[row][col]
+    def color_cell(self, row, col, fg, bg):
+        """Change colour of a cell, but don't change the text."""
+        self.fg_color[row][col] = fg
+        self.bg_color[row][col] = bg
+
+    def cell_color(self, row, col):
+        """Return current color of a cell."""
+        if row < 0 or row >= self.display_rows:
+            fg = self.default_fg
+        else:
+            fg = self.fg_color[row][col]
+        if col < 0 or col >= self.display_columns:
+            bg = self.default_bg
+        else:
+            bg = self.bg_color[row][col]
         return fg, bg
 
-    def scroll_up(self,lines=1,immediate=False):
-        """ Scroll the display up by a number of lines. 
-            Drops lines at the top,
-            adds new blank lines at the bottom. """
-        if lines < 1: lines = 1
-        if lines > self.display_rows: lines = self.display_rows
+    def scroll_up(self, lines=1, immediate=False):
+        """Scroll the display up by a number of lines.
+        Drops lines at the top,
+        adds new blank lines at the bottom."""
+        if lines < 1:
+            lines = 1
+        if lines > self.display_rows:
+            lines = self.display_rows
         for i in range(lines):
-            self.character.pop(self.FirstScrollRow) # Remove entire 1st data row.
-            self.fgcolor.pop(self.FirstScrollRow)
-            self.bgcolor.pop(self.FirstScrollRow)
-            self.character.append([' ' for c in range(self.display_columns)]) # Add empty row at end of window.
-            self.fgcolor.append([self.DefaultFGs[self.FGColorIndex] for c in range(self.display_columns)])
-            self.bgcolor.append([self.DefaultBGs[self.BGColorIndex] for c in range(self.display_columns)])
-        if immediate: self.display(immediate=immediate)
+            self.character.pop(self.first_scroll_row)  # Remove entire 1st data row.
+            self.fg_color.pop(self.first_scroll_row)
+            self.bg_color.pop(self.first_scroll_row)
+            self.character.append(
+                [" " for c in range(self.display_columns)]
+            )  # Add empty row at end of window.
+            self.fg_color.append(
+                [
+                    self.default_fgs[self.fg_color_index]
+                    for c in range(self.display_columns)
+                ]
+            )
+            self.bg_color.append(
+                [
+                    self.default_bgs[self.bg_color_index]
+                    for c in range(self.display_columns)
+                ]
+            )
+        if immediate:
+            self.display(immediate=immediate)
 
-    def Concat(self,*args,sep=' '):
-        """ Convert all the input arguments into a single string. """
-        result = ''
+    def concat(self, *args, sep=" "):
+        """Convert all the input arguments into a single string."""
+        result = ""
         for arg in args:
-            if result != '': result = result.strip() + sep # add single clean separator between existing values and the new one.
-            result += str(arg) # Add new value.
-        result = result.strip() # Clean up.
+            if result != "":
+                # add single clean separator between existing values and the new one.
+                result = result.strip() + sep
+            result += str(arg)  # Add new value.
+        result = result.strip()  # Clean up.
         return result
 
-    def Print(self,*args,fg=None,bg=None,immediate=False):
-        """ Simple scrolling print function. 
-            Appends text to bottom of window display and scrolls up as required.
-            This allows the retirement of the messagewindow class. 
-            immediate=True: Display is immediately refreshed. 
-            immediate=False: Display needs to be refreshed elsewhere.
-            if fg or bg colors are specified, they override the default color scheme of the display. """
-        text = '' # Constructed line of text to display.
-        for i in args: # Concatenate all the elements into a single text line.
-            if len(text) > 0: text += ' ' # Default to space between each element.
-            text += str(i) # All elements must be str type.
-        self.PrintHistory.append(text) # Retain recent lines printed. Can be exported, or used to repaint the display if resized.
-        while len(self.PrintHistory) > self.display_rows: # Drop unwanted lines.
-            self.PrintHistory.pop(0) # Drop the first line.
-        while len(text) > 0: # Display text, allowing wraparound onto multiple lines.
-            if len(text) > self.display_columns: # Too much text to fit on one line.
-                print_text = text[:self.display_columns] # Print 1 line's worth of text.
-                text = text[self.display_columns:] # Save the rest for the following line(s).
-            else: # Remaining text fits on a single line.
-                print_text = text # Print what's left.
-                text = '' # Nothing else to print after this.
-            self.scroll_up() # No need to pass 'immediate' parameter, it's handled below.
+    def print(self, *args, fg=None, bg=None, immediate=False):
+        """Simple scrolling print function.
+        Appends text to bottom of window display and scrolls up as required.
+        This allows the retirement of the messagewindow class.
+        immediate=True: Display is immediately refreshed.
+        immediate=False: Display needs to be refreshed elsewhere.
+        if fg or bg colors are specified, they override the default color scheme of the display.
+        """
+        # Constructed line of text to display.
+        text = ""
+        # Concatenate all the elements into a single text line.
+        for i in args:
+            if len(text) > 0:
+                # Default to space between each element.
+                text += " "
+            # All elements must be str type.
+            text += str(i)
+        # Retain recent lines printed.
+        # Can be exported, or used to repaint the display if resized.
+        self.print_history.append(text)
+        # Drop unwanted lines.
+        while len(self.print_history) > self.display_rows:
+            self.print_history.pop(0)  # Drop the first line.
+        # Display text, allowing wraparound onto multiple lines.
+        while len(text) > 0:
+            # Too much text to fit on one line.
+            if len(text) > self.display_columns:
+                # Print 1 line's worth of text.
+                print_text = text[: self.display_columns]
+                # Save the rest for the following line(s).
+                text = text[self.display_columns :]
+            else:  # Remaining text fits on a single line.
+                print_text = text  # Print what's left.
+                text = ""  # Nothing else to print after this.
+            # No need to pass 'immediate' parameter, it's handled below.
+            self.scroll_up()
             r = self.display_rows - 1
-            for i in range(len(print_text)):
-                self.character[r][i] = print_text[i]
-            if fg != None: # fg color specified.
+            for i, char in enumerate(print_text):
+                self.character[r][i] = char
+            if fg is not None:  # fg color specified.
                 for i in range(self.display_columns):
-                    self.fgcolor[r][i] = fg
-            if bg != None: # bg color specified.
+                    self.fg_color[r][i] = fg
+            if bg is not None:  # bg color specified.
                 for i in range(self.display_columns):
-                    self.bgcolor[r][i] = bg
-        if immediate: self.display(immediate=immediate) # Update the display immediately.
-        self.FGColorIndex = (self.FGColorIndex + 1) % self.FGColorCount # If multiple colors supported, then move on to next available color.
-        self.BGColorIndex = (self.BGColorIndex + 1) % self.BGColorCount
+                    self.bg_color[r][i] = bg
+        if immediate:
+            # Update the display immediately.
+            self.display(immediate=immediate)
+        # If multiple colors supported, then move on to next available color.
+        self.fg_color_index = (self.fg_color_index + 1) % self.fg_color_count
+        self.bg_color_index = (self.bg_color_index + 1) % self.bg_color_count
         return True
 
-    def PlaceString(self,text,row=None,col=None,fg=None,bg=None):
-        """ Place a string at any given location in the display buffer. 
-            +ve co-ordinates are top-to-bottom, left-to-right
-            -ve co-ordinates are bottom-to-top, right-to-left """
-        if row < 0: row = self.display_rows + row # Allow -ve values to work up from the bottom of the window.
-        if col < 0: col = self.display_columns + col # Allow -ve values to work left from the right of the window.
+    def place_string(
+        self,
+        text,
+        row: int,
+        col: int,
+        fg: Union[int, None] = None,
+        bg: Union[int, None] = None,
+    ):
+        """Place a string at any given location in the display buffer.
+        +ve co-ordinates are top-to-bottom, left-to-right
+        -ve co-ordinates are bottom-to-top, right-to-left"""
+        if row < 0:
+            # Allow -ve values to work up from the bottom of the window.
+            row = self.display_rows + row
+        if col < 0:
+            # Allow -ve values to work left from the right of the window.
+            col = self.display_columns + col
         if len(text) > 0 and row >= 0 and row < self.display_rows:
-            for i in range(len(text)):
-                c = col + i # Place in the correct column.
+            for i, char in enumerate(text):
+                c = col + i  # Place in the correct column.
                 if c >= 0 and c < self.display_columns:
-                    self.character[row][c] = text[i]
-                    if fg != None:
-                        self.fgcolor[row][c] = fg
-                    if bg != None:
-                        self.bgcolor[row][c] = bg
+                    self.character[row][c] = char
+                    if fg is not None:
+                        self.fg_color[row][c] = fg
+                    if bg is not None:
+                        self.bg_color[row][c] = bg
 
-    def Draw(self,screenheight=None,screenwidth=None,immediate=False):
-        """ Alias for Display() method. For backwards compatibility. """
-        print ("***** colordisplay.Draw() method called. Depricated. Use colordisplay.display() method instead.")
-        self.display(screenheight=screenheight,screenwidth=screenwidth,immediate=immediate)
+    def draw(self, screenheight=None, screenwidth=None, immediate=False):
+        """Alias for Display() method. For backwards compatibility."""
+        print(
+            "***** ColorDisplay.Draw() method called. Depricated. Use ColorDisplay.display() method instead."
+        )
+        self.display(
+            screenheight=screenheight, screenwidth=screenwidth, immediate=immediate
+        )
 
-    def _MarkDisplay(self):
-        """ Quickly highlights window dimensions and fields.
-            Helps when defining displays in new applications.
-            Debug/Dev only. """
+    def _mark_display(self):
+        """Quickly highlights window dimensions and fields.
+        Helps when defining displays in new applications.
+        Debug/Dev only."""
         # Mark all the fields clearly.
-        for key,value in self.ListFields.items():
-            self.FieldColor(key,fg=TextColor.BLACK,bg=TextColor.CYAN)
+        for key, _value in self.list_fields().items():
+            self.field_color(key, fg=TextColor.BLACK, bg=TextColor.CYAN)
         # Mark all the corners clearly.
         for c in range(self.display_columns):
-            self.fgcolor[0][c] = TextColor.BLACK
-            self.fgcolor[self.display_rows - 1][c] = TextColor.BLACK
-            self.bgcolor[0][c] = TextColor.RED
-            self.bgcolor[self.display_rows - 1][c] = TextColor.RED
+            self.fg_color[0][c] = TextColor.BLACK
+            self.fg_color[self.display_rows - 1][c] = TextColor.BLACK
+            self.bg_color[0][c] = TextColor.RED
+            self.bg_color[self.display_rows - 1][c] = TextColor.RED
         for r in range(self.display_rows):
-            self.fgcolor[r][0] = TextColor.BLACK
-            self.fgcolor[r][self.display_columns - 1] = TextColor.BLACK
-            self.bgcolor[r][0] = TextColor.RED
-            self.bgcolor[r][self.display_columns - 1] = TextColor.RED
+            self.fg_color[r][0] = TextColor.BLACK
+            self.fg_color[r][self.display_columns - 1] = TextColor.BLACK
+            self.bg_color[r][0] = TextColor.RED
+            self.bg_color[r][self.display_columns - 1] = TextColor.RED
         return True
 
-    def Transfer(self,targetbuffer,displayrow=None,displaycol=None):
-        """ Transfer the current display to another buffer.
-            targetbuffer is the handle to another colordisplay object. 
-            displayrow = first row in targetbuffer. If None, then this object's value is used. 
-            displaycol = first column in targetbuffer. If None, then this object's value is used. """
-        maxscreenrow = targetbuffer.display_rows - 1
-        maxscreencol = targetbuffer.display_columns - 1
-        if displayrow == None: displayrow = self.display_row # Location in target defaults to the location of this object.
-        if displaycol == None: displaycol = self.display_col # Location in target defaults to the location of this object.
+    def transfer(self, target_buffer, display_row=None, display_col=None):
+        """Transfer the current display to another buffer.
+        targetbuffer is the handle to another ColorDisplay object.
+        displayrow = first row in targetbuffer. If None, then this object's value is used.
+        displaycol = first column in targetbuffer. If None, then this object's value is used.
+        """
+        max_screen_row = target_buffer.display_rows - 1
+        max_screen_col = target_buffer.display_columns - 1
+        if display_row is None:
+            # Location in target defaults to the location of this object.
+            display_row = self.display_row
+        if display_col is None:
+            # Location in target defaults to the location of this object.
+            display_col = self.display_col
         for r in range(self.display_rows):
-            rt = r + displayrow # Where is this display in the new one?
-            if rt > maxscreenrow: break # No space for this row.
+            # Where is this display in the new one?
+            rt = r + display_row
+            if rt > max_screen_row:
+                break  # No space for this row.
             for c in range(self.display_columns):
-                ct = c + displaycol # Where is this display in the new one?
-                if ct > maxscreencol: break # No space for this column.
-                targetbuffer.character[rt][ct] = self.character[r][c][0:1] # Select the character for current position. Max 1 char.
-                targetbuffer.fgcolor[rt][ct] = self.fgcolor[r][c] # Current foreground color of the chosen character.
-                targetbuffer.bgcolor[rt][ct] = self.bgcolor[r][c] # Current background color of the chosen character.
+                # Where is this display in the new one?
+                ct = c + display_col
+                if ct > max_screen_col:
+                    # No space for this column.
+                    break
+                # Select the character for current position. Max 1 char.
+                target_buffer.character[rt][ct] = self.character[r][c][0:1]
+                # Current foreground color of the chosen character.
+                target_buffer.fgcolor[rt][ct] = self.fg_color[r][c]
+                # Current background color of the chosen character.
+                target_buffer.bgcolor[rt][ct] = self.bg_color[r][c]
         return True
 
-    def ForceRedraw(self):
-        """ Flushes old values from self.PrevLineStrings[] forcing a full refresh.
-            Normally when calling the Display() method, only changes are sent to the terminal window.
-            If you ForceRedraw() then the whole window is sent fresh. """
-        self.PrevLineStrings = [' ' for i in self.PrevLineStrings]
-    
-    @staticmethod
-    def GlobalForceRedraw(): # Common
-        """ Flushes old values from self.PrevLineStrings[] forcing a full refresh in all registered windows. """
-        for w in colordisplay.DefinedWindows:
-            try:
-                w.ForceRedraw()
-            except:
-                pass # Window nonlonger exists.
+    def force_redraw(self):
+        """Flushes old values from self.PrevLineStrings[] forcing a full refresh.
+        Normally when calling the Display() method, only changes are sent to the terminal window.
+        If you force_redraw() then the whole window is sent fresh."""
+        self.prev_line_strings = [" " for i in self.prev_line_strings]
 
-    def GetTextLines(self):
-        """ Returns the display layout as a list of strings.
-            No color or cursor codes are included, just the basic monotone display text.
-            Sprites are shown in their latest position too. """
+    @staticmethod
+    def global_force_redraw():  # Common
+        """Flushes old values from self.PrevLineStrings[] forcing a full refresh in all registered windows."""
+        for w in ColorDisplay.defined_windows:
+            try:
+                w.force_redraw()
+            except:
+                pass  # Window nonlonger exists.
+
+    def get_textlines(self):
+        """Returns the display layout as a list of strings.
+        No color or cursor codes are included, just the basic monotone display text.
+        Sprites are shown in their latest position too."""
         linelist = []
-        for r in range(self.display_rows): # Go through all the rows in turn.
-            line = ''
-            for c in range(self.display_columns): # Go through each column in turn. 
-                line += self.character[r][c][0:1] # Select the character for current position. Max 1 char too!
+        for r in range(self.display_rows):  # Go through all the rows in turn.
+            line = ""
+            for c in range(self.display_columns):  # Go through each column in turn.
+                line += self.character[r][c][
+                    0:1
+                ]  # Select the character for current position. Max 1 char too!
             linelist.append(line)
         # Overlay sprites if they exist.
-        for s in self.sprites: # Check all sprites in turn.
-            if s.row != None and s.column != None and s.row >= 0 and s.row < self.display_rows and s.column >= 0 and s.column < self.display_columns: # In range.
-                linelist[s.row] = linelist[s.row][:s.column] + s.symbol[0:1] + linelist[s.row][s.column + 1:]
+        for s in self.sprites:  # Check all sprites in turn.
+            if (
+                s.row is not None
+                and s.column is not None
+                and s.row >= 0
+                and s.row < self.display_rows
+                and s.column >= 0
+                and s.column < self.display_columns
+            ):  # In range.
+                linelist[s.row] = (
+                    linelist[s.row][: s.column]
+                    + s.symbol[0:1]
+                    + linelist[s.row][s.column + 1 :]
+                )
         return linelist
-    
-    def DisplayTextLines(self):
-        """ Display current contents of the window in a text box. """
-        TextColor.TextBox(self.GetTextLines())
-        
+
+    def display_textlines(self):
+        """Display current contents of the window in a text box."""
+        TextColor.text_box(self.get_textlines())
+
     @staticmethod
-    def GlobalViewWindows(titlefg=None,titlebg=None):
-        """ Construct a menu of all available windows
-            then choose which window to display. """
+    def global_view_windows(titlefg=None, titlebg=None):
+        """Construct a menu of all available windows
+        then choose which window to display."""
         # Dynamically construct menu entries.
         dictionary = {}
-        for w in colordisplay.DefinedWindows:
+        for w in ColorDisplay.defined_windows:
             itemdict = {}
-            if w.WindowTitle != None: itemdict['label'] = w.WindowTitle
-            else: itemdict['label'] = w.DisplayName
-            itemdict['bold'] = False
-            itemdict['call'] = w.DisplayTextLines
-            itemdict['docurl'] = None
-            itemdict['helpdoc'] = 'help.txt'
-            dictionary[w.DisplayName] = itemdict
-        WindowMenu = proceduremenu(dictionary,'Window contents menu',titlefg=None,titlebg=None,labelwidth=30)
-        WindowMenu.Prompt()
-        
-    def display(self,screenheight=None,screenwidth=None,immediate=False):
-        """ Take the display buffer and output it to the terminal. 
-            screenheight: Tells the number of rows available in the terminal display. 
-            screenwidth: Tells the number of columns available in the terminal display. 
-            immediate: (True) Forces immediate update of the terminal display.
-                       (False) Only updates the display if the refresh timer is due. """
+            if w.window_title is not None:
+                itemdict["label"] = w.window_title
+            else:
+                itemdict["label"] = w.display_name
+            itemdict["bold"] = False
+            itemdict["call"] = w.display_textlines
+            itemdict["docurl"] = None
+            itemdict["helpdoc"] = "help.txt"
+            dictionary[w.display_name] = itemdict
+        window_menu = ProcedureMenu(
+            dictionary,
+            "Window contents menu",
+            titlefg=None,
+            titlebg=None,
+            labelwidth=30,
+        )
+        window_menu.prompt()
 
-        if immediate == False and self.RefreshDue() == False: return # Don't perform a refresh yet.
-        # Define the maximum ROW and COLUMN number that can be addressed with the current window size.
-        if screenheight == None: maxscreenrow = None
-        else: maxscreenrow = screenheight - 1
-        if screenwidth == None: maxscreencol = None
-        else: maxscreencol = screenwidth - 1
-        if self.last_display_row != None and maxscreenrow != None: # We have a specific location to use, check if that location is in the current display dimensions.
-            if self.ClipWindow == False and maxscreenrow <= self.last_display_row: # Not enough height for the ENTIRE window and not allowed to clip.
-                return # Don't try to display.
-            if maxscreenrow < self.display_row: # None of the window fits on the terminal at all even if clipping allowed.
-                return # Don't try to display.
-        if self.last_display_col != None and maxscreencol != None: # We have a specific location to use, check if that location is in the current display dimensions.
-            if self.ClipWindow == False and maxscreencol <= self.last_display_col: # Not enough width for the ENTIRE window and not allowed to clip.
-                return # Don't try to display.
-            if maxscreencol < self.display_col: # None of the window fits on the terminal at all even if clipping allowed.
-                return # Don't try to display.
-        HorizontalChar = TextColor.SYMBOLS['horizontal'] # '\u2500'
-        VerticalChar = TextColor.SYMBOLS['vertical'] # '\u2502'
-        CornerChar = TextColor.SYMBOLS['corner_br'] # '\u2518'
-        self.UpdateBlinkStatus() # If any fields are supposed to blink, check their color now.
-        if self.MarkDisplay: # We need to mark up the corners and fields.
-            self._MarkDisplay()
-        for r in range(self.display_rows): # Go through all the rows in turn. *Q* Should respect 'ClipWindow' too.
-            if self.ClipWindow and self.display_row != None and (r + self.display_row) > maxscreenrow: break # We're off the end of the available display.
+    def display(self, screenheight=None, screenwidth=None, immediate=False):
+        """Take the display buffer and output it to the terminal.
+        screenheight: Tells the number of rows available in the terminal display.
+        screenwidth: Tells the number of columns available in the terminal display.
+        immediate: (True) Forces immediate update of the terminal display.
+                   (False) Only updates the display if the refresh timer is due."""
+
+        if not immediate and not self.refresh_due():
+            # Don't perform a refresh yet.
+            return
+        # Define the maximum ROW and COLUMN number that
+        # can be addressed with the current window size.
+        if screenheight is None:
+            maxscreenrow = None
+        else:
+            maxscreenrow = screenheight - 1
+        if screenwidth is None:
+            maxscreencol = None
+        else:
+            maxscreencol = screenwidth - 1
+        # We have a specific location to use,
+        # check if that location is in the current display dimensions.
+        if self.last_display_row is not None and maxscreenrow is not None:
+            # Not enough height for the ENTIRE window and not allowed to clip.
+            if not self.clip_window and maxscreenrow <= self.last_display_row:
+                return  # Don't try to display.
+            # None of the window fits on the terminal at all even if clipping allowed.
+            if maxscreenrow < self.display_row:
+                return  # Don't try to display.
+        # We have a specific location to use,
+        # check if that location is in the current display dimensions.
+        if self.last_display_col is not None and maxscreencol is not None:
+            # Not enough width for the ENTIRE window and not allowed to clip.
+            if not self.clip_window and maxscreencol <= self.last_display_col:
+                # Don't try to display.
+                return
+            # None of the window fits on the terminal at all even if clipping allowed.
+            if maxscreencol < self.display_col:
+                # Don't try to display.
+                return
+        horizontal_char = TextColor.SYMBOLS["horizontal"]  # '\u2500'
+        vertical_char = TextColor.SYMBOLS["vertical"]  # '\u2502'
+        corner_char = TextColor.SYMBOLS["corner_br"]  # '\u2518'
+        self.update_blink_status()  # If any fields are supposed to blink, check their color now.
+        if self.mark_display:  # We need to mark up the corners and fields.
+            self._mark_display()
+        for r in range(
+            self.display_rows
+        ):  # Go through all the rows in turn. *Q* Should respect 'ClipWindow' too.
+            if (
+                self.clip_window
+                and self.display_row is not None
+                and (r + self.display_row) > maxscreenrow
+            ):
+                break  # We're off the end of the available display.
             try:
-                # The following code has occassionally failed with an IndexError. Added some debugging in case it occurs again to aid solving.
-                runningfg = self.fgcolor[r][0] # Note what color we're printing at the start of the line. Color control codes change when this value changes.
-                runningbg = self.bgcolor[r][0]
+                # The following code has occassionally failed with an IndexError.
+                # Added some debugging in case it occurs again to aid solving.
+                # Note what color we're printing at the start of the line.
+                # Color control codes change when this value changes.
+                runningfg = self.fg_color[r][0]
+                runningbg = self.bg_color[r][0]
             except IndexError as e:
-                print("colordisplay fault: Index out of range?",r,0)
-                print("colordisplay fault: Available range fg",len(self.fgcolor),"bg",len(self.bgcolor))
-                print("colordisplay fault: maxscreenrow",maxscreenrow,"maxscreencol",maxscreencol)
-                print("colordisplay fault: LastDisplayRow",self.last_display_row,"LastDisplayCol",self.last_display_row)
-                print("colordisplay fault: DisplayRow",self.display_row,"DisplayCol",self.display_col)
-                print("colordisplay fault: DisplayRows",self.display_rows,"DisplayColumns",self.display_columns)
-                print("colordisplay fault: ClipWindow",self.ClipWindow)
-                if self.Log != None:
-                    self.Log("colordisplay fault: Index out of range?",r,0,level='error',terminal=True)
-                    self.Log("colordisplay fault: Available range fg",len(self.fgcolor),"bg",len(self.bgcolor),level='error',terminal=True)
-                    self.Log("colordisplay fault: maxscreenrow",maxscreenrow,"maxscreencol",maxscreencol,level='error',terminal=True)
-                    self.Log("colordisplay fault: LastDisplayRow",self.last_display_row,"LastDisplayCol",self.last_display_row,level='error',terminal=True)
-                    self.Log("colordisplay fault: DisplayRow",self.display_row,"DisplayCol",self.display_col,level='error',terminal=True)
-                    self.Log("colordisplay fault: DisplayRows",self.display_rows,"DisplayColumns",self.display_columns,level='error',terminal=True)
-                    self.Log("colordisplay fault: ClipWindow",self.ClipWindow,level='error',terminal=True)
-                raise Exception("Index out of range") from e # Terminate through the regular exception routine.
-            line = TextColor.fgbgcolor(runningfg,runningbg,"",reset=False) # Start line off with initial color scheme. Leave the control code 'open' for more text to be added.
-            for c in range(self.display_columns): # Go through each column in turn. *Q* Should respect 'ClipWindow' too.
-                if self.ClipWindow and self.display_col != None and (c + self.display_col) > maxscreencol: break # We're off the end of the available display.
-                ch = self.character[r][c][0:1] # Select the character for current position. Max 1 char too!
-                f = self.fgcolor[r][c] # Current foreground color of the chosen character.
-                b = self.bgcolor[r][c] # Current background color of the chosen character.
+                print("ColorDisplay fault: Index out of range?", r, 0)
+                print(
+                    f"ColorDisplay fault: Available range fg {len(self.fg_color)} bg {len(self.bg_color)}"
+                )
+                print(
+                    f"ColorDisplay fault: maxscreenrow {maxscreenrow} maxscreencol {maxscreencol}"
+                )
+                print(
+                    f"ColorDisplay fault: LastDisplayRow {self.last_display_row} LastDisplayCol {self.last_display_col}"
+                )
+                print(
+                    f"ColorDisplay fault: DisplayRow {self.display_row} DisplayCol {self.display_col}"
+                )
+                print(
+                    f"ColorDisplay fault: DisplayRows {self.display_rows} DisplayColumns {self.display_columns}"
+                )
+                print(f"ColorDisplay fault: ClipWindow {self.clip_window}")
+                if self.log is not None:
+                    self.log(
+                        f"ColorDisplay fault: Index out of range? {r}, 0",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"ColorDisplay fault: Available range fg {len(self.fg_color)} bg {len(self.bg_color)}",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"ColorDisplay fault: maxscreenrow {maxscreenrow} maxscreencol {maxscreencol}",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"ColorDisplay fault: LastDisplayRow {self.last_display_row} LastDisplayCol {self.last_display_col}",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"ColorDisplay fault: DisplayRow {self.display_row} DisplayCol {self.display_col}",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"ColorDisplay fault: DisplayRows {self.display_rows} DisplayColumns {self.display_columns}",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"ColorDisplay fault: ClipWindow {self.clip_window}",
+                        level="error",
+                        terminal=True,
+                    )
+                # Terminate through the regular exception routine.
+                raise Exception("Index out of range") from e
+            # Start line off with initial color scheme.
+            # Leave the control code 'open' for more text to be added.
+            line = TextColor.fgbgcolor(runningfg, runningbg, "", reset=False)
+            # Go through each column in turn. *Q* Should respect 'ClipWindow' too.
+            for c in range(self.display_columns):
+                if (
+                    self.clip_window
+                    and self.display_col is not None
+                    and (c + self.display_col) > maxscreencol
+                ):
+                    # We're off the end of the available display.
+                    break
+                # Select the character for current position. Max 1 char too!
+                ch = self.character[r][c][0:1]
+                # Current foreground color of the chosen character.
+                f = self.fg_color[r][c]
+                # Current background color of the chosen character.
+                b = self.bg_color[r][c]
                 # Check if any sprites override this character.
-                for s in self.sprites: # Check all sprites in turn.
-                    if s.row == r and s.column == c and s.display: # Same location and visible.
-                        ch = s.symbol[0:1] # Only 1 character allowed for the sprite at the moment.
-                        f = s.fg # Sprite fg and bg colors override the background.
+                # Check all sprites in turn.
+                for s in self.sprites:
+                    # Same location and visible.
+                    if s.row == r and s.column == c and s.display:
+                        # Only 1 character allowed for the sprite at the moment.
+                        ch = s.symbol[0:1]
+                        # Sprite fg and bg colors override the background.
+                        f = s.fg
                         b = s.bg
-                if runningfg != f or runningbg != b: # Colour scheme has changed. Insert appropriate code.
-                    runningfg = f # Note new colours we're now printing with.
+                # Colour scheme has changed. Insert appropriate code.
+                if runningfg != f or runningbg != b:
+                    # Note new colours we're now printing with.
+                    runningfg = f
                     runningbg = b
-                    line += TextColor.fgbgcolor(runningfg,runningbg,"",reset=False) # Insert open-ended colour change code.
-                if len(ch) < 1: # Make sure that the character is the right length.
+                    # Insert open-ended colour change code.
+                    line += TextColor.fgbgcolor(runningfg, runningbg, "", reset=False)
+                # Make sure that the character is the right length.
+                if len(ch) < 1:
                     ch = " "
-                line += ch # Add the character.
-            if self.display_row != None and self.display_col != None:
+                # Add the character.
+                line += ch
+            if self.display_row is not None and self.display_col is not None:
                 # The display has a specific location on the terminal window. Place it there.
                 dr = self.display_row + r
                 dc = self.display_col
-                line = TextColor.cursor(dc,dr) + line # Locate the line on the terminal layout.
+                # Locate the line on the terminal layout.
+                line = TextColor.cursor(dc, dr) + line
             line += TextColor.reset()
-            if self.DrawBorder and self.last_display_col + 1 < maxscreencol: line += TextColor.fgbgcolor(self.BorderFG,self.BorderBG,VerticalChar)
-            if self.ReduceIO == False or self.PrevLineStrings[r] != line: # The line has changed. So display the new string. Otherwise save display time and leave it unchanged.
-                print (line,end='',flush=True) # Do not add newline character at end of the printed text. Always flush the print buffer.
-            self.PrevLineStrings[r] = line # Store the print command so we can compare next time if anything changed.
-        if self.DrawBorder and self.last_display_row + 1 < maxscreenrow: 
+            if (
+                self.draw_border
+                and self.last_display_col is not None
+                and self.last_display_col + 1 < maxscreencol
+            ):
+                line += TextColor.fgbgcolor(
+                    self.border_fg, self.border_bg, vertical_char
+                )
+            # The line has changed. So display the new string.
+            # Otherwise save display time and leave it unchanged.
+            if not self.reduce_io or self.prev_line_strings[r] != line:
+                # Do not add newline character at end of the printed text.
+                # Always flush the print buffer.
+                print(line, end="", flush=True)
+            # Store the print command so we can compare next time if anything changed.
+            self.prev_line_strings[r] = line
+        if (
+            self.draw_border
+            and self.last_display_row is not None
+            and self.last_display_row + 1 < maxscreenrow
+        ):
             visiblecolumns = maxscreencol - self.display_col + 1
-            if visiblecolumns < self.display_columns + 1: # We cannot fit the entire bottom border line and corner in the display, just show what's possible.
-                line = TextColor.fgbgcolor(self.BorderFG,self.BorderBG,(HorizontalChar * visiblecolumns)) # Truncate the line.
-            else:#  The whole border line and corner should fit in the display.
-                line = TextColor.fgbgcolor(self.BorderFG,self.BorderBG,(HorizontalChar * self.display_columns) + CornerChar) # Full line including corner character.
-            print(TextColor.cursor(self.display_col,self.display_row + self.display_rows) + line)
-        self.LastRefresh = datetime.now()
+            # We cannot fit the entire bottom border line and corner in the display,
+            # just show what's possible.
+            if visiblecolumns < self.display_columns + 1:
+                # Truncate the line.
+                line = TextColor.fgbgcolor(
+                    self.border_fg, self.border_bg, (horizontal_char * visiblecolumns)
+                )
+            #  The whole border line and corner should fit in the display.
+            else:
+                # Full line including corner character.
+                line = TextColor.fgbgcolor(
+                    self.border_fg,
+                    self.border_bg,
+                    (horizontal_char * self.display_columns) + corner_char,
+                )
+            print(
+                TextColor.cursor(self.display_col, self.display_row + self.display_rows)
+                + line
+            )
+        self.last_refresh = datetime.now()
 
     @staticmethod
-    def GlobalExportFields(filename,initialdictionary={}):
-        """ Export field values from all windows to json file.
-            Data is appended to any values already existing in initialdictionary. """
-        tempdict = colordisplay.GlobalSaveToDictionary(initialdictionary=initialdictionary)
-        with open(filename,'w') as f:
-            json.dump(tempdict,f,default=str)
+    def global_export_fields(filename, initialdictionary={}):
+        """Export field values from all windows to json file.
+        Data is appended to any values already existing in initialdictionary."""
+        tempdict = ColorDisplay.global_save_to_dictionary(
+            initialdictionary=initialdictionary
+        )
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(tempdict, f, default=str)
         return True
-        
+
     @staticmethod
-    def GlobalSaveToDictionary(initialdictionary={}):
-        """ Export field values from all windows to dictionary.
-            Data is appended to any values already existing in initialdictionary. """
+    def global_save_to_dictionary(initialdictionary={}):
+        """Export field values from all windows to dictionary.
+        Data is appended to any values already existing in initialdictionary."""
         tempdict = initialdictionary
-        for w in colordisplay.DefinedWindows:
-            for field in w.Fields:
-                tempdict[w.DisplayName + "." + field.Name] = field.Value
-            tempdict[w.DisplayName + '.PrintHistory'] = w.PrintHistory
+        for w in ColorDisplay.defined_windows:
+            for field in w.fields:
+                tempdict[w.display_name + "." + field.name] = field.value
+            tempdict[w.display_name + ".PrintHistory"] = w.print_history
         return tempdict
-        
-    @staticmethod
-    def GlobalFieldFormat(name, justify=None, pattern=None, bwz=None): # Common
-        """ Update the format of a field in all defined windows. """
-        FoundIt = False
-        for w in colordisplay.DefinedWindows:
-            try:
-                temp = w.FieldFormat(name=name, justify=justify, pattern=pattern, bwz=bwz)
-                if temp: FoundIt = True
-            except:
-                pass # Window nonlonger exists.
-        return FoundIt
-    
-    @staticmethod
-    def GlobalFieldValue(name,value,fg=None,bg=None): # Common
-        """ Update the value of a field in all defined windows and display it. """
-        FoundIt = False
-        for w in colordisplay.DefinedWindows:
-            try:
-                temp = w.FieldValue(name=name,value=value,fg=fg,bg=bg)
-                if temp: FoundIt = True
-            except:
-                pass # Window nonlonger exists.
-        return FoundIt
-    
-    @staticmethod
-    def GlobalFieldColor(name,fg=None,bg=None): # Common
-        """ Update the color of a field in all defined windows. """
-        FoundIt = False
-        for w in colordisplay.DefinedWindows:
-            try:
-                temp = w.FieldColor(name=name,fg=fg,bg=bg)
-                if temp: FoundIt = True
-            except:
-                pass # Window nolonger exists.
-        return FoundIt
-        
 
     @staticmethod
-    def GlobalReduceIO(reduce=True):
-        """ Turn on/off the ReduceIO function in all defined windows. 
-            reduce = True turns it on.
-            reduce = False turns it off. 
-            
-            When True: All defined display windows will apply the ReduceIO rules. 
-                       When refreshing the display ONLY the changed characters are 
-                       updated to the terminal. This makes the refresh considerably
-                       faster for displays where only a few characters change each time. 
-                       In most cases this is the most efficient way to refresh the displays.
-            When False: All the defined display windows will completely redraw
-                       all their contents each time the display is refreshed, even if
-                       nothing has changed. """
-        for w in colordisplay.DefinedWindows:
+    def global_field_format(name, justify=None, pattern=None, bwz=None):  # Common
+        """Update the format of a field in all defined windows."""
+        found_it = False
+        for w in ColorDisplay.defined_windows:
             try:
-                w.ReduceIO = reduce
+                temp = w.field_format(
+                    name=name, justify=justify, pattern=pattern, bwz=bwz
+                )
+                if temp:
+                    found_it = True
             except:
-                pass # Window nolonger exists.
+                pass  # Window nonlonger exists.
+        return found_it
+
+    @staticmethod
+    def global_field_value(name, value, fg=None, bg=None):  # Common
+        """Update the value of a field in all defined windows and display it."""
+        found_it = False
+        for w in ColorDisplay.defined_windows:
+            try:
+                temp = w.field_value(name=name, value=value, fg=fg, bg=bg)
+                if temp:
+                    found_it = True
+            except:
+                pass  # Window nonlonger exists.
+        return found_it
+
+    @staticmethod
+    def global_field_color(name, fg=None, bg=None):  # Common
+        """Update the color of a field in all defined windows."""
+        found_it = False
+        for w in ColorDisplay.defined_windows:
+            try:
+                temp = w.field_color(name=name, fg=fg, bg=bg)
+                if temp:
+                    found_it = True
+            except:
+                pass  # Window nolonger exists.
+        return found_it
+
+    @staticmethod
+    def global_reduce_io(reduce=True):
+        """Turn on/off the ReduceIO function in all defined windows.
+        reduce = True turns it on.
+        reduce = False turns it off.
+
+        When True: All defined display windows will apply the ReduceIO rules.
+                   When refreshing the display ONLY the changed characters are
+                   updated to the terminal. This makes the refresh considerably
+                   faster for displays where only a few characters change each time.
+                   In most cases this is the most efficient way to refresh the displays.
+        When False: All the defined display windows will completely redraw
+                   all their contents each time the display is refreshed, even if
+                   nothing has changed."""
+        for w in ColorDisplay.defined_windows:
+            try:
+                w.reduce_io = reduce
+            except:
+                pass  # Window nolonger exists.
         return
 
     @staticmethod
-    def GlobalDisplay(screenheight=None,screenwidth=None,immediate=False): # Common
-        """ Display ALL defined windows in a single call. """
-        for w in colordisplay.DefinedWindows:
+    def global_display(screenheight=None, screenwidth=None, immediate=False):  # Common
+        """Display ALL defined windows in a single call."""
+        for w in ColorDisplay.defined_windows:
             try:
-                w.display(screenheight=screenheight,screenwidth=screenwidth,immediate=immediate)
+                w.display(
+                    screenheight=screenheight,
+                    screenwidth=screenwidth,
+                    immediate=immediate,
+                )
             except:
-                pass # Window nolonger exists.
+                pass  # Window nolonger exists.
         return
-        
+
     @staticmethod
-    def GlobalWindowLimits():
-        """ Return maximum ROW and COLUMN that any of the current windows extend into. """
+    def global_window_limits():
+        """Return maximum ROW and COLUMN that any of the current windows extend into."""
         maxrow = 0
         maxcol = 0
-        for w in colordisplay.DefinedWindows:
+        for w in ColorDisplay.defined_windows:
             try:
-                maxrow = max(maxrow,w.last_display_row)
-                maxcol = max(maxcol,w.last_display_col)
+                maxrow = max(maxrow, w.last_display_row)
+                maxcol = max(maxcol, w.last_display_col)
             except:
-                pass # Window nolonger exists.
+                pass  # Window nolonger exists.
         return (maxcol, maxrow)
-    
-
-# -------------------------------------------------------------------------------------------------------------------------------- 
-
-# Backward compatibility aliases
-cdsprite = CdSprite
-messagewindow = MessageWindow
-bigletters = BigLetters
-field = Field
-colordisplay = ColorDisplay

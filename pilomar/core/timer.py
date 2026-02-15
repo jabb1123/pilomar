@@ -12,20 +12,22 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import threading
+
+from pilomar.core.time_utils import now_utc
 
 
 class ProgressTimer:
     """Simple progress timer for tracking completion of long-running tasks.
-    
+
     Provide a target count, a starting point and a current count.
     It will maintain the % complete and estimated completion time.
     """
 
-    def __init__(self, name: str, target: int, start: int = 0, initial: int = None):
+    def __init__(self, name: str, target: int, start: int = 0, initial: int = 0):
         """Initialize progress timer.
-        
+
         Args:
             name: Any name for this instance
             target: The value that's considered to be 100% complete
@@ -34,13 +36,9 @@ class ProgressTimer:
         """
         self.name = name
         self.start = start
-        self.current = initial if initial is not None else start
+        self.current = initial if initial != start else start
         self.target = target
-        self.start_time = self._now_utc()
-
-    def _now_utc(self) -> datetime:
-        """Return current timestamp in UTC."""
-        return datetime.now(timezone.utc)
+        self.start_time = now_utc()
 
     def increment(self, step: int = 1):
         """Increment current count."""
@@ -55,9 +53,7 @@ class ProgressTimer:
         temp = self.current - self.start
         if temp != 0:
             total_seconds = (
-                (self._now_utc() - self.start_time).total_seconds()
-                * 100
-                / self.get_percent()
+                (now_utc() - self.start_time).total_seconds() * 100 / self.get_percent()
             )
         else:
             total_seconds = 0
@@ -74,15 +70,15 @@ class ProgressTimer:
 
     def remaining_seconds(self) -> int:
         """Calculate how many seconds are left."""
-        ts = int(round((self.get_eta() - self._now_utc()).total_seconds(), 0))
+        ts = int(round((self.get_eta() - now_utc()).total_seconds(), 0))
         return ts
 
     def seconds_to_hms(self, value: float) -> str:
         """Convert seconds to hh:mm:ss format string.
-        
+
         Args:
             value: Number of seconds
-            
+
          Returns:
             Formatted time string
         """
@@ -117,7 +113,7 @@ class ProgressTimer:
 
     def units_per_second(self) -> float:
         """Calculate the 'speed' of progress."""
-        elapsed = (self._now_utc() - self.start_time).total_seconds()
+        elapsed = (now_utc() - self.start_time).total_seconds()
         if elapsed != 0:
             return float(self.current) / elapsed
         else:
@@ -125,7 +121,7 @@ class ProgressTimer:
 
     def seconds_per_unit(self) -> float:
         """Calculate the time to progress 1 unit."""
-        elapsed = (self._now_utc() - self.start_time).total_seconds()
+        elapsed = (now_utc() - self.start_time).total_seconds()
         if self.current != 0:
             return elapsed / float(self.current)
         else:
@@ -134,7 +130,7 @@ class ProgressTimer:
 
 class Timer:
     """Clock driven timer class that can be polled periodically.
-    
+
     Example:
         my_timer = Timer(20)  # Create a timer for 20 seconds
         ...
@@ -144,7 +140,7 @@ class Timer:
 
     def __init__(self, period: int, offset: int = 0, skip: bool = True):
         """Create the timer object and set the timer parameters.
-        
+
         Args:
             period: Number of seconds between events (minimum 1)
             offset: Number of seconds earlier/later than first due time
@@ -152,33 +148,23 @@ class Timer:
                  future due time. If False, queued events will all trigger.
         """
         if period < 1:
-            self.period = 1
+            self.period: int = 1
         else:
-            self.period = period
-            
-        if offset == 0:
-            self.next_trigger = self._now_utc() + timedelta(seconds=self.period)
-        else:
-            self.next_trigger = self._now_utc() + timedelta(seconds=offset)
-            
-        self.skip_events = skip
-        self.force_trigger = False
+            self.period: int = period
 
-    def _now_utc(self) -> datetime:
-        """Get system clock as UTC (timezone aware).
-        
-        Microcontroller and Skyfield are operated in UTC values.
-        All clock-times used in this program use the UTC timestamped clock.
-        """
-        return datetime.now(timezone.utc)
+        if offset == 0:
+            self.next_trigger: datetime = now_utc() + timedelta(seconds=self.period)
+        else:
+            self.next_trigger: datetime = now_utc() + timedelta(seconds=offset)
+
+        self.skip_events: bool = skip
+        self.force_trigger: bool = False
 
     def _set_next_trigger(self):
         """Update the trigger due time to the next occurrence."""
         if self.skip_events:
-            while self.next_trigger <= self._now_utc():
-                self.next_trigger = self.next_trigger + timedelta(
-                    seconds=self.period
-                )
+            while self.next_trigger <= now_utc():
+                self.next_trigger = self.next_trigger + timedelta(seconds=self.period)
         else:
             self.next_trigger = self.next_trigger + timedelta(seconds=self.period)
         self.force_trigger = False
@@ -186,7 +172,7 @@ class Timer:
     def elapsed(self) -> float:
         """Return number of seconds that have elapsed since the timer was set."""
         start_time = self.next_trigger - timedelta(seconds=self.period)
-        elapsed = (self._now_utc() - start_time).total_seconds()
+        elapsed = (now_utc() - start_time).total_seconds()
         return elapsed
 
     def elapsed_percent(self) -> float:
@@ -196,19 +182,19 @@ class Timer:
 
     def remaining(self) -> float:
         """Return number of seconds remaining on a timer."""
-        result = (self.next_trigger - self._now_utc()).total_seconds()
+        result = (self.next_trigger - now_utc()).total_seconds()
         if result < 0.0:
             result = 0.0
         return result
 
     def due(self) -> bool:
         """Check if timed event is due.
-        
+
         Returns:
             True if event is due, False otherwise.
             Automatically sets the next due timestamp.
         """
-        if self.next_trigger < self._now_utc() or self.force_trigger:
+        if self.next_trigger < now_utc() or self.force_trigger:
             result = True
             self._set_next_trigger()
         else:
@@ -217,9 +203,9 @@ class Timer:
 
     def wait(self) -> bool:
         """Wait for timer to expire.
-        
+
         The thread will block while waiting.
-        
+
         Returns:
             True when timer expires
         """
@@ -232,24 +218,24 @@ class Timer:
 
     def restart(self) -> bool:
         """Reset the timer clock.
-        
+
         This will abandon the current countdown and restart it from the
         current moment. If multiple events are overdue for this trigger
         they are dropped.
-        
+
         Returns:
             True
         """
-        self.next_trigger = self._now_utc() + timedelta(seconds=self.period)
+        self.next_trigger = now_utc() + timedelta(seconds=self.period)
         self.force_trigger = False
         return True
 
     def trigger(self) -> bool:
         """Force the timer to trigger.
-        
+
         This will force the next due() call to return True and then reset
         the timer. Use this when you want to override the timer.
-        
+
         Returns:
             True
         """

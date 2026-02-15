@@ -3,31 +3,33 @@
 
 # This software is published under the GNU General Public License v3.0.
 
-from typing import List, Optional, Any
+from typing import List, Optional
 
 
 class DataSet:
     """Data set containing a list of data points for graphing."""
-    
-    def __init__(self, name: str, color: Optional[tuple] = None, style: List[str] = None):
+
+    def __init__(
+        self, name: str, color: Optional[tuple] = None, style: List[str] = None
+    ):
         """Initialize a data set.
-        
+
         Args:
             name: Name of the data set
             color: Optional color tuple (BGR)
             style: List of style strings (default: ['line'])
         """
         if style is None:
-            style = ['line']
+            style = ["line"]
         self.name = name
         self.data_points = []
         self.color = color
         self.style = style
-        
-    def add(self, point: 'DataPoint'):
+
+    def add(self, point: "DataPoint"):
         """Add a data point to the set."""
         self.data_points.append(point)
-        
+
     def clear(self):
         """Clear all data points."""
         self.data_points = []
@@ -35,7 +37,7 @@ class DataSet:
 
 class DataPoint:
     """A single data point for graphing."""
-    
+
     def __init__(
         self,
         x: float,
@@ -44,10 +46,10 @@ class DataPoint:
         label: Optional[str] = None,
         style: List[str] = None,
         x_name: Optional[str] = None,
-        y_name: Optional[str] = None
+        y_name: Optional[str] = None,
     ):
         """Initialize a data point.
-        
+
         Args:
             x: X coordinate
             y: Y coordinate
@@ -58,7 +60,7 @@ class DataPoint:
             y_name: Optional name for y value
         """
         if style is None:
-            style = ['dot']
+            style = ["dot"]
         self.x = x
         self.y = y
         self.color = color
@@ -70,7 +72,7 @@ class DataPoint:
 
 class FdObject:
     """Object to be placed in an image for force-directed graphs."""
-    
+
     def __init__(self):
         """Initialize a force-directed graph object."""
         self.name = None
@@ -88,7 +90,7 @@ class FdObject:
 
 class FdEdge:
     """Link between two objects for force-directed graphs."""
-    
+
     def __init__(self):
         """Initialize a force-directed graph edge."""
         self.name = None

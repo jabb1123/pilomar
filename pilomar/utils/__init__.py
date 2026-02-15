@@ -2,4 +2,7 @@
 
 from .os_command import OsCommand
 
-__all__ = ['OsCommand']
+__all__ = [
+    # OS command utility
+    "OsCommand",
+]

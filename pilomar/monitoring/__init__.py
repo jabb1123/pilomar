@@ -4,4 +4,4 @@ from .cpu import CpuMonitor
 from .memory import MemoryMonitor
 from .disk import DiskMonitor
 
-__all__ = ['CpuMonitor', 'MemoryMonitor', 'DiskMonitor']
+__all__ = ["CpuMonitor", "MemoryMonitor", "DiskMonitor"]
