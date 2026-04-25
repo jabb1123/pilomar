@@ -152,24 +152,16 @@ class Application:
     def _init_target_chooser(self) -> None:
         """Initialize the target chooser with current context."""
         # Build catalog name lists
-        messier_numlist = (
-            list(self.ctx.messier_dict.keys()) if self.ctx.messier_dict else []
-        )
+        messier_numlist = list(self.ctx.messier_dict.keys()) if self.ctx.messier_dict else []
         messier_namelist = (
             [v.get("name", "") for v in self.ctx.messier_dict.values()]
             if self.ctx.messier_dict
             else []
         )
-        meteor_namelist = (
-            list(self.ctx.meteor_dict.keys()) if self.ctx.meteor_dict else []
-        )
-        ngc_namelist = (
-            list(self.ctx.ngc_df["name"]) if self.ctx.ngc_df is not None else []
-        )
+        meteor_namelist = list(self.ctx.meteor_dict.keys()) if self.ctx.meteor_dict else []
+        ngc_namelist = list(self.ctx.ngc_df["name"]) if self.ctx.ngc_df is not None else []
         comet_list = (
-            list(self.ctx.comets_df["designation"])
-            if self.ctx.comets_df is not None
-            else []
+            list(self.ctx.comets_df["designation"]) if self.ctx.comets_df is not None else []
         )
 
         # Get satellite list from CelesTrak if available
@@ -296,16 +288,12 @@ class Application:
                 # Parameters = param_module.Parameters
 
                 if os.path.exists(param_file):
-                    self.ctx.parameters = Parameters(
-                        param_file, logger=self.ctx.main_log
-                    )
+                    self.ctx.parameters = Parameters(param_file, logger=self.ctx.main_log)
                     self._log(f"Parameters loaded from {param_file}")
                 else:
                     # First run - prompt user for location and create config
                     self._log("No configuration file found - starting first-time setup")
-                    self.ctx.parameters = Parameters(
-                        param_file, logger=self.ctx.main_log
-                    )
+                    self.ctx.parameters = Parameters(param_file, logger=self.ctx.main_log)
                     self._prompt_for_location()
 
                     # Save parameters to file for next time
@@ -477,17 +465,13 @@ class Application:
         # Load local catalogs (from JSON files)
         try:
             self.ctx.messier_dict = loader.load_messier()
-            self._log(
-                f"Loaded {len(self.ctx.messier_dict)} Messier objects", terminal=False
-            )
+            self._log(f"Loaded {len(self.ctx.messier_dict)} Messier objects", terminal=False)
         except Exception as e:  # pylint: disable=broad-except
             self._log(f"Failed to load Messier catalog: {e}", level="warning")
 
         try:
             self.ctx.meteor_dict = loader.load_meteors()
-            self._log(
-                f"Loaded {len(self.ctx.meteor_dict)} meteor showers", terminal=False
-            )
+            self._log(f"Loaded {len(self.ctx.meteor_dict)} meteor showers", terminal=False)
         except Exception as e:  # pylint: disable=broad-except
             self._log(f"Failed to load meteor catalog: {e}", level="warning")
 
@@ -528,9 +512,7 @@ class Application:
     def _load_celestrak(self) -> None:
         """Load satellite TLE data from CelesTrak."""
         try:
-            celestrak_url = (
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"
-            )
+            celestrak_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"
             self._log("Loading CelesTrak satellite data...", terminal=False)
 
             # Create a simple logger adapter if we don't have one
@@ -548,17 +530,13 @@ class Application:
                     self._log(f"{msg}: {e}", level="error")
                     raise e
 
-            logger = (
-                LogAdapter(self._log) if not self.ctx.main_log else self.ctx.main_log
-            )
+            logger = LogAdapter(self._log) if not self.ctx.main_log else self.ctx.main_log
 
             self.ctx.celestrak = Celestrak(
                 celestrak_url, logger=logger, projectroot=self.ctx.project_root
             )
 
-            sat_count = (
-                len(self.ctx.celestrak.satellite_list) if self.ctx.celestrak else 0
-            )
+            sat_count = len(self.ctx.celestrak.satellite_list) if self.ctx.celestrak else 0
             self._log(f"Loaded {sat_count} satellites from CelesTrak", terminal=False)
 
         except ImportError:
@@ -693,9 +671,7 @@ class Application:
             return
 
         # Get target position (Alt/Az)
-        target_handle = (
-            self.ctx.target.get("handle") if isinstance(self.ctx.target, dict) else None
-        )
+        target_handle = self.ctx.target.get("handle") if isinstance(self.ctx.target, dict) else None
 
         if target_handle is None:
             print("Target handle not available - cannot calculate position.")
@@ -937,9 +913,7 @@ class Application:
             self._set_target(result)
         else:
             try:
-                ra = input(
-                    "Enter RA (hours, e.g., 12.5 or 12:30:00, 'x' to cancel): "
-                ).strip()
+                ra = input("Enter RA (hours, e.g., 12.5 or 12:30:00, 'x' to cancel): ").strip()
                 if ra.lower() == "x":
                     return
                 dec = input("Enter Dec (degrees, e.g., +45.5 or +45:30:00): ").strip()
@@ -981,9 +955,7 @@ class Application:
         else:
             # Aurora mode - point camera towards magnetic north at a low angle
             print("Aurora mode: Camera will point towards magnetic north")
-            az = input(
-                "Enter Azimuth for aurora (default: 0 for north, 'x' to cancel): "
-            ).strip()
+            az = input("Enter Azimuth for aurora (default: 0 for north, 'x' to cancel): ").strip()
             if az.lower() == "x":
                 return
             if not az:
@@ -1256,16 +1228,12 @@ class Application:
             print(f"\nCurrent exposure time: {current} seconds")
         else:
             current = (
-                getattr(self.ctx.parameters, "ExposureSeconds", 1.0)
-                if self.ctx.parameters
-                else 1.0
+                getattr(self.ctx.parameters, "ExposureSeconds", 1.0) if self.ctx.parameters else 1.0
             )
             print(f"\nDefault exposure time: {current} seconds")
 
         try:
-            value = input(
-                "Enter new exposure time in seconds (or 'x' to cancel): "
-            ).strip()
+            value = input("Enter new exposure time in seconds (or 'x' to cancel): ").strip()
             if value.lower() == "x":
                 return
 
@@ -1290,11 +1258,7 @@ class Application:
 
     def _set_batch_size(self) -> None:
         """Set the number of frames per observation batch."""
-        current = (
-            getattr(self.ctx.parameters, "BatchSize", 100)
-            if self.ctx.parameters
-            else 100
-        )
+        current = getattr(self.ctx.parameters, "BatchSize", 100) if self.ctx.parameters else 100
         print(f"\nCurrent batch size: {current} frames")
 
         try:
@@ -1444,12 +1408,8 @@ class Application:
             print("Camera: Not initialized")
 
         if self.ctx.parameters:
-            print(
-                f"\nLight batch size: {getattr(self.ctx.parameters, 'BatchSize', 'N/A')}"
-            )
-            print(
-                f"Control batch size: {getattr(self.ctx.parameters, 'ControlBatchSize', 'N/A')}"
-            )
+            print(f"\nLight batch size: {getattr(self.ctx.parameters, 'BatchSize', 'N/A')}")
+            print(f"Control batch size: {getattr(self.ctx.parameters, 'ControlBatchSize', 'N/A')}")
             print(f"Save JPG: {getattr(self.ctx.parameters, 'CameraSaveJpg', 'N/A')}")
             print(f"Save DNG: {getattr(self.ctx.parameters, 'CameraSaveDng', 'N/A')}")
             print(f"Save FITS: {getattr(self.ctx.parameters, 'CameraSaveFits', 'N/A')}")
@@ -1506,9 +1466,7 @@ class Application:
         print(f"\nCurrent timelapse delay: {current}s")
         print("(0 = no delay, frames captured continuously)")
 
-        new_value = input(
-            "New timelapse delay in seconds (or Enter to keep current): "
-        ).strip()
+        new_value = input("New timelapse delay in seconds (or Enter to keep current): ").strip()
         if new_value:
             try:
                 new_value = float(new_value)
@@ -1530,9 +1488,7 @@ class Application:
             return
 
         try:
-            count = input(
-                "Number of dark flat frames to capture (default 10): "
-            ).strip()
+            count = input("Number of dark flat frames to capture (default 10): ").strip()
             count = int(count) if count else 10
 
             print(f"\nCapturing {count} dark flat frames...")
@@ -1732,24 +1688,16 @@ class Application:
             return
 
         current = getattr(alt_motor, "CurrentAngle", 0.0)
-        min_alt = (
-            getattr(self.ctx.parameters, "MinAltitudeAngle", 0)
-            if self.ctx.parameters
-            else 0
-        )
+        min_alt = getattr(self.ctx.parameters, "MinAltitudeAngle", 0) if self.ctx.parameters else 0
         max_alt = (
-            getattr(self.ctx.parameters, "MaxAltitudeAngle", 90)
-            if self.ctx.parameters
-            else 90
+            getattr(self.ctx.parameters, "MaxAltitudeAngle", 90) if self.ctx.parameters else 90
         )
 
         print(f"\nCurrent altitude: {current:.2f}°")
         print(f"Range: {min_alt}° to {max_alt}°")
 
         try:
-            value = input(
-                f"Enter target angle ({min_alt}-{max_alt}, or 'x' to cancel): "
-            ).strip()
+            value = input(f"Enter target angle ({min_alt}-{max_alt}, or 'x' to cancel): ").strip()
             if value.lower() == "x":
                 return
 
@@ -1829,15 +1777,9 @@ class Application:
             print("Altitude motor not found.")
             return
 
-        min_alt = (
-            getattr(self.ctx.parameters, "MinAltitudeAngle", 0)
-            if self.ctx.parameters
-            else 0
-        )
+        min_alt = getattr(self.ctx.parameters, "MinAltitudeAngle", 0) if self.ctx.parameters else 0
         max_alt = (
-            getattr(self.ctx.parameters, "MaxAltitudeAngle", 90)
-            if self.ctx.parameters
-            else 90
+            getattr(self.ctx.parameters, "MaxAltitudeAngle", 90) if self.ctx.parameters else 90
         )
 
         print("\nAltitude Tuning")
@@ -2010,9 +1952,7 @@ class Application:
         if hasattr(self.ctx.mctl, "PowerOn"):
             self.ctx.mctl.PowerOn()
             print("GPIO power turned on.")
-        elif hasattr(self.ctx.mctl, "ResetPin") and hasattr(
-            self.ctx.mctl.ResetPin, "On"
-        ):
+        elif hasattr(self.ctx.mctl, "ResetPin") and hasattr(self.ctx.mctl.ResetPin, "On"):
             self.ctx.mctl.ResetPin.On()
             print("GPIO power turned on.")
         else:
@@ -2028,9 +1968,7 @@ class Application:
             if hasattr(self.ctx.mctl, "PowerOff"):
                 self.ctx.mctl.PowerOff()
                 print("GPIO power turned off.")
-            elif hasattr(self.ctx.mctl, "ResetPin") and hasattr(
-                self.ctx.mctl.ResetPin, "Off"
-            ):
+            elif hasattr(self.ctx.mctl, "ResetPin") and hasattr(self.ctx.mctl.ResetPin, "Off"):
                 self.ctx.mctl.ResetPin.Off()
                 print("GPIO power turned off.")
             else:
@@ -2079,9 +2017,7 @@ class Application:
         print(f"\nCurrent tracking exposure: {current}s")
         print("(Shorter than main exposure for faster drift detection)")
 
-        new_value = input(
-            "New tracking exposure in seconds (or Enter to keep current): "
-        ).strip()
+        new_value = input("New tracking exposure in seconds (or Enter to keep current): ").strip()
         if new_value:
             try:
                 new_value = float(new_value)
@@ -2122,9 +2058,7 @@ class Application:
         print(f"\nCurrent trajectory window: {current}s")
         print("(Time span for calculating target trajectory, in seconds)")
 
-        new_value = input(
-            "New trajectory window in seconds (or Enter to keep current): "
-        ).strip()
+        new_value = input("New trajectory window in seconds (or Enter to keep current): ").strip()
         if new_value:
             try:
                 new_value = int(new_value)
@@ -2251,17 +2185,13 @@ class Application:
             print("\nParameters not loaded.")
             return
 
-        print(
-            f"\nCurrent location: {self.ctx.parameters.HomeLat}, {self.ctx.parameters.HomeLon}"
-        )
+        print(f"\nCurrent location: {self.ctx.parameters.HomeLat}, {self.ctx.parameters.HomeLon}")
 
         if input("Change location? [y/N] ").lower() == "y":
             self._prompt_for_location()
 
             # Save immediately
-            param_file = os.path.join(
-                self.ctx.project_root, "data", "pilomar_params.json"
-            )
+            param_file = os.path.join(self.ctx.project_root, "data", "pilomar_params.json")
             self.ctx.parameters.save_attributes(param_file)
             print("Location saved.")
 
@@ -2385,9 +2315,7 @@ class Application:
                 frames = input("Number of frames (default 100): ").strip()
                 frames = int(frames) if frames else 100
 
-                exposure = input(
-                    "Exposure time in seconds (default from settings): "
-                ).strip()
+                exposure = input("Exposure time in seconds (default from settings): ").strip()
                 if exposure:
                     exposure = float(exposure)
                 else:
@@ -2491,10 +2419,7 @@ class Application:
             print("\nSchedule is already empty.")
             return
 
-        if (
-            input(f"Clear {len(self._schedule)} scheduled targets? [y/N] ").lower()
-            == "y"
-        ):
+        if input(f"Clear {len(self._schedule)} scheduled targets? [y/N] ").lower() == "y":
             self._schedule = []
             print("Schedule cleared.")
 
@@ -2586,9 +2511,7 @@ class Application:
             return  # No motors to home
 
         # Check if parameters allow movement (RequireRestart blocks moves)
-        if self.ctx.parameters and getattr(
-            self.ctx.parameters, "RequireRestart", False
-        ):
+        if self.ctx.parameters and getattr(self.ctx.parameters, "RequireRestart", False):
             self._log("Parameter changes require restart - cannot home motors")
             return
 
@@ -2622,9 +2545,7 @@ class Application:
             )
             if response not in ("y", "yes"):
                 print("Camera will resume from its current position when restarted.")
-                print(
-                    "To home the camera now, use the 'Home motors' option on the menu."
-                )
+                print("To home the camera now, use the 'Home motors' option on the menu.")
                 return
         except (EOFError, KeyboardInterrupt):
             return
@@ -2729,9 +2650,7 @@ class Application:
             except ImportError:
                 pass  # No GPIO available
             except Exception as e:
-                self._log(
-                    f"RPi.GPIO cleanup error: {e}", level="warning", terminal=False
-                )
+                self._log(f"RPi.GPIO cleanup error: {e}", level="warning", terminal=False)
 
         except Exception as e:
             self._log(f"GPIO cleanup error: {e}", level="warning", terminal=False)

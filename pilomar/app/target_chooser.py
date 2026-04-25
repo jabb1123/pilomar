@@ -217,9 +217,7 @@ class TargetChooser(AttributeMaster):
             for key, value in self.ctx.messier.items():
                 if key.lower() == search:
                     result = key.lower()
-                    self.log(
-                        f"ChooseMessier: Found by catalog number {key}", terminal=False
-                    )
+                    self.log(f"ChooseMessier: Found by catalog number {key}", terminal=False)
                     break
                 name = value.get("name", "")
                 if name[: len(search)].lower() == search:
@@ -255,9 +253,7 @@ class TargetChooser(AttributeMaster):
             size_deg = _dms_to_angle(0, size_arcmin, 0)
 
             if size_warning and self.ctx.camera:
-                size_pix = size_deg * getattr(
-                    self.ctx.camera, "PixelsPerFovDegreeWidth", 1
-                )
+                size_pix = size_deg * getattr(self.ctx.camera, "PixelsPerFovDegreeWidth", 1)
                 if size_pix < 10:
                     self.log(
                         f"Target is quite small, about {int(size_pix)} pixels",
@@ -295,9 +291,7 @@ class TargetChooser(AttributeMaster):
         while result == "":
             if prechosen is None:
                 chooser = self._make_list_chooser(self.ctx.ngc_namelist)
-                search = (
-                    chooser.Prompt() if chooser else self._input("Enter NGC name: ")
-                )
+                search = chooser.Prompt() if chooser else self._input("Enter NGC name: ")
             else:
                 search = prechosen
 
@@ -308,9 +302,7 @@ class TargetChooser(AttributeMaster):
             for name in self.ctx.ngc_namelist:
                 if name == search:
                     result = name.lower()
-                    df_row = self.ctx.ngc_df.loc[self.ctx.ngc_df["name"] == name].iloc[
-                        0
-                    ]
+                    df_row = self.ctx.ngc_df.loc[self.ctx.ngc_df["name"] == name].iloc[0]
                     self.log(f"ChooseNGC: Found {name}", terminal=False)
                     break
 
@@ -366,9 +358,7 @@ class TargetChooser(AttributeMaster):
             hip_num = _text_to_int(search)
             if hip_num is not None and hip_num in self.ctx.hipparcos_df.index:
                 result = f"HIP_{hip_num}"
-                star_row = self.ctx.hipparcos_df.loc[
-                    self.ctx.hipparcos_df.hip == hip_num
-                ].iloc[0]
+                star_row = self.ctx.hipparcos_df.loc[self.ctx.hipparcos_df.hip == hip_num].iloc[0]
                 self.log("ChooseHipparcos: Found", result, terminal=False)
 
             if result == "":
@@ -411,9 +401,7 @@ class TargetChooser(AttributeMaster):
         while result == "":
             if prechosen is None:
                 chooser = self._make_list_chooser(self.ctx.comet_list)
-                search = (
-                    chooser.prompt() if chooser else self._input("Enter comet name: ")
-                )
+                search = chooser.prompt() if chooser else self._input("Enter comet name: ")
             else:
                 search = prechosen
 
@@ -467,11 +455,7 @@ class TargetChooser(AttributeMaster):
         while result == "":
             if prechosen is None:
                 chooser = self._make_list_chooser(self.ctx.meteor_namelist)
-                search = (
-                    chooser.prompt()
-                    if chooser
-                    else self._input("Enter meteor shower name: ")
-                )
+                search = chooser.prompt() if chooser else self._input("Enter meteor shower name: ")
             else:
                 search = prechosen
 
@@ -538,11 +522,7 @@ class TargetChooser(AttributeMaster):
         while result == "":
             if prechosen is None:
                 chooser = self._make_list_chooser(target_list, compress=False)
-                search = (
-                    chooser.Prompt()
-                    if chooser
-                    else self._input("Enter planet name: ").lower()
-                )
+                search = chooser.Prompt() if chooser else self._input("Enter planet name: ").lower()
             else:
                 search = prechosen
 
@@ -586,14 +566,8 @@ class TargetChooser(AttributeMaster):
 
         while result == "":
             if prechosen is None:
-                chooser = self._make_list_chooser(
-                    self.ctx.satellite_list, compress=False
-                )
-                search = (
-                    chooser.Prompt()
-                    if chooser
-                    else self._input("Enter satellite name: ")
-                )
+                chooser = self._make_list_chooser(self.ctx.satellite_list, compress=False)
+                search = chooser.Prompt() if chooser else self._input("Enter satellite name: ")
             else:
                 search = prechosen
 
