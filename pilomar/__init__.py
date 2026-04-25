@@ -11,88 +11,118 @@ __version__ = "2.0.0"
 __author__ = "Pilomar Project"
 
 # Core utilities
+# Celestial calculations (always available)
+from .celestial.trig import (
+    alt_az_to_xyz,
+    angle_to_dms,
+    angle_to_hms,
+    az_alt_text,
+    compass_point,
+    dms_to_angle,
+    hms_to_angle,
+    ra_dec_text,
+    relative_alt_az,
+    xyz_to_alt_az,
+)
 from .core.base import AttributeMaster
-from .core.timer import Timer, ProgressTimer
-from .core.logger import LogFile
 from .core.converters import (
-    utc_string_to_datetime,
     dts_to_datetime,
-    string_to_datetime,
     is_float,
     is_int,
-    text_to_int,
+    string_to_datetime,
     text_to_float,
+    text_to_int,
+    utc_string_to_datetime,
 )
+from .core.logger import LogFile
+from .core.timer import ProgressTimer, Timer
 
-# Hardware interfaces
-from .hardware.camera import AstroLens, AstroSensor, AstroCamera
-from .hardware.gpio import InputPinGpio, OutputPinGpio, InputPinGpiod, OutputPinGpiod
-
-# System monitoring
-from .monitoring.cpu import CpuMonitor
-from .monitoring.memory import MemoryMonitor
-from .monitoring.disk import DiskMonitor
-
-# Utilities
-from .utils.os_command import OsCommand
-
-# Celestial calculations
-from .celestial.celestrak import Celestrak
-from .celestial.trig import (
-    compass_point,
-    angle_to_hms,
-    angle_to_dms,
-    hms_to_angle,
-    dms_to_angle,
-    alt_az_to_xyz,
-    xyz_to_alt_az,
-    relative_alt_az,
-    az_alt_text,
-    ra_dec_text,
-)
-
-# Imaging (requires opencv)
-from .imaging.image import PilomarImage
-from .imaging.keogram import PilomarKeogram
-from .imaging.data_types import DataSet, DataPoint, FdObject, FdEdge
-from .imaging.fits import FitsCapture, date_to_jd, normalize_array
-
-from .ui.keyboard import KeyboardScanner
-from .ui.text_color import TextColor
-from .ui.display import CdSprite, MessageWindow, BigLetters, Field, ColorDisplay
-from .ui.menu import Menu, ProcedureMenu, OptionMenu, ListChooser, FileChooser
-
-
-from .config.hardware import Hardware
-from .config.parameters import Parameters
-
-
-from .control.motor import MotorControl
-from .control.microcontroller import Microcontroller
-
-# Session modules
-
-from .session.status import SessionStatus
+# Folders module (always available)
+from .folders.folder_handler import FolderHandler
 from .session.entry import SessionEntry
 from .session.list import SessionList
 
+# Session modules (always available)
+from .session.status import SessionStatus
+
+# Target context helpers (always available)
 from .targets.fixed_point import FixedPoint
-from .targets.quickstar import QuickStar
-from .targets.local_stars import LocalStars
-from .targets.sky_context import SkyContext, TimeContext, HardwareContext
+from .targets.sky_context import HardwareContext, SkyContext, TimeContext
 
+# Utilities (always available)
+from .utils.os_command import OsCommand
 
-from .targets.target import Target
+# Hardware interfaces (require RPi GPIO libraries)
+try:
+    from .hardware.camera import AstroCamera, AstroLens, AstroSensor
+    from .hardware.gpio import (
+        InputPinGpio,
+        InputPinGpiod,
+        OutputPinGpio,
+        OutputPinGpiod,
+    )
+except ImportError:
+    pass
 
+# System monitoring (require RPi / gpiozero for CPU temperature)
+try:
+    from .monitoring.cpu import CpuMonitor
+    from .monitoring.disk import DiskMonitor
+    from .monitoring.memory import MemoryMonitor
+except ImportError:
+    pass
 
-# Targets - ImageTracker (requires astroalign)
+# Config (may depend on hardware detection)
+try:
+    from .config.hardware import Hardware
+    from .config.parameters import Parameters
+except ImportError:
+    pass
 
-from .targets.image_tracker import ImageTracker
+# Celestrak satellite data (requires requests)
+try:
+    from .celestial.celestrak import Celestrak
+except ImportError:
+    pass
 
+# Imaging (requires opencv / cv2)
+try:
+    from .imaging.data_types import DataPoint, DataSet, FdEdge, FdObject
+    from .imaging.fits import FitsCapture, date_to_jd, normalize_array
+    from .imaging.image import PilomarImage
+    from .imaging.keogram import PilomarKeogram
+except ImportError:
+    pass
 
-# Folders module
+# UI (requires terminal capabilities)
+try:
+    from .ui.display import BigLetters, CdSprite, ColorDisplay, Field, MessageWindow
+    from .ui.keyboard import KeyboardScanner
+    from .ui.menu import FileChooser, ListChooser, Menu, OptionMenu, ProcedureMenu
+    from .ui.text_color import TextColor
+except ImportError:
+    pass
 
-from .folders.folder_handler import FolderHandler
+# Control (requires serial / motor libraries)
+try:
+    from .control.microcontroller import Microcontroller
+    from .control.motor import MotorControl
+except ImportError:
+    pass
+
+# Targets requiring Skyfield
+try:
+    from .targets.local_stars import LocalStars
+    from .targets.quickstar import QuickStar
+    from .targets.target import Target
+except ImportError:
+    pass
+
+# ImageTracker (requires astroalign)
+try:
+    from .targets.image_tracker import ImageTracker
+except ImportError:
+    pass
 
 __all__ = [
     # Core

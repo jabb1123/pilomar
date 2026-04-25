@@ -5,8 +5,8 @@ This module provides the Parameters class for loading, storing,
 and managing runtime parameters.
 """
 
-import os
 import json
+import os
 
 from pilomar.core.base import AttributeMaster
 
@@ -153,7 +153,7 @@ class Parameters(AttributeMaster):
         and can be called again to reload.
         """
         if os.path.isfile(self.param_file_name):
-            with open(self.param_file_name, "r", encoding="utf-8") as f:
+            with open(self.param_file_name, encoding="utf-8") as f:
                 self.log("Loading parameters from file:", self.param_file_name)
                 self._dictionary = json.load(f)
 
@@ -203,9 +203,7 @@ class Parameters(AttributeMaster):
         self.fault_sensitive = self.get_param("FaultSensitive", False)
         self.mctl_led_status = self.get_param("MctlLedStatus", True)
         self.observation_resets_mctl = self.get_param("ObservationResetsMctl", False)
-        self.observation_stop_pin = self.get_param(
-            "ObservationStopPin", 25, oldnames=["StopPin"]
-        )
+        self.observation_stop_pin = self.get_param("ObservationStopPin", 25, oldnames=["StopPin"])
         self.ir_control_pin = self.get_param("IRControlPin", None)
         self.ir_cutoff = self.get_param("IRCutoff", True)
         self.tune_on_32_bit = self.get_param("TuneOn32Bit", True)
@@ -219,12 +217,8 @@ class Parameters(AttributeMaster):
         self.max_azimuth_angle = min(self.get_param("MaxAzimuthAngle", 360), 360)
         self.azimuth_driver = self.get_param("AzimuthDriver", "drv8825")
         self.azimuth_gear_ratio = self.get_param("AzimuthGearRatio", 240)
-        self.azimuth_motor_steps_per_rev = self.get_param(
-            "AzimuthMotorStepsPerRev", 400
-        )
-        self.azimuth_slew_microstep_ratio = self.get_param(
-            "AzimuthSlewMicrostepRatio", 1
-        )
+        self.azimuth_motor_steps_per_rev = self.get_param("AzimuthMotorStepsPerRev", 400)
+        self.azimuth_slew_microstep_ratio = self.get_param("AzimuthSlewMicrostepRatio", 1)
         self.azimuth_microstep_ratio = self.get_param("AzimuthMicrostepRatio", 1)
         self.azimuth_rest_angle = self.get_param("AzimuthRestAngle", 180.0)
         self.azimuth_backlash_angle = self.get_param("AzimuthBacklashAngle", 0.0)
@@ -236,13 +230,9 @@ class Parameters(AttributeMaster):
         self.max_altitude_angle = min(self.get_param("MaxAltitudeAngle", 90), 90)
         self.altitude_driver = self.get_param("AltitudeDriver", "drv8825")
         self.altitude_gear_ratio = self.get_param("AltitudeGearRatio", 240)
-        self.altitude_motor_steps_per_rev = self.get_param(
-            "AltitudeMotorStepsPerRev", 400
-        )
+        self.altitude_motor_steps_per_rev = self.get_param("AltitudeMotorStepsPerRev", 400)
         self.altitude_microstep_ratio = self.get_param("AltitudeMicrostepRatio", 1)
-        self.altitude_slew_microstep_ratio = self.get_param(
-            "AltitudeSlewMicrostepRatio", 1
-        )
+        self.altitude_slew_microstep_ratio = self.get_param("AltitudeSlewMicrostepRatio", 1)
         self.altitude_rest_angle = self.get_param("AltitudeRestAngle", 0.0)
         self.altitude_backlash_angle = self.get_param("AltitudeBacklashAngle", 0.0)
         self.altitude_orientation = self.get_param("AltitudeOrientation", -1)
@@ -306,9 +296,7 @@ class Parameters(AttributeMaster):
         self.camera_save_fits = self.get_param("CameraSaveFits", False)
 
         if not (self.camera_save_jpg or self.camera_save_dng or self.camera_save_fits):
-            self.log(
-                "No image types are saved according to the parameters.", level="warning"
-            )
+            self.log("No image types are saved according to the parameters.", level="warning")
 
     def _init_display_parameters(self):
         """Initialize display and color scheme parameters."""
@@ -336,9 +324,7 @@ class Parameters(AttributeMaster):
     def _init_trajectory_parameters(self):
         """Initialize trajectory calculation parameters."""
         self.trajectory_window = self.get_param("TrajectoryWindow", 1200)
-        self.use_dynamic_trajectory_periods = self.get_param(
-            "UseDynamicTrajectoryPeriods", True
-        )
+        self.use_dynamic_trajectory_periods = self.get_param("UseDynamicTrajectoryPeriods", True)
         self.drift_tracking_enabled = self.get_param("DriftTrackingEnabled", True)
 
     def _init_filter_parameters(self):

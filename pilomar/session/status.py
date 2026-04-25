@@ -6,11 +6,11 @@ state of an observation session.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
+
 from pilomar.core.base import AttributeMaster
 
 if TYPE_CHECKING:
-    from pilomar.core.logger import LogFile
     from pilomar.targets.target import Target
 
 
@@ -44,10 +44,9 @@ class SessionStatus(AttributeMaster):
         super().__init__(now_func=now_func)
         self.set_logger(logger)
         self._file_names = []
-        # self._init_status()
 
         self.program_start_time = self._now_func()
-        self.target: Target = None  # No target yet
+        self.target: Target | None = None  # No target yet
 
         # FITS/EXIF tag files
         self.tech_fits_tags_file = None
@@ -61,7 +60,7 @@ class SessionStatus(AttributeMaster):
         self.remote_control = False
         self.clock_synchronised = False
         self._observation_running = False
-        self._observation_timestamp: Union[None, datetime] = None
+        self._observation_timestamp: None | datetime = None
 
         # Communication statistics
         self.mctl_rx_errors = 0
@@ -114,7 +113,7 @@ class SessionStatus(AttributeMaster):
                 terminal=False,
             )
             self.log(
-                f'SessionStatus.set_motor_control_mode({mode}) {self.MCM_DICT[mode]["description"]}',
+                f"SessionStatus.set_motor_control_mode({mode}) {self.MCM_DICT[mode]['description']}",
                 terminal=False,
             )
             self.motor_control_mode = mode

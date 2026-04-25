@@ -1,7 +1,14 @@
 """Hardware interface modules for camera and GPIO."""
 
-from .camera import AstroLens, AstroSensor, AstroCamera, CameraUtil
-from .gpio import InputPinGpio, OutputPinGpio, InputPinGpiod, OutputPinGpiod
+try:
+    from .camera import AstroCamera, AstroLens, AstroSensor, CameraUtil
+except ImportError:
+    pass
+
+try:
+    from .gpio import InputPinGpio, InputPinGpiod, OutputPinGpio, OutputPinGpiod
+except ImportError:
+    pass
 
 __all__ = [
     "AstroLens",

@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-# Pilomar's cpu monitor class.
+# Pilomar's memory monitor class.
 
 # This software is published under the GNU General Public License v3.0.
 # Also respect any pre-existing terms of any components that this incorporates.
@@ -16,16 +16,18 @@
 import sys
 import tracemalloc  # Memory allocation tracking.
 
+from pilomar.core.base import AttributeMaster
 from pilomar.core.timer import Timer  # Pilomar's timer class.
 from pilomar.utils.os_command import OsCommand  # OS Command execution.
 
 
-class MemoryMonitor:  # 1 references.
+class MemoryMonitor(AttributeMaster):  # 1 references.
     """Simple class to monitor the memory load of the RPi."""
 
     def __init__(self, logger=None):
-        self.log = logger  # Define which logger to use.
-        self.os_command = OsCommand(logger=logger)
+        super().__init__()
+        self.set_logger(logger)
+        self.os_command = OsCommand(logger=self.log)
         self.os_cmd = self.os_command.execute
         self.os_cmd_code = self.os_command.execute_code
         self.command = "free -m"
@@ -45,9 +47,7 @@ class MemoryMonitor:  # 1 references.
         """Read current memory allocation statistics."""
         result = tracemalloc.get_traced_memory()
         if self.log is not None:
-            self.log(
-                "memorymonitor.read_trace(). current/peak:", result, terminal=False
-            )
+            self.log("memorymonitor.read_trace(). current/peak:", result, terminal=False)
         return result
 
     def snapshot_trace(self):
@@ -77,9 +77,7 @@ class MemoryMonitor:  # 1 references.
             idx += 1
             # print("{:>30}: {:>8}".format(name, sizeof_fmt(size)))
             if self.log is not None:
-                self.log(
-                    "memorymonitor.item_sizes():Globals:", name, size, terminal=False
-                )
+                self.log("memorymonitor.item_sizes():Globals:", name, size, terminal=False)
         ## Locals
         ##for name, size in sorted(((name, sys.getsizeof(value)) for name, value in list(locals().items())), key= lambda x: -x[1])[:10]:
         # for name, size in sorted(((name, sys.getsizeof(value)) for name, value in list(locals().items())), key= lambda x: -x[1]):
@@ -101,9 +99,7 @@ class MemoryMonitor:  # 1 references.
         #    Mem:           1815         175         216           1        1423        1548   <- This line is used.
         #    Swap:            99          33          66
         if force or self.timer.due():  # Time to update the CPU figures.
-            lines = self.os_cmd(
-                self.command
-            )  # osCmd function dedicated to the MAIN thread.
+            lines = self.os_cmd(self.command)  # osCmd function dedicated to the MAIN thread.
             memoryfields = lines[1].split()  # This splits by blocks of whitespace.
             if len(memoryfields) > 2:
                 # Total

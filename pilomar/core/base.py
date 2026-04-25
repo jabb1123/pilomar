@@ -3,8 +3,8 @@
 
 import json
 import os
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, Union
 
 from pilomar.core.logger import LogFile
 from pilomar.core.time_utils import now_utc
@@ -21,12 +21,12 @@ class AttributeMaster:
 
     _now_func: Callable[[], datetime]
     _null_logger_calls: int
-    logger: Union[LogFile, None]
+    logger: LogFile | None
     log: Callable
     report_exception: Callable
     raise_exception: Callable
 
-    def __init__(self, now_func: Union[Callable, None] = None) -> None:
+    def __init__(self, now_func: Callable | None = None) -> None:
         if now_func is not None:
             self._now_func = now_func
         else:
@@ -39,7 +39,7 @@ class AttributeMaster:
         else:
             return now_utc()
 
-    def set_logger(self, logger: Union[LogFile, None]) -> None:
+    def set_logger(self, logger: LogFile | None) -> None:
         """Set up link to logging class and shortcuts to common methods.
 
         Args:
@@ -108,9 +108,7 @@ class AttributeMaster:
         else:
             conf_dict = initial_dictionary.copy()
 
-        method_list = [
-            method for method in dir(self) if callable(getattr(self, method))
-        ]
+        method_list = [method for method in dir(self) if callable(getattr(self, method))]
 
         for attr, value in vars(self).items():
             if attr[0] == "_":

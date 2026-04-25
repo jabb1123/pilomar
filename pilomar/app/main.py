@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Main entry point for the Pilomar application.
 
@@ -9,35 +8,45 @@ This module provides:
 - Graceful shutdown handling
 """
 
+import json
 import os
 import sys
-import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+# Ensure project root is on sys.path when this file is run directly
+_here = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_here))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from skyfield.api import load
 from skyfield.iokit import Loader
 
 # Handle both direct execution and module import
-
 from pilomar.celestial.celestrak import Celestrak
 from pilomar.config.parameters import Parameters
 from pilomar.core.logger import LogFile
 from pilomar.core.time_utils import now_utc
 
 try:
-    from .target_chooser import TargetChooser, TargetSelectionContext
-    from .observation import ObservationContext, ObservationLoop, start_observation
-    from .data_loader import CatalogLoader, CatalogPaths
     from ..ui.menu import ListChooser
+    from .data_loader import CatalogLoader, CatalogPaths
+    from .observation import ObservationContext, ObservationLoop, start_observation
+    from .target_chooser import TargetChooser, TargetSelectionContext
 except ImportError:
     # Running as script - import directly without triggering pilomar package init
     _app_dir = os.path.dirname(os.path.abspath(__file__))
+    _ui_dir = os.path.join(os.path.dirname(_app_dir), "ui")
     if _app_dir not in sys.path:
         sys.path.insert(0, _app_dir)
-    from target_chooser import TargetChooser, TargetSelectionContext
-    from observation import ObservationContext, ObservationLoop, start_observation
     from data_loader import CatalogLoader, CatalogPaths
+    from observation import ObservationContext, ObservationLoop, start_observation
+    from target_chooser import TargetChooser, TargetSelectionContext
+
+    if _ui_dir not in sys.path:
+        sys.path.insert(0, _ui_dir)
+    from menu import ListChooser
 
 
 @dataclass
@@ -65,7 +74,7 @@ class ApplicationContext:
     camera: Any = None
     lens: Any = None
     sensor: Any = None
-    motor_controls: List[Any] = field(default_factory=list)
+    motor_controls: list[Any] = field(default_factory=list)
     mctl: Any = None  # Microcontroller
 
     # Threading
@@ -86,10 +95,10 @@ class ApplicationContext:
     hipparcos_df: Any = None
     ngc_df: Any = None
     comets_df: Any = None
-    messier_dict: Dict = field(default_factory=dict)
-    meteor_dict: Dict = field(default_factory=dict)
-    star_names: Dict = field(default_factory=dict)
-    constellation_links: List = field(default_factory=list)
+    messier_dict: dict = field(default_factory=dict)
+    meteor_dict: dict = field(default_factory=dict)
+    star_names: dict = field(default_factory=dict)
+    constellation_links: list = field(default_factory=list)
 
     # Satellite data
     # CelesTrak satellite TLE handler
@@ -100,8 +109,8 @@ class ApplicationContext:
 
     # UI components
     textcolor: Any = None
-    menus: Dict[str, Any] = field(default_factory=dict)
-    windows: Dict[str, Any] = field(default_factory=dict)
+    menus: dict[str, Any] = field(default_factory=dict)
+    windows: dict[str, Any] = field(default_factory=dict)
 
     # Observation state
     observation_schedule: Any = None
@@ -131,7 +140,7 @@ class Application:
         self.ctx = ApplicationContext(project_root=project_root, parameters=None)
         self._running = False
         self._initialized = False
-        self._target_chooser: Optional[TargetChooser] = None
+        self._target_chooser: TargetChooser | None = None
 
     def _log(self, *args, level: str = "info", terminal: bool = True):
         """Log a message."""
@@ -165,8 +174,8 @@ class Application:
 
         # Get satellite list from CelesTrak if available
         satellite_list = []
-        if self.ctx.celestrak and hasattr(self.ctx.celestrak, "SatelliteList"):
-            satellite_list = self.ctx.celestrak.SatelliteList
+        if self.ctx.celestrak and hasattr(self.ctx.celestrak, "satellite_list"):
+            satellite_list = self.ctx.celestrak.satellite_list
 
         # Get home latitude from parameters if available
         home_latitude = 0.0
@@ -430,7 +439,6 @@ class Application:
             return  # Already initialized
 
         try:
-
             # Create a loader with cache directory
             skyfield_data_dir = os.path.join(self.ctx.project_root, "data")
             self.ctx.skyfield_loader = Loader(skyfield_data_dir)
@@ -520,7 +528,6 @@ class Application:
     def _load_celestrak(self) -> None:
         """Load satellite TLE data from CelesTrak."""
         try:
-
             celestrak_url = (
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"
             )
@@ -550,7 +557,7 @@ class Application:
             )
 
             sat_count = (
-                len(self.ctx.celestrak.SatelliteList) if self.ctx.celestrak else 0
+                len(self.ctx.celestrak.satellite_list) if self.ctx.celestrak else 0
             )
             self._log(f"Loaded {sat_count} satellites from CelesTrak", terminal=False)
 
@@ -761,7 +768,7 @@ class Application:
             else:
                 print("Invalid choice")
 
-    def _set_target(self, result: Optional[Dict]) -> None:
+    def _set_target(self, result: dict | None) -> None:
         """Set the current target from chooser result."""
         if result:
             self.ctx.target = result
@@ -2524,7 +2531,7 @@ class Application:
             return
 
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 loaded = json.load(f)
 
             if not isinstance(loaded, list):
@@ -2759,7 +2766,7 @@ def find_project_root() -> str:
     return os.getcwd()
 
 
-def main(args: Optional[List[str]] = None) -> int:
+def main(args: list[str] | None = None) -> int:
     """Main entry point for Pilomar.
 
     Args:

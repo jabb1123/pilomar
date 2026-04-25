@@ -101,9 +101,7 @@ class Hardware(AttributeMaster):
                 self.pcb_mctl_family = "pico"
 
             # Check USB protection
-            upfp = self._input_pin_factory(
-                self.usb_protect_flag_pin, "UsbProtectFlag", pull="up"
-            )
+            upfp = self._input_pin_factory(self.usb_protect_flag_pin, "UsbProtectFlag", pull="up")
             if upfp.IsHigh():
                 self.pcb_protect_usb = True
             else:
@@ -253,9 +251,7 @@ class Hardware(AttributeMaster):
             Exception: If hardware is not supported and allow_fail is True.
         """
         if self.os_systemkey in Hardware.SUPPORTED_SYSTEMS:
-            self.log(
-                self.program_title, "OK to run under", self.os_systemkey, terminal=False
-            )
+            self.log(self.program_title, "OK to run under", self.os_systemkey, terminal=False)
             self.system_supported = True
             return True
         else:

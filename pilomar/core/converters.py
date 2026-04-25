@@ -4,11 +4,11 @@
 # This software is published under the GNU General Public License v3.0.
 
 from datetime import datetime
-from typing import Optional
+
 import pytz
 
 
-def utc_string_to_datetime(utc_value: str) -> Optional[datetime]:
+def utc_string_to_datetime(utc_value: str) -> datetime | None:
     """Accept a UTC string and convert it into datetime.
 
     Example: 2023-06-23T04:00:00
@@ -32,7 +32,7 @@ def utc_string_to_datetime(utc_value: str) -> Optional[datetime]:
     return dt
 
 
-def dts_to_datetime(utc_value: str) -> Optional[datetime]:
+def dts_to_datetime(utc_value: str) -> datetime | None:
     """Accept a str(datetime) string and convert it into datetime.
 
     Example: 2023-06-23 04:00:00.00000+00:00
@@ -56,7 +56,7 @@ def dts_to_datetime(utc_value: str) -> Optional[datetime]:
     return dt
 
 
-def string_to_datetime(utc_value: str) -> Optional[datetime]:
+def string_to_datetime(utc_value: str) -> datetime | None:
     """Accept any string containing a timestamp and convert it into datetime.
 
     Examples:
@@ -128,7 +128,7 @@ def is_int(text: str) -> bool:
         return False
 
 
-def text_to_int(text: str) -> Optional[int]:
+def text_to_int(text: str) -> int | None:
     """Convert a character string into an INTEGER value.
 
     Args:
@@ -144,7 +144,7 @@ def text_to_int(text: str) -> Optional[int]:
     return a
 
 
-def text_to_float(text: str) -> Optional[float]:
+def text_to_float(text: str) -> float | None:
     """Convert a character string into a FLOAT value.
 
     Args:

@@ -47,9 +47,7 @@ class Menu:
         titlebg/fg colors of menu title.
         helpdir = directory where help text files exist.
         helpurl = url to help file."""
-        print(
-            "TextColor.menu: NOTE: This is replaced by the TextColor.proceduremenu class now!"
-        )
+        print("TextColor.menu: NOTE: This is replaced by the TextColor.proceduremenu class now!")
 
 
 # --------------------------------------------------------------------------------------------------------------------------------
@@ -138,14 +136,12 @@ class ProcedureMenu:
             self.titleBG = TextColor.YELLOW
         Counter = 0
         for (
-            key,
+            _key,
             value,
         ) in self.dictionary.items():  # Assign menu ID number to each entry.
             Counter += 1
             value["id"] = Counter
-            value["enabled"] = (
-                True  # All menu options are enabled and visible by default.
-            )
+            value["enabled"] = True  # All menu options are enabled and visible by default.
             self.LabelWidth = max(self.LabelWidth, len(value["label"]))
 
             try:  # Check that the procedure name to be called looks valid.
@@ -155,11 +151,7 @@ class ProcedureMenu:
                     pass
             except Exception as e:
                 # The procedure call will not succeed if called.
-                print(
-                    TextColor.red(
-                        self.title, "Cannot execute procedure", value["label"]
-                    )
-                )
+                print(TextColor.red(self.title, "Cannot execute procedure", value["label"]))
                 print(TextColor.red(str(e)))
                 traceback.print_exc()
 
@@ -170,11 +162,7 @@ class ProcedureMenu:
                     pass
             except Exception as e:
                 # The procedure call will not succeed if called.
-                print(
-                    TextColor.red(
-                        self.title, "Cannot execute pre-procedure", value["label"]
-                    )
-                )
+                print(TextColor.red(self.title, "Cannot execute pre-procedure", value["label"]))
                 print(TextColor.red(str(e)))
                 traceback.print_exc()
 
@@ -185,11 +173,7 @@ class ProcedureMenu:
                     pass
             except Exception as e:
                 # The procedure call will not succeed if called.
-                print(
-                    TextColor.red(
-                        self.title, "Cannot execute post-procedure", value["label"]
-                    )
-                )
+                print(TextColor.red(self.title, "Cannot execute post-procedure", value["label"]))
                 print(TextColor.red(str(e)))
                 traceback.print_exc()
         self.help_dir = helpdir
@@ -198,7 +182,7 @@ class ProcedureMenu:
     def GetHelpFile(self, menuid):
         """Given an ID number, retrieve and display the help text if it exists."""
         filename = None
-        for key, value in self.dictionary.items():  # Find entry with matching ID.
+        for _key, value in self.dictionary.items():  # Find entry with matching ID.
             if value["id"] == menuid:  # Found a match.
                 filename = value.get("helpdoc", None)  # Get the helpdoc filename.
                 break  # Look no further.
@@ -210,7 +194,7 @@ class ProcedureMenu:
         filename = self.GetHelpFile(menuid)
         if filename is not None:
             try:
-                with open(filename, "r") as f:
+                with open(filename) as f:
                     for line in f.readlines():
                         print(TextColor.cyan(line))
             except Exception as e:
@@ -222,7 +206,7 @@ class ProcedureMenu:
     def GetHelpUrl(self, menuid):
         """Given an ID number, return URL associated with the help documentation."""
         helpurl = None
-        for key, value in self.dictionary.items():  # Find entry with matching ID.
+        for _key, value in self.dictionary.items():  # Find entry with matching ID.
             if value["id"] == menuid:  # Found a match.
                 helpurl = value.get("helpurl", None)  # Get the helpdoc helpurl.
                 break  # Look no further.
@@ -236,23 +220,17 @@ class ProcedureMenu:
         """
         # In Python 3.7 onwards, dictionaries should retain the sequence in which items are added. No sorting required.
         count = 0
+        print(TextColor.clearforward())  # Blank line before menu and clear everything below that.
         print(
-            TextColor.clearforward()
-        )  # Blank line before menu and clear everything below that.
-        print(
-            TextColor.fgbgcolor(
-                self.titleFG, self.titleBG, " " + menuprefix + self.title + " "
-            )
+            TextColor.fgbgcolor(self.titleFG, self.titleBG, " " + menuprefix + self.title + " ")
         )  # Menu title is painted in inverse colours.
-        for key, value in self.dictionary.items():  # Go through each menu item in turn.
+        for _key, value in self.dictionary.items():  # Go through each menu item in turn.
             if not value["enabled"]:
                 continue  # Not visible or selectable, skip it.
             entry = (
                 TextColor.yellow(str(value["id"]).rjust(self.IdWidth, " ")) + " "
             )  # ID number in yellow.
-            if (
-                value.get("color", None) is not None
-            ):  # Menu item has a specific label color.
+            if value.get("color", None) is not None:  # Menu item has a specific label color.
                 entry += value["color"](
                     value["label"].ljust(self.LabelWidth, " ")[: self.LabelWidth]
                 )
@@ -263,9 +241,7 @@ class ProcedureMenu:
             else:  # Menu item is not in bold.
                 entry += value["label"].ljust(self.LabelWidth, " ")[: self.LabelWidth]
             entry += " "  # Space between columns of menu entries.
-            print(
-                entry, end=""
-            )  # Print the menu entry column, don't include 'newline' yet.
+            print(entry, end="")  # Print the menu entry column, don't include 'newline' yet.
             count += 1  # Count how many entries.
             if count % self.columns == 0:  # Print 'newline' after 2nd column entry.
                 print("")
@@ -348,11 +324,7 @@ class ProcedureMenu:
         if execute_main:  # OK to proceed.
             procedure = self.dictionary[key]["call"]  # What procedure is to be called?
             if procedure is None:  # No option to run.
-                print(
-                    TextColor.yellow(
-                        str(key) + " does not have a related procedure to call."
-                    )
-                )
+                print(TextColor.yellow(str(key) + " does not have a related procedure to call."))
             elif type(procedure) == type(
                 self
             ):  # A submenu, so we trigger the nested submenu instead.
@@ -365,10 +337,7 @@ class ProcedureMenu:
                     print(TextColor.red(" *** OOPS! *** ", invert=True))
                     print(
                         TextColor.red(
-                            "** Menu failed to execute "
-                            + str(key)
-                            + " ; call "
-                            + str(procedure)
+                            "** Menu failed to execute " + str(key) + " ; call " + str(procedure)
                         )
                     )
                     print(TextColor.red(str(e)))
@@ -386,9 +355,7 @@ class ProcedureMenu:
                 # Procedure didn't execute. Report the error and return to the menu.
                 print(TextColor.red(" *** OOPS! *** ", invert=True))
                 print(
-                    TextColor.red(
-                        f"** Menu failed to execute {key} ; option post-call {procedure}"
-                    )
+                    TextColor.red(f"** Menu failed to execute {key} ; option post-call {procedure}")
                 )
                 print(TextColor.red(str(e)))
                 traceback.print_exc()
@@ -484,9 +451,7 @@ class ProcedureMenu:
             if answer.lower() == "?":  # Refresh option chosen.
                 self.draw()  # Refresh the menu.
                 continue  # Next user input.
-            if (
-                answer.lower() == "x"
-            ):  # User chose to quit the menu. Terminate the loop.
+            if answer.lower() == "x":  # User chose to quit the menu. Terminate the loop.
                 break  # Go UP a level, quit if at root.
             # User input was not recognised. Try again.
             print(TextColor.red(f"'{answer}' Unrecognised. Try again."))
@@ -558,15 +523,13 @@ class OptionMenu:
             self.title_bg = TextColor.YELLOW
         counter = 0
         for (
-            key,
+            _key,
             value,
         ) in self.dictionary.items():  # Assign menu ID number to each entry.
             counter += 1
             # print("Adding:",Counter,value)
             value["id"] = counter
-            value["enabled"] = (
-                True  # All menu options are enabled and visible by default.
-            )
+            value["enabled"] = True  # All menu options are enabled and visible by default.
             self.label_width = max(self.label_width, len(value["label"]))
         self.help_dir = helpdir
         self.help_url = helpurl
@@ -574,7 +537,7 @@ class OptionMenu:
     def get_help_file(self, menuid):
         """Given an ID number, retrieve and display the help text if it exists."""
         filename = None
-        for key, value in self.dictionary.items():  # Find entry with matching ID.
+        for _key, value in self.dictionary.items():  # Find entry with matching ID.
             if value["id"] == menuid:  # Found a match.
                 filename = value.get("helpdoc", None)  # Get the helpdoc filename.
                 break  # Look no further.
@@ -586,7 +549,7 @@ class OptionMenu:
         filename = self.get_help_file(menuid)
         if filename is not None:
             try:
-                with open(filename, "r", encoding="utf-8") as f:
+                with open(filename, encoding="utf-8") as f:
                     for line in f.readlines():
                         print(TextColor.cyan(line))
             except Exception as e:  # pylint: disable=broad-except
@@ -598,7 +561,7 @@ class OptionMenu:
     def get_help_url(self, menuid):
         """Given an ID number, return URL associated with the help documentation."""
         helpurl = None
-        for key, value in self.dictionary.items():  # Find entry with matching ID.
+        for _key, value in self.dictionary.items():  # Find entry with matching ID.
             if value["id"] == menuid:  # Found a match.
                 helpurl = value.get("helpurl", None)  # Get the helpdoc helpurl.
                 break  # Look no further.
@@ -612,23 +575,17 @@ class OptionMenu:
         """
         # In Python 3.7 onwards, dictionaries should retain the sequence in which items are added. No sorting required.
         count = 0
+        print(TextColor.clearforward())  # Blank line before menu and clear everything below that.
         print(
-            TextColor.clearforward()
-        )  # Blank line before menu and clear everything below that.
-        print(
-            TextColor.fgbgcolor(
-                self.title_fg, self.title_bg, " " + menuprefix + self.title + " "
-            )
+            TextColor.fgbgcolor(self.title_fg, self.title_bg, " " + menuprefix + self.title + " ")
         )  # Menu title is painted in inverse colours.
-        for key, value in self.dictionary.items():  # Go through each menu item in turn.
+        for _key, value in self.dictionary.items():  # Go through each menu item in turn.
             if not value["enabled"]:
                 continue  # Not visible or selectable, skip it.
             entry = (
                 TextColor.yellow(str(value["id"]).rjust(self.id_width, " ")) + " "
             )  # ID number in yellow.
-            if (
-                value.get("color", None) is not None
-            ):  # Menu item has a specific label color.
+            if value.get("color", None) is not None:  # Menu item has a specific label color.
                 entry += value["color"](
                     value["label"].ljust(self.label_width, " ")[: self.label_width]
                 )
@@ -639,9 +596,7 @@ class OptionMenu:
             else:  # Menu item is not in bold.
                 entry += value["label"].ljust(self.label_width, " ")[: self.label_width]
             entry += " "  # Space between columns of menu entries.
-            print(
-                entry, end=""
-            )  # Print the menu entry column, don't include 'newline' yet.
+            print(entry, end="")  # Print the menu entry column, don't include 'newline' yet.
             count += 1  # Count how many entries.
             if count % self.columns == 0:  # Print 'newline' after 2nd column entry.
                 print("")
@@ -656,14 +611,14 @@ class OptionMenu:
             print("")  # Terminate line if not already done.
         # Always include 'x' and '?' menu options automatically.
         print(
-            TextColor.yellow(f"x".rjust(self.id_width, " "))
+            TextColor.yellow("x".rjust(self.id_width, " "))
             + " "
             + "Exit".ljust(self.label_width, " ")[: self.label_width]
             + " ",
             end="",
         )
         print(
-            TextColor.yellow(f"?".rjust(self.id_width, " "))
+            TextColor.yellow("?".rjust(self.id_width, " "))
             + " "
             + "Refresh".ljust(self.label_width, " ")[: self.label_width]
         )

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Target chooser module for the Pilomar application.
 
@@ -16,8 +15,9 @@ various catalogs:
 - Aurora observation points
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from skyfield.api import Star
 from skyfield.data import mpc
@@ -34,19 +34,19 @@ class TargetSelectionContext:
     """
 
     # Catalog data
-    messier: Dict[str, Dict]
-    meteors: Dict[str, Dict]
+    messier: dict[str, dict]
+    meteors: dict[str, dict]
     hipparcos_df: Any  # pandas DataFrame
     ngc_df: Any  # pandas DataFrame
     comets_df: Any  # pandas DataFrame
 
     # Name lists for selection menus
-    messier_numlist: List[str]
-    messier_namelist: List[str]
-    meteor_namelist: List[str]
-    ngc_namelist: List[str]
-    comet_list: List[str]
-    satellite_list: List[str]
+    messier_numlist: list[str]
+    messier_namelist: list[str]
+    meteor_namelist: list[str]
+    ngc_namelist: list[str]
+    comet_list: list[str]
+    satellite_list: list[str]
 
     # Skyfield objects
     planets: Any  # Skyfield ephemeris
@@ -56,18 +56,18 @@ class TargetSelectionContext:
     gm_sun: float  # Solar gravitational parameter
 
     # Hardware context
-    camera: Optional[Any] = None
-    motor_controls: Optional[List[Any]] = None
+    camera: Any | None = None
+    motor_controls: list[Any] | None = None
     home_latitude: float = 0.0
 
     # Callbacks for logging and UI
-    logger: Optional[Any] = None
+    logger: Any | None = None
     input_func: Callable = input  # Can be replaced for testing
     print_func: Callable = print  # Can be replaced for testing
 
     # UI components (text color, etc.)
-    textcolor: Optional[Any] = None
-    list_chooser_class: Optional[type] = None
+    textcolor: Any | None = None
+    list_chooser_class: type | None = None
 
 
 def _safe_name(name: str) -> str:
@@ -82,7 +82,7 @@ def _safe_name(name: str) -> str:
     return result
 
 
-def _text_to_int(text: str) -> Optional[int]:
+def _text_to_int(text: str) -> int | None:
     """Convert text to integer, returning None if invalid."""
     try:
         return int(text)
@@ -90,7 +90,7 @@ def _text_to_int(text: str) -> Optional[int]:
         return None
 
 
-def _text_to_float(text: str) -> Optional[float]:
+def _text_to_float(text: str) -> float | None:
     """Convert text to float, returning None if invalid."""
     try:
         return float(text)
@@ -161,6 +161,13 @@ class TargetChooser(AttributeMaster):
         super().__init__()
         self.ctx = ctx
 
+    def log(self, *args, level: str = "info", terminal: bool = True):
+        """Log a message via ctx.logger, falling back to print."""
+        if self.ctx.logger:
+            self.ctx.logger.Log(*args, level=level, terminal=terminal)
+        elif terminal:
+            self.ctx.print_func(*args)
+
     def _input(self, prompt: str) -> str:
         """Get input from user."""
         if self.ctx.textcolor:
@@ -171,15 +178,15 @@ class TargetChooser(AttributeMaster):
         """Print output."""
         self.ctx.print_func(*args, **kwargs)
 
-    def _make_list_chooser(self, items: List[str], compress: bool = True):
+    def _make_list_chooser(self, items: list[str], compress: bool = True):
         """Create a list chooser for selection."""
         if self.ctx.list_chooser_class:
             return self.ctx.list_chooser_class(items, compress=compress)
         return None
 
     def choose_messier(
-        self, prechosen: Optional[str] = None, size_warning: bool = True
-    ) -> Optional[Dict]:
+        self, prechosen: str | None = None, size_warning: bool = True
+    ) -> dict | None:
         """Select a Messier object.
 
         Args:
@@ -272,7 +279,7 @@ class TargetChooser(AttributeMaster):
             "diameter": size_deg,
         }
 
-    def choose_ngc(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def choose_ngc(self, prechosen: str | None = None) -> dict | None:
         """Select an NGC object.
 
         Args:
@@ -330,7 +337,7 @@ class TargetChooser(AttributeMaster):
             "searchterm": search,
         }
 
-    def choose_hipparcos(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def choose_hipparcos(self, prechosen: str | None = None) -> dict | None:
         """Select a Hipparcos star.
 
         Args:
@@ -387,7 +394,7 @@ class TargetChooser(AttributeMaster):
             "searchterm": str(hip_num),
         }
 
-    def choose_comet(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def choose_comet(self, prechosen: str | None = None) -> dict | None:
         """Select a comet from Minor Planet Center data.
 
         Args:
@@ -445,7 +452,7 @@ class TargetChooser(AttributeMaster):
             "comet_row": comet_row,  # For magnitude calculation
         }
 
-    def choose_meteor(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def choose_meteor(self, prechosen: str | None = None) -> dict | None:
         """Select a meteor shower.
 
         Args:
@@ -504,7 +511,7 @@ class TargetChooser(AttributeMaster):
             "is_fixed_point": True,  # Meteor observation uses fixed pointing
         }
 
-    def choose_solar(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def choose_solar(self, prechosen: str | None = None) -> dict | None:
         """Select a solar system object.
 
         Args:
@@ -566,7 +573,7 @@ class TargetChooser(AttributeMaster):
             "searchterm": result,
         }
 
-    def choose_satellite(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def choose_satellite(self, prechosen: str | None = None) -> dict | None:
         """Select a satellite.
 
         Args:
@@ -618,7 +625,7 @@ class TargetChooser(AttributeMaster):
             "needs_tle": True,  # Flag that TLE data is needed
         }
 
-    def radec_object(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def radec_object(self, prechosen: str | None = None) -> dict | None:
         """Create a target from RA/Dec coordinates.
 
         Format: "RA hh mm ss DEC ddd mm ss name"
@@ -704,7 +711,7 @@ class TargetChooser(AttributeMaster):
             "searchterm": line,
         }
 
-    def altaz_object(self, prechosen: Optional[str] = None) -> Optional[Dict]:
+    def altaz_object(self, prechosen: str | None = None) -> dict | None:
         """Create a fixed target from Alt/Az coordinates.
 
         Format: "ALT ddd.dddd AZ ddd.dddd name"
@@ -783,7 +790,7 @@ class TargetChooser(AttributeMaster):
             "is_fixed_point": True,
         }
 
-    def choose_aurora(self, _prechosen: Optional[str] = None) -> Optional[Dict]:
+    def choose_aurora(self, _prechosen: str | None = None) -> dict | None:
         """Set up for Aurora observation.
 
         Points camera north or south depending on latitude.
@@ -836,7 +843,7 @@ class TargetChooser(AttributeMaster):
             "is_fixed_point": True,
         }
 
-    def get_target(self, searchgroup: str, searchterm: str) -> Optional[Dict]:
+    def get_target(self, searchgroup: str, searchterm: str) -> dict | None:
         """Get a target by searchgroup and searchterm.
 
         This is a dispatch function that calls the appropriate chooser.
@@ -869,16 +876,16 @@ class TargetChooser(AttributeMaster):
 
 # Convenience function for creating a TargetChooser
 def create_target_chooser(
-    messier: Dict,
-    meteors: Dict,
+    messier: dict,
+    meteors: dict,
     hipparcos_df: Any,
     ngc_df: Any,
     comets_df: Any,
     planets: Any,
     timescale: Any,
     gm_sun: float,
-    satellite_list: List[str],
-    logger: Optional[Any] = None,
+    satellite_list: list[str],
+    logger: Any | None = None,
     **kwargs,
 ) -> TargetChooser:
     """Create a TargetChooser with the provided catalog data.

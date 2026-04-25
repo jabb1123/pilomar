@@ -1,8 +1,8 @@
 """Session management for Pilomar telescope control."""
 
-from .status import SessionStatus
 from .entry import SessionEntry
 from .list import SessionList
+from .status import SessionStatus
 
 __all__ = [
     "SessionStatus",

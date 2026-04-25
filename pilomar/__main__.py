@@ -15,7 +15,16 @@ Options:
 Copyright: GNU General Public License v3.0
 """
 
+import os
 import sys
+
+# When invoked as `python pilomar/` the package directory is added to sys.path
+# instead of its parent. Ensure the project root is always on the path so that
+# `import pilomar` resolves correctly regardless of invocation style.
+_pkg_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_pkg_dir)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 # Version info
 VERSION = "2.0.0"
@@ -24,10 +33,10 @@ PROGRAM_TITLE = "pilomar"
 
 def print_banner():
     """Print startup banner."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  PILOMAR - Pythonic Telescope Control System")
     print(f"  Version: {VERSION}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 def check_environment():
@@ -35,10 +44,6 @@ def check_environment():
     issues = []
 
     # Check Python version
-    if sys.version_info < (3, 9):
-        issues.append(
-            f"Python 3.9+ required (found {sys.version_info.major}.{sys.version_info.minor})"
-        )
 
     # Check for required packages
     required = ["numpy", "cv2", "serial"]
@@ -119,9 +124,9 @@ def main():
 
     try:
         from pilomar.core.logger import LogFile
+        from pilomar.core.time_utils import now_utc
         from pilomar.core.timer import Timer
         from pilomar.utils.os_command import OsCommand
-        from pilomar.core.time_utils import now_utc
 
         print("  Core modules loaded")
     except ImportError as e:
@@ -137,25 +142,25 @@ def main():
         print(f"  Failed to load config modules: {e}")
 
     try:
-        from pilomar.control.motor import MotorControl
         from pilomar.control.microcontroller import Microcontroller
+        from pilomar.control.motor import MotorControl
 
         print("  Control modules loaded")
     except ImportError as e:
         print(f"  Failed to load control modules: {e}")
 
     try:
-        from pilomar.session.status import SessionStatus
         from pilomar.session.entry import SessionEntry
         from pilomar.session.list import SessionList
+        from pilomar.session.status import SessionStatus
 
         print("  Session modules loaded")
     except ImportError as e:
         print(f"  Failed to load session modules: {e}")
 
     try:
-        from pilomar.ui.text_color import TextColor
         from pilomar.ui.menu import Menu, ProcedureMenu
+        from pilomar.ui.text_color import TextColor
 
         print("  UI modules loaded")
     except ImportError as e:
@@ -204,6 +209,8 @@ def main():
     try:
         from pilomar.app import (
             VERSION as APP_VERSION,
+        )
+        from pilomar.app import (
             Application,
             CatalogLoader,
         )

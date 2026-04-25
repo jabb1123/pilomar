@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Sky context module for Pilomar.
 
@@ -8,15 +7,17 @@ dependencies needed by the Target class. This enables dependency
 injection rather than relying on global objects.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional
 from datetime import datetime
+from typing import TYPE_CHECKING, Any, Optional
 
 import pytz
 
-from pilomar.config.parameters import Parameters
-from pilomar.control.motor import MotorControl
-from pilomar.hardware.camera import AstroCamera, AstroSensor
+if TYPE_CHECKING:
+    from pilomar.config.parameters import Parameters
+    from pilomar.control.motor import MotorControl
+    from pilomar.hardware.camera import AstroCamera, AstroSensor
 
 
 @dataclass
@@ -49,7 +50,7 @@ class SkyContext:
     angle_class: Any
     planetary_magnitude_func: Callable
     gm_sun: float
-    comets_df: Optional[Any] = None
+    comets_df: Any | None = None
 
 
 @dataclass
@@ -63,8 +64,8 @@ class TimeContext:
     """
 
     now_skyfield: Callable[[], Any]
-    clock_offset: Optional[float] = None
-    utc_to_display: Optional[Callable[[datetime], datetime]] = None
+    clock_offset: float | None = None
+    utc_to_display: Callable[[datetime], datetime] | None = None
 
     def ts_to_datetime(self, ts_value) -> datetime:
         """Convert Skyfield time to datetime."""
@@ -114,7 +115,7 @@ class HardwareContext:
         parameters: Application parameters object
     """
 
-    sensor: Optional[AstroSensor] = None
-    camera: Optional[AstroCamera] = None
-    motor_controls: Optional[List[MotorControl]] = field(default_factory=list)
-    parameters: Optional[Parameters] = None
+    sensor: Optional["AstroSensor"] = None
+    camera: Optional["AstroCamera"] = None
+    motor_controls: list["MotorControl"] | None = field(default_factory=list)
+    parameters: Optional["Parameters"] = None

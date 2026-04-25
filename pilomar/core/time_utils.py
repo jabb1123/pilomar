@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-ng.
 
 """
 Time utilities for the Pilomar application.
@@ -8,27 +7,20 @@ This module provides time handling functions including UTC/local timezone
 conversions, Skyfield timestamp utilities, and human-readable formatting.
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
 import pytz
-
-
-def time_func():
-    """
-    Returns the current UTC time as a timezone-aware datetime object.
-    This function can be overridden for testing or simulation purposes.
-    """
-    return datetime.now(timezone.utc)
 
 
 class TimeUtilsState:
     """Internal state for time utilities."""
 
     def __init__(self):
-        self.clock_offset: Optional[float] = None
-        self.timescale: Optional[Any] = None
-        self.local_tz: Optional[Any] = None
-        self.display_tz: Optional[Any] = None
+        self.clock_offset: float | None = None
+        self.timescale: Any | None = None
+        self.local_tz: Any | None = None
+        self.display_tz: Any | None = None
 
 
 state = TimeUtilsState()
@@ -43,7 +35,7 @@ def set_timescale(ts: Any) -> None:
     state.timescale = ts
 
 
-def set_clock_offset(offset: Optional[float]) -> None:
+def set_clock_offset(offset: float | None) -> None:
     """Set the global clock offset for testing/simulation.
 
     Args:
@@ -52,7 +44,7 @@ def set_clock_offset(offset: Optional[float]) -> None:
     state.clock_offset = offset
 
 
-def get_clock_offset() -> Optional[float]:
+def get_clock_offset() -> float | None:
     """Get the current clock offset."""
     return state.clock_offset
 
@@ -414,7 +406,7 @@ def utc_time_stamp() -> str:
     return ds[:15]  # YYYYMMDD_HHMMSS
 
 
-def set_time_offset(start_time: Optional[str] = None) -> None:
+def set_time_offset(start_time: str | None = None) -> None:
     """Set the clock offset from a datetime string.
 
     Args:
@@ -433,9 +425,7 @@ def set_time_offset(start_time: Optional[str] = None) -> None:
             state.clock_offset = None
 
 
-def display_dt(
-    dt: datetime, zone_name: Optional[str] = None, decimals: bool = False
-) -> str:
+def display_dt(dt: datetime, zone_name: str | None = None, decimals: bool = False) -> str:
     """Format datetime for display.
 
     Args:
@@ -463,9 +453,7 @@ def display_dt(
         return "--"
 
 
-def interpolate(
-    inp1: float, res1: float, inp2: float, res2: float, inp3: float
-) -> float:
+def interpolate(inp1: float, res1: float, inp2: float, res2: float, inp3: float) -> float:
     """Linear interpolation.
 
     Given inp1 -> res1 and inp2 -> res2 relationship,

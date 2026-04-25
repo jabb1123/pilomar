@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 """Trigonometry functions for celestial calculations."""
 
-from typing import Tuple  # For type hinting.
 import math
 
 
@@ -184,9 +183,7 @@ def deg_3dp(value, symbol=None):
 # ------------------------------------------------------------------
 
 
-def alt_az_to_xyz(
-    alt: float, az: float, distance: float = 1.0
-) -> Tuple[float, float, float]:
+def alt_az_to_xyz(alt: float, az: float, distance: float = 1.0) -> tuple[float, float, float]:
     """Convert alt,az angles to XYZ coordinates. Based upon originlab definition on web.
     X and Y web definitions are swapped to match alignment in Pilomar space.
     Z = ZENITH - NADIR axis. ZENITH is +ve. NADIR is -ve.
@@ -227,7 +224,7 @@ def rotate_xyz_on_z_axis(x, y, z, angle):
 # ------------------------------------------------------------------
 
 
-def rotate_xyz_on_x_axis(x, y, z, angle) -> Tuple[float, float, float]:
+def rotate_xyz_on_x_axis(x, y, z, angle) -> tuple[float, float, float]:
     """Rotate y,z cooordinates by an angle around x axis.
     Z = ZENITH - NADIR axis. ZENITH is +ve. NADIR is -ve.
     X = EAST - WEST axis.    EAST is +ve.   WEST is -ve.
@@ -248,7 +245,7 @@ def rotate_xyz_on_x_axis(x, y, z, angle) -> Tuple[float, float, float]:
 # ------------------------------------------------------------------
 
 
-def xyz_to_alt_az(x: float, y: float, z: float) -> Tuple[float, float]:
+def xyz_to_alt_az(x: float, y: float, z: float) -> tuple[float, float]:
     """Convert 3D coordinates into altitude and azimuth.
     Z = ZENITH - NADIR axis. ZENITH is +ve. NADIR is -ve.
     X = EAST - WEST axis.    EAST is +ve.   WEST is -ve.
@@ -341,22 +338,16 @@ def compound_relative_angle(to_alt, to_az, from_alt, from_az):
     """Calculate angular displacement of (to_alt, to_az) from (from_alt, from_az)
     Used to calculate if something is within field of view."""
     r_x, r_y, r_z = alt_az_to_xyz(to_alt, to_az)  # Convert TO position to 3d space.
-    r_x, r_y, r_z = rotate_xyz_on_z_axis(
-        r_x, r_y, r_z, -1 * from_az
-    )  # Subtract FROM position.
+    r_x, r_y, r_z = rotate_xyz_on_z_axis(r_x, r_y, r_z, -1 * from_az)  # Subtract FROM position.
     r_x, r_y, r_z = rotate_xyz_on_x_axis(r_x, r_y, r_z, -1 * from_alt)
-    r_alt, r_az = xyz_to_alt_az(
-        r_x, r_y, r_z
-    )  # Convert RELATIVE position back to alt/az.
+    r_alt, r_az = xyz_to_alt_az(r_x, r_y, r_z)  # Convert RELATIVE position back to alt/az.
     if r_alt > 180:
         r_alt = r_alt - 360  # Keep within +/1 180 degrees
     if r_az > 180:
         r_az = r_az - 360
     r_alt = abs(r_alt)  # All values +ve distances.
     r_az = abs(r_az)
-    r_comp = compound_angle(
-        alt=r_alt, az=r_az
-    )  # Compound angle from Alt & Az combined.
+    r_comp = compound_angle(alt=r_alt, az=r_az)  # Compound angle from Alt & Az combined.
     return r_comp
 
 

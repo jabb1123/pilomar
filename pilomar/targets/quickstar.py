@@ -7,13 +7,13 @@ for the duration of an observation session.
 Copyright: GNU General Public License v3.0
 """
 
-from pilomar.core.base import AttributeMaster
 from pilomar.celestial.trig import (
     alt_az_to_xyz,
-    xyz_to_alt_az,
     rotate_xyz_on_x_axis,
     rotate_xyz_on_z_axis,
+    xyz_to_alt_az,
 )
+from pilomar.core.base import AttributeMaster
 
 
 class QuickStar(AttributeMaster):
@@ -79,9 +79,7 @@ class QuickStar(AttributeMaster):
         time_angle = 360 * elapsed_seconds / 86164.0905
 
         # Rotate cached location by angle representing elapsed time
-        x, y, z = rotate_xyz_on_z_axis(
-            self.base_x, self.base_y, self.base_z, time_angle
-        )
+        x, y, z = rotate_xyz_on_z_axis(self.base_x, self.base_y, self.base_z, time_angle)
 
         # Add observer's latitude back
         x, y, z = rotate_xyz_on_x_axis(x, y, z, self.home_latitude - 90)

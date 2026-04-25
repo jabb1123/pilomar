@@ -11,7 +11,6 @@ __version__ = "0.1.0"
 
 import curses
 import time
-from typing import Dict
 
 
 class KeyboardScanner:
@@ -30,7 +29,7 @@ class KeyboardScanner:
         """Initialize the keyboard scanner."""
         self.current_key_code = -1
         self.current_character = ""
-        self.translations: Dict[str, str] = {
+        self.translations: dict[str, str] = {
             chr(9): "tab",
             chr(10): "enter",
             chr(27): "esc",

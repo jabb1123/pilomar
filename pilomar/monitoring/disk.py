@@ -27,9 +27,7 @@ class DiskMonitor:  # 2 references.
     - Will attempt to mount them using the default
     Raspbian desktop auto-mounting behaviour if needed."""
 
-    def __init__(
-        self, name="root", devname="/dev/root", path="/", disctype="boot", logger=None
-    ):
+    def __init__(self, name="root", devname="/dev/root", path="/", disctype="boot", logger=None):
         # If devname = None, create a null entry.
         self.log = logger  # Which logger to use?
         self.os_command = OsCommand(logger=logger)
@@ -238,9 +236,7 @@ class DiskMonitor:  # 2 references.
             devname in self.usb_scan_list
         ):  # Safety check. Don't run commands with values we don't trust.
             c_cmd = f"sudo blkid {devname}"
-            lines = self.os_command.execute(
-                c_cmd
-            )  # Run the command and gather the results.
+            lines = self.os_command.execute(c_cmd)  # Run the command and gather the results.
             # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
             #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
             # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
@@ -304,9 +300,7 @@ class DiskMonitor:  # 2 references.
             # (Risk that this is a real directory on the SD card! See error warning later!)
             if os.path.exists(self.df_path):
                 if self.log is not None:
-                    self.log(
-                        f"discmonitor.find_usb: {self.df_path} exists.", terminal=False
-                    )
+                    self.log(f"discmonitor.find_usb: {self.df_path} exists.", terminal=False)
             # The directory does not exist.
             # The drive is recognised by the system, but not mounted. Try to mount it now.
             else:
@@ -446,9 +440,7 @@ class DiskMonitor:  # 2 references.
                     result = dev
                     break
         if self.log is not None:
-            self.log(
-                f"discmonitor.select_usb_devname: Selected {result}", terminal=False
-            )
+            self.log(f"discmonitor.select_usb_devname: Selected {result}", terminal=False)
         return result
 
     def list_usb_devices(self):
@@ -466,34 +458,24 @@ class DiskMonitor:  # 2 references.
             if len(line) < 1:
                 continue  # Ignore blank lines.
             if self.log is not None:
-                self.log(
-                    f"discmonitor.ListUSBDevices: Considering {line}", terminal=False
-                )
+                self.log(f"discmonitor.ListUSBDevices: Considering {line}", terminal=False)
             else:
                 print(f"discmonitor.ListUSBDevices: Considering {line}")
-            items = self.split_spaces(
-                line
-            )  # Separate by spaces, but ignore spaces in quotes.
+            items = self.split_spaces(line)  # Separate by spaces, but ignore spaces in quotes.
             dev = items[0].split(":")[0]  # Remove the trailing ':' from the device.
             if dev in self.usb_scan_list:  # This is a potential device...
                 if self.log is not None:
-                    self.log(
-                        f"discmonitor.ListUSBDevices: Including {line}", terminal=False
-                    )
+                    self.log(f"discmonitor.ListUSBDevices: Including {line}", terminal=False)
                 else:
                     print(f"discmonitor.ListUSBDevices: Including {line}")
                 label = ""  # No label yet.
                 for item in items:  # Find the label entry.
                     if item.startswith("LABEL="):
-                        label = item.split("=")[1].replace(
-                            '"', ""
-                        )  # Get the device label.
+                        label = item.split("=")[1].replace('"', "")  # Get the device label.
                 result.append([dev, label])
             else:
                 if self.log is not None:
-                    self.log(
-                        f"discmonitor.ListUSBDevices: Excluding {line}", terminal=False
-                    )
+                    self.log(f"discmonitor.ListUSBDevices: Excluding {line}", terminal=False)
                 else:
                     print(f"discmonitor.ListUSBDevices: Excluding {line}")
         if self.log is not None:
@@ -517,9 +499,7 @@ class DiskMonitor:  # 2 references.
             devname in self.usb_scan_list
         ):  # Safety check. Don't run commands with values we don't trust.
             c_cmd = "sudo blkid " + devname
-            lines = self.os_command.execute(
-                c_cmd
-            )  # Run the command and gather the results.
+            lines = self.os_command.execute(c_cmd)  # Run the command and gather the results.
             # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
             #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
             # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
@@ -582,9 +562,7 @@ class DiskMonitor:  # 2 references.
             # (Risk that this is a real directory on the SD card! See error warning later!)
             if os.path.exists(self.df_path):
                 if self.log is not None:
-                    self.log(
-                        f"discmonitor.find_usb: {self.df_path} exists.", terminal=False
-                    )
+                    self.log(f"discmonitor.find_usb: {self.df_path} exists.", terminal=False)
             # The directory does not exist.
             # The drive is recognised by the system, but not mounted.
             # Try to mount it now.

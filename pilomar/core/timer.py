@@ -12,8 +12,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-from datetime import datetime, timedelta
 import threading
+from datetime import datetime, timedelta
 
 from pilomar.core.time_utils import now_utc
 
@@ -52,9 +52,7 @@ class ProgressTimer:
         """Calculate how many seconds the entire run will take."""
         temp = self.current - self.start
         if temp != 0:
-            total_seconds = (
-                (now_utc() - self.start_time).total_seconds() * 100 / self.get_percent()
-            )
+            total_seconds = (now_utc() - self.start_time).total_seconds() * 100 / self.get_percent()
         else:
             total_seconds = 0
         return total_seconds

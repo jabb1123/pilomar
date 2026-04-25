@@ -92,9 +92,7 @@ class MotorControl(AttributeMaster):
 
         # Slew configuration
         self.slew_microsteps = min(slew_microsteps, microstep_ratio)
-        self.slew_step_multiplier = int(
-            round(microstep_ratio / self.slew_microsteps, 0)
-        )
+        self.slew_step_multiplier = int(round(microstep_ratio / self.slew_microsteps, 0))
 
         self.log(
             f"MotorControl({name}) microstepping={self.microstep_ratio} "
@@ -162,9 +160,7 @@ class MotorControl(AttributeMaster):
         self._project_root = project_root or "/home/pi/pilomar"
         self.recovery_folder = f"{self._project_root}/data/{self.motor_name}_angle"
         self._ensure_recovery_folder()
-        self.recovery_file_name = (
-            f"{self.recovery_folder}/{self._timestamp_string()}.log"
-        )
+        self.recovery_file_name = f"{self.recovery_folder}/{self._timestamp_string()}.log"
 
         # Try to restore previous position
         self.restore_angle()
@@ -239,7 +235,7 @@ class MotorControl(AttributeMaster):
             files = sorted(os.listdir(self.recovery_folder))
             if files:
                 latest_file = os.path.join(self.recovery_folder, files[-1])
-                with open(latest_file, "r", encoding="utf-8") as f:
+                with open(latest_file, encoding="utf-8") as f:
                     lines = f.readlines()
                     if lines:
                         # Last line contains the angle
@@ -291,9 +287,7 @@ class MotorControl(AttributeMaster):
         items = line.split(" ")
 
         if len(items) < 9:
-            self.log(
-                "MotorControl.receive_status: Invalid message:", line, level="error"
-            )
+            self.log("MotorControl.receive_status: Invalid message:", line, level="error")
             return
 
         motor_name = items[3]

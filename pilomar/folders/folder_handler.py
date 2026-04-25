@@ -6,11 +6,10 @@ sessions, campaigns, and image storage.
 Copyright: GNU General Public License v3.0
 """
 
-import os
 import glob
-from pathlib import Path
+import os
 from datetime import datetime, timedelta, timezone
-from typing import List
+from pathlib import Path
 
 from pilomar.core.base import AttributeMaster
 
@@ -80,9 +79,7 @@ class FolderHandler(AttributeMaster):
         # Determine image storage location
         if use_usb_storage and usb_monitor and usb_monitor.drive_available:
             self.image_root = usb_monitor.df_path
-            self.log(
-                f"FolderHandler: Using USB storage at {self.image_root}", terminal=False
-            )
+            self.log(f"FolderHandler: Using USB storage at {self.image_root}", terminal=False)
         else:
             self.image_root = self.join_path(projectroot, "data")
             self.log(
@@ -95,7 +92,7 @@ class FolderHandler(AttributeMaster):
         # Create default session
         self.new_session(campaign="campaign", session="session")
 
-    def list_campaign_folders(self) -> List[str]:
+    def list_campaign_folders(self) -> list[str]:
         """Return list of campaign folders on disc.
 
         Returns:
@@ -105,7 +102,7 @@ class FolderHandler(AttributeMaster):
         folderlist = [f for f in glob.glob(rootpath) if os.path.isdir(f)]
         return folderlist
 
-    def list_session_folders(self) -> List[str]:
+    def list_session_folders(self) -> list[str]:
         """Return list of session folders on disc.
 
         Returns:
@@ -115,7 +112,7 @@ class FolderHandler(AttributeMaster):
         folderlist = [f for f in glob.glob(rootpath) if os.path.isdir(f)]
         return folderlist
 
-    def list_image_folders(self, imagetype: str = "light") -> List[str]:
+    def list_image_folders(self, imagetype: str = "light") -> list[str]:
         """Return list of image folders on disc.
 
         Args:
@@ -183,15 +180,11 @@ class FolderHandler(AttributeMaster):
 
         self._add_project_folder(key="imageroot", foldername=self.image_root)
         self._add_project_folder(key="dataroot", foldername=self.data_root)
-        self._add_project_folder(
-            key="log", foldername=self.join_path(self.project_root, "log")
-        )
+        self._add_project_folder(key="log", foldername=self.join_path(self.project_root, "log"))
         self._add_project_folder(
             key="campaign", foldername=self.join_path(self.image_root, campaign)
         )
-        self._add_project_folder(
-            key="temp", foldername=self.join_path(self.project_root, "temp")
-        )
+        self._add_project_folder(key="temp", foldername=self.join_path(self.project_root, "temp"))
         self._add_project_folder(
             key="session", foldername=self.join_path(self.get_path("campaign"), session)
         )
@@ -258,9 +251,7 @@ class FolderHandler(AttributeMaster):
         """
         if self.is_file(filename):
             mtime = os.path.getmtime(filename)
-            return datetime.now(timezone.utc) - datetime.fromtimestamp(
-                mtime, timezone.utc
-            )
+            return datetime.now(timezone.utc) - datetime.fromtimestamp(mtime, timezone.utc)
         return None
 
     def file_expired(
@@ -440,9 +431,7 @@ class FolderHandler(AttributeMaster):
             folderpath: Path to create.
         """
         try:
-            self.log(
-                f"FolderHandler.create_folder_by_path({folderpath})", terminal=False
-            )
+            self.log(f"FolderHandler.create_folder_by_path({folderpath})", terminal=False)
             folderpath = self._to_path_type(folderpath)
             if folderpath.is_file():
                 folderpath = folderpath.parent

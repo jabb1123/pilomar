@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Observation run module for the Pilomar application.
 
@@ -12,12 +11,12 @@ This module provides the core observation loop that coordinates:
 - User input handling
 """
 
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple
-import threading
-import time
+from typing import Any
 
 from pilomar.config.parameters import Parameters
 from pilomar.core.base import AttributeMaster
@@ -46,11 +45,11 @@ class ObservationResult:
     """Result from an observation run."""
 
     success: bool
-    status_codes: List[ObservationStatus] = field(default_factory=list)
+    status_codes: list[ObservationStatus] = field(default_factory=list)
     photo_count: int = 0
     duration_seconds: float = 0.0
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
     def add_status(self, status: ObservationStatus) -> None:
         """Add a status code to the result."""
@@ -71,7 +70,7 @@ class ObservationContext:
 
     # Hardware interfaces
     camera: Any  # CameraInUse
-    motor_controls: List[Any]  # MotorControls list
+    motor_controls: list[Any]  # MotorControls list
     mctl: Any  # Microcontroller interface
 
     # Configuration
@@ -79,16 +78,16 @@ class ObservationContext:
     folder_handler: Any = None
 
     # Thread references
-    camera_thread: Optional[threading.Thread] = None
-    mctl_thread: Optional[threading.Thread] = None
-    message_thread: Optional[threading.Thread] = None
+    camera_thread: threading.Thread | None = None
+    mctl_thread: threading.Thread | None = None
+    message_thread: threading.Thread | None = None
 
     # Queue interfaces
     camera_control_queue: Any = None
     camera_status_queue: Any = None
 
     # Display/UI
-    windows: Dict[str, Any] = field(default_factory=dict)
+    windows: dict[str, Any] = field(default_factory=dict)
     debug_mode: bool = False
 
     # Tracking
@@ -189,9 +188,7 @@ class ObservationLoop(AttributeMaster):
                 return False
 
             if self.ctx.camera_thread and not self.ctx.camera_thread.is_alive():
-                self.log(
-                    "Camera thread died while waiting for reset ack", level="error"
-                )
+                self.log("Camera thread died while waiting for reset ack", level="error")
                 return False
 
             if not self.ctx.camera_status_queue.empty():
@@ -263,7 +260,7 @@ class ObservationLoop(AttributeMaster):
                 terminal=False,
             )
 
-    def _update_target_position(self) -> Tuple[float, float, float, float]:
+    def _update_target_position(self) -> tuple[float, float, float, float]:
         """Calculate and update target position.
 
         Returns:
@@ -334,14 +331,10 @@ class ObservationLoop(AttributeMaster):
 
         try:
             az, alt = self.ctx.target.az_alt_degrees()
-            self.log(
-                f"go_to_target: Moving to az={az:.2f}, alt={alt:.2f}", terminal=True
-            )
+            self.log(f"go_to_target: Moving to az={az:.2f}, alt={alt:.2f}", terminal=True)
 
             for motor in self.ctx.motor_controls:
-                motor_name = getattr(
-                    motor, "MotorName", getattr(motor, "motor_name", "")
-                )
+                motor_name = getattr(motor, "MotorName", getattr(motor, "motor_name", ""))
                 target_angle = az if motor_name == "azimuth" else alt
 
                 if hasattr(motor, "go_to_angle"):
@@ -349,9 +342,7 @@ class ObservationLoop(AttributeMaster):
                     result = motor.go_to_angle(target_angle)
                     motor.monitor_move = False
                     if not result:
-                        self.log(
-                            f"go_to_target: {motor_name} move failed", level="error"
-                        )
+                        self.log(f"go_to_target: {motor_name} move failed", level="error")
                         return False
 
             self._stop_motors()
@@ -426,9 +417,7 @@ class ObservationLoop(AttributeMaster):
             "time_stamp": now_utc(),
             "ready_to_observe": ready,
             "batch_size": (
-                getattr(self.ctx.parameters, "batch_size", 1)
-                if self.ctx.parameters
-                else 1
+                getattr(self.ctx.parameters, "batch_size", 1) if self.ctx.parameters else 1
             ),
         }
         self.ctx.camera_control_queue.put(control_msg)
@@ -563,9 +552,7 @@ class ObservationLoop(AttributeMaster):
                 if self.ctx.parameters:
                     max_photos = getattr(self.ctx.parameters, "MaxPhotos", 0)
                     if max_photos > 0 and self._photo_count >= max_photos:
-                        self.log(
-                            f"Photo limit reached: {self._photo_count}", terminal=False
-                        )
+                        self.log(f"Photo limit reached: {self._photo_count}", terminal=False)
                         self._running = False
                         break
 
@@ -606,9 +593,7 @@ class ObservationLoop(AttributeMaster):
         self._result.add_status(ObservationStatus.USER_EXIT)
 
 
-def start_observation(
-    ctx: ObservationContext, batch_mode: bool = False
-) -> ObservationResult:
+def start_observation(ctx: ObservationContext, batch_mode: bool = False) -> ObservationResult:
     """Start an observation run.
 
     This is the main entry point for starting an observation.
@@ -626,7 +611,7 @@ def start_observation(
 
 def go_to_target(
     target: Any,
-    motor_controls: List[Any],
+    motor_controls: list[Any],
     _mctl: Any,
     logger: Any = None,
     timeout_seconds: float = 120,
@@ -826,7 +811,7 @@ def status_to_string(status: ObservationStatus) -> str:
     return STATUS_CODE_STRINGS.get(status, str(status))
 
 
-def result_to_legacy(result: ObservationResult) -> Tuple[bool, List[str]]:
+def result_to_legacy(result: ObservationResult) -> tuple[bool, list[str]]:
     """Convert ObservationResult to legacy (success, status_list) format."""
     status_strings = [status_to_string(s) for s in result.status_codes]
     return result.success, status_strings

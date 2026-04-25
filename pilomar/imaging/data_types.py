@@ -3,15 +3,11 @@
 
 # This software is published under the GNU General Public License v3.0.
 
-from typing import List, Optional
-
 
 class DataSet:
     """Data set containing a list of data points for graphing."""
 
-    def __init__(
-        self, name: str, color: Optional[tuple] = None, style: List[str] = None
-    ):
+    def __init__(self, name: str, color: tuple | None = None, style: list[str] = None):
         """Initialize a data set.
 
         Args:
@@ -42,11 +38,11 @@ class DataPoint:
         self,
         x: float,
         y: float,
-        color: Optional[tuple] = None,
-        label: Optional[str] = None,
-        style: List[str] = None,
-        x_name: Optional[str] = None,
-        y_name: Optional[str] = None,
+        color: tuple | None = None,
+        label: str | None = None,
+        style: list[str] = None,
+        x_name: str | None = None,
+        y_name: str | None = None,
     ):
         """Initialize a data point.
 

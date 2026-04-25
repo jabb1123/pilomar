@@ -10,7 +10,6 @@ import threading
 import time
 from queue import Queue
 
-
 from pilomar.core.base import AttributeMaster
 
 
@@ -120,9 +119,7 @@ class Microcontroller(AttributeMaster):
 
             if os.path.exists(self.port):
                 self.uart = serial.Serial(self.port, 115200, timeout=0, exclusive=True)
-                self.log(
-                    "Microcontroller: Serial port opened:", self.port, terminal=False
-                )
+                self.log("Microcontroller: Serial port opened:", self.port, terminal=False)
             else:
                 self.log(
                     "Microcontroller: Serial port not found:",
@@ -316,9 +313,7 @@ class Microcontroller(AttributeMaster):
                 response = self.uart.read(1).decode("utf-8")
                 self.bytes_received += 1
             except Exception as e:  # pylint: disable=broad-except
-                self.log(
-                    "Microcontroller.read_poll: Read failed:", str(e), terminal=False
-                )
+                self.log("Microcontroller.read_poll: Read failed:", str(e), terminal=False)
                 response = ""
 
             if response == "\n":
@@ -371,9 +366,7 @@ class Microcontroller(AttributeMaster):
         if self.uart and self.uart.in_waiting:
             return  # Handle input first
 
-        if (
-            self._now_func() - self.last_tx_time
-        ).total_seconds() < self.write_chunk_seconds:
+        if (self._now_func() - self.last_tx_time).total_seconds() < self.write_chunk_seconds:
             return  # Wait between transmissions
 
         if not self.uart or not self.uart.is_open:
@@ -480,17 +473,13 @@ class Microcontroller(AttributeMaster):
             self.read_poll()
 
             if not threading.main_thread().is_alive():
-                self.log(
-                    "Microcontroller.comms_loop: Parent died, stopping", level="error"
-                )
+                self.log("Microcontroller.comms_loop: Parent died, stopping", level="error")
                 break
 
             if not command_queue.empty():
                 msg = command_queue.get()
                 if msg == "stop":
-                    self.log(
-                        "Microcontroller.comms_loop: Received stop", terminal=False
-                    )
+                    self.log("Microcontroller.comms_loop: Received stop", terminal=False)
                     break
 
             time.sleep(0.01)

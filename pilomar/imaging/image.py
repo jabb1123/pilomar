@@ -8,20 +8,20 @@ filtering, and visualization.
 
 # This software is published under the GNU General Public License v3.0.
 
-from datetime import datetime
-import math
-import random
 import json
-
+import math
 import os
-import cv2
-from deprecated import deprecated
-import numpy as np
-from PIL import Image
-import piexif
+import random
+from datetime import datetime
 
-from pilomar.core.time_utils import now_utc
+import cv2
+import numpy as np
+import piexif
+from deprecated import deprecated
+from PIL import Image
+
 from pilomar.core.base import AttributeMaster
+from pilomar.core.time_utils import now_utc
 from pilomar.utils.os_command import OsCommand
 
 
@@ -715,9 +715,7 @@ class PilomarImage(AttributeMaster):
         Raise error if name is not recognised."""
         result = PilomarImage.BGRColor.get(colorname, None)
         if result is None:
-            print(
-                f"ERROR: PilomarImage.bgr('{colorname}') Color name is not recognised."
-            )
+            print(f"ERROR: PilomarImage.bgr('{colorname}') Color name is not recognised.")
             result = (0, 0, 0)
         return result
 
@@ -744,9 +742,7 @@ class PilomarImage(AttributeMaster):
         Raise error if name is not recognised."""
         result = PilomarImage.BGRAColor.get(colorname, None)
         if result is None:
-            print(
-                f"ERROR: PilomarImage.bgra('{colorname}') Color name is not recognised."
-            )
+            print(f"ERROR: PilomarImage.bgra('{colorname}') Color name is not recognised.")
             result = (0, 0, 0, 255)
         return result
 
@@ -757,9 +753,7 @@ class PilomarImage(AttributeMaster):
         """Return grayscale tuple for any given name."""
         result = PilomarImage.GRAYSCALEColor.get(colorname, None)
         if result is None:
-            print(
-                f"ERROR: PilomarImage.grayscale('{colorname}') Color name is not recognised."
-            )
+            print(f"ERROR: PilomarImage.grayscale('{colorname}') Color name is not recognised.")
             result = 0
         return result
 
@@ -997,18 +991,14 @@ class PilomarImage(AttributeMaster):
             y = self.graph_y_min_val
         x1, y1 = self.map_to_graph(self.graph_x_min_val, y)
         x2, y2 = self.map_to_graph(self.graph_x_max_val, y)
-        self.draw_line(
-            (x1, y1), (x2, y2), color=PilomarImage.BGRColor["Black"]
-        )  # x-axis
+        self.draw_line((x1, y1), (x2, y2), color=PilomarImage.BGRColor["Black"])  # x-axis
         # Mark scale.
         i = self.graph_x_min_val
         while i <= self.graph_x_max_val:
             # Mark this location and value.
             x1, y1 = self.map_to_graph(i, y)
             y2 = y1 - 20
-            self.draw_line(
-                (x1, y1), (x1, y2), color=PilomarImage.BGRColor["Black"]
-            )  # Tick mark.
+            self.draw_line((x1, y1), (x1, y2), color=PilomarImage.BGRColor["Black"])  # Tick mark.
             self.add_text(
                 str(round(i, 3)),
                 x1,
@@ -1043,18 +1033,14 @@ class PilomarImage(AttributeMaster):
             x = self.graph_x_min_val
         x1, y1 = self.map_to_graph(x, self.graph_y_min_val)
         x2, y2 = self.map_to_graph(x, self.graph_y_max_val)
-        self.draw_line(
-            (x1, y1), (x2, y2), color=PilomarImage.BGRColor["Black"]
-        )  # y-axis
+        self.draw_line((x1, y1), (x2, y2), color=PilomarImage.BGRColor["Black"])  # y-axis
         # Mark scale.
         i = self.graph_y_min_val
         while i <= self.graph_y_max_val:
             # Mark this location and value.
             x1, y1 = self.map_to_graph(x, i)
             x2 = x1 - 20
-            self.draw_line(
-                (x1, y1), (x2, y1), color=PilomarImage.BGRColor["Black"]
-            )  # Tick mark.
+            self.draw_line((x1, y1), (x2, y1), color=PilomarImage.BGRColor["Black"])  # Tick mark.
             self.add_text(
                 str(round(i, 3)),
                 x1 - 30,
@@ -1100,7 +1086,7 @@ class PilomarImage(AttributeMaster):
         y,
         color=None,
         label=None,
-        style=["dot"],
+        style=None,
         xname=None,
         yname=None,
         xtolerance=0,
@@ -1111,6 +1097,8 @@ class PilomarImage(AttributeMaster):
         xtolerance/ytolerance: point is not added if x,y is closer than this to the previous one.
         """
         # Check that the named dataset exists.
+        if style is None:
+            style = ["dot"]
         foundit = False
         for dataset in self.graph_data_sets:
             if dataset.name == name:
@@ -1126,10 +1114,7 @@ class PilomarImage(AttributeMaster):
                     datapointcount = len(dataset.data_points)
                     if datapointcount > 0:
                         datapoint = dataset.data_points[-1]  # Get last point.
-                        if (
-                            abs(datapoint.X - x) < xtolerance
-                            and abs(datapoint.Y - y) < ytolerance
-                        ):
+                        if abs(datapoint.X - x) < xtolerance and abs(datapoint.Y - y) < ytolerance:
                             oktoadd = False  # New point is too close to old point. Don't add it.
         if oktoadd:  # Datapoint is OK to add.
             for dataset in self.graph_data_sets:
@@ -1140,8 +1125,10 @@ class PilomarImage(AttributeMaster):
                     dataset.Add(datapoint)
         return True
 
-    def add_dataset(self, name, color=None, style=["line"]):
+    def add_dataset(self, name, color=None, style=None):
         """Create new dataset."""
+        if style is None:
+            style = ["line"]
         foundit = False
         for dataset in self.graph_data_sets:
             if dataset.name == name:
@@ -1159,32 +1146,16 @@ class PilomarImage(AttributeMaster):
             self.graph_y_max_val
         ) = None
         if len(self.graph_data_sets) > 0:  # There are datasets to handle.
-            for (
-                dataset
-            ) in (
-                self.graph_data_sets
-            ):  # Data point = [x,y,color,label,style] # DataSet = list of data_points, # DataSets = list of DataSets
+            for dataset in self.graph_data_sets:  # Data point = [x,y,color,label,style] # DataSet = list of data_points, # DataSets = list of DataSets
                 if len(dataset.data_points) > 0:  # There are datapoints to handle.
                     for point in dataset.data_points:  # Check each point.
-                        if (
-                            self.graph_x_min_val is None
-                            or self.graph_x_min_val > point.X
-                        ):
+                        if self.graph_x_min_val is None or self.graph_x_min_val > point.X:
                             self.graph_x_min_val = point.X
-                        if (
-                            self.graph_y_min_val is None
-                            or self.graph_y_min_val > point.Y
-                        ):
+                        if self.graph_y_min_val is None or self.graph_y_min_val > point.Y:
                             self.graph_y_min_val = point.Y
-                        if (
-                            self.graph_x_max_val is None
-                            or self.graph_x_max_val < point.X
-                        ):
+                        if self.graph_x_max_val is None or self.graph_x_max_val < point.X:
                             self.graph_x_max_val = point.X
-                        if (
-                            self.graph_y_max_val is None
-                            or self.graph_y_max_val < point.Y
-                        ):
+                        if self.graph_y_max_val is None or self.graph_y_max_val < point.Y:
                             self.graph_y_max_val = point.Y
         if self.graph_x_min_val is None:  # No values were found.
             self.graph_x_min_val = -1
@@ -1226,22 +1197,16 @@ class PilomarImage(AttributeMaster):
             for i, datapoint in enumerate(dataset.data_points):
                 x, y = self.map_to_graph(datapoint.X, datapoint.Y)
                 r = 5
-                color = self.safe_color(
-                    datapoint.Color, default=PilomarImage.BGRColor["Fuchsia"]
-                )
+                color = self.safe_color(datapoint.Color, default=PilomarImage.BGRColor["Fuchsia"])
                 if "line" in dataset.Style and i > 0:  # Line between points.
                     self.draw_line(
                         (prevx, prevy),
                         (x, y),
-                        color=self.safe_color(
-                            dataset.Color, default=PilomarImage.BGRColor["Cyan"]
-                        ),
+                        color=self.safe_color(dataset.Color, default=PilomarImage.BGRColor["Cyan"]),
                     )
                 if "dot" in datapoint.Style:  # Draw a small dot where the datapoint is.
                     self.fill_circle(x, y, r, color)  # Dot on the datapoint.
-                if (
-                    "point" in datapoint.Style
-                ):  # Draw a single pixel where the datapoint is.
+                if "point" in datapoint.Style:  # Draw a single pixel where the datapoint is.
                     self.set_pixel(x, y, color)  # Single pixel at the datapoint.
                 prevx = x
                 prevy = y
@@ -1321,18 +1286,12 @@ class PilomarImage(AttributeMaster):
         self.save_file(filename)
         if export:
             self.export_data(filename)  # Export the data.
-        self.invert_height = (
-            False  # Revert to counting height locations from the top down.
-        )
+        self.invert_height = False  # Revert to counting height locations from the top down.
         return True
 
     def draw_graph_id(self):
         """Write footing information onto the graph."""
-        line = (
-            " PilomarImage.PlotGraph "
-            + str(datetime.now()).split(".", maxsplit=1)[0]
-            + " UTC "
-        )
+        line = " PilomarImage.PlotGraph " + str(datetime.now()).split(".", maxsplit=1)[0] + " UTC "
         self.add_text(
             line,
             self.get_width() - 10,
@@ -1370,9 +1329,7 @@ class PilomarImage(AttributeMaster):
         self.pen_color = None  # Default color for drawing.
         self.pen_thickness = 1  # Default pen thickness for drawing.
         self.LineType = cv2.LINE_AA  # Default line_type for drawing.
-        self.resize_method = (
-            cv2.INTER_AREA
-        )  # Which sampling method is used for resizing? (3)
+        self.resize_method = cv2.INTER_AREA  # Which sampling method is used for resizing? (3)
         self.resize_methods = [
             cv2.INTER_NEAREST,  # nearest neighbor interpolation technique (0)
             cv2.INTER_LINEAR,  # bilinear interpolation (default) (1)
@@ -1429,9 +1386,7 @@ class PilomarImage(AttributeMaster):
         result = False
         # Collision avoidance is active.
         if self.avoid_text_collisions:
-            fromx, to_x = min(fromx, to_x), max(
-                fromx, to_x
-            )  # Make sure FROM is less than TO
+            fromx, to_x = min(fromx, to_x), max(fromx, to_x)  # Make sure FROM is less than TO
             fromy, toy = min(fromy, toy), max(fromy, toy)
             # Go through existing text items.
             for items in self.text_list:
@@ -1477,9 +1432,7 @@ class PilomarImage(AttributeMaster):
                     v_max = star[1]
             self.horizontal_spread = 100 * (h_max - h_min) / self.get_width()
             self.vertical_spread = 100 * (v_max - v_min) / self.get_height()
-            self.area_spread = 100 * (
-                (self.horizontal_spread / 100) * (self.vertical_spread / 100)
-            )
+            self.area_spread = 100 * ((self.horizontal_spread / 100) * (self.vertical_spread / 100))
             result = True
         else:  # There's no image, or no stars were identified.
             self.horizontal_spread = self.vertical_spread = self.area_spread = (
@@ -1491,18 +1444,14 @@ class PilomarImage(AttributeMaster):
     def next_interpolation(self):
         """Move on to the next available sampling method."""
         self.log(f"pilomarimage {self.name}.next_interpolation()", terminal=False)
-        i = (self.resize_methods.index(self.resize_method) + 1) % len(
-            self.resize_methods
-        )
+        i = (self.resize_methods.index(self.resize_method) + 1) % len(self.resize_methods)
         self.resize_method = self.resize_methods[i]
         self.action_list.append(["nextinterpolation", self.resize_method])
 
     def prev_interpolation(self):
         """Move back to the previous available sampling method."""
         self.log(f"pilomarimage {self.name}.prev_interpolation()", terminal=False)
-        i = (self.resize_methods.index(self.resize_method) - 1) % len(
-            self.resize_methods
-        )
+        i = (self.resize_methods.index(self.resize_method) - 1) % len(self.resize_methods)
         self.resize_method = self.resize_methods[i]
         self.action_list.append(["previnterpolation", self.resize_method])
 
@@ -1559,17 +1508,13 @@ class PilomarImage(AttributeMaster):
     def resolve_accumulator(self):
         self.log("pilomarimage", self.name, ".resolve_accumulator()", terminal=False)
         if isinstance(self.image_accumulator, type(None)):
-            print(
-                "PilomarImage.resolve_accumulator(): image_accumulator is not initialised."
-            )
+            print("PilomarImage.resolve_accumulator(): image_accumulator is not initialised.")
             return False
         # Create fresh image buffer.
         self.image_buffer = np.zeros_like(
             self.image_accumulator, np.uint8
         )  # Create array of same dimensions, but with regular image datatype.
-        self.image_buffer[self.image_count != 0] = (
-            self.image_accumulator / self.image_count
-        )
+        self.image_buffer[self.image_count != 0] = self.image_accumulator / self.image_count
         self.action_list.append(["resolve_accumulator"])
         self.modified_timestamp = now_utc()
         return True
@@ -1665,26 +1610,20 @@ class PilomarImage(AttributeMaster):
 
         """
         if piexif is None:  # Check piexif library is available.
-            print(
-                "PilomarImage.AddExifTags: piexif library is not available. Try installing it."
-            )
+            print("PilomarImage.AddExifTags: piexif library is not available. Try installing it.")
             return False
         if not isinstance(tagdicts, list):
-            tagdicts = [
-                tagdicts
-            ]  # If a single dictionary received turn it into a list.
+            tagdicts = [tagdicts]  # If a single dictionary received turn it into a list.
         safedicts = []  # Build new list of validated dictionaries.
         # Convert filenames into dictionaries.
-        for i, c in enumerate(tagdicts):
+        for _i, c in enumerate(tagdicts):
             # print("PilomarImage.AddExifTags: Considering",i,c)
             if c is None:
                 continue  # Ignore None values.
-            if (
-                type(c) != dict
-            ):  # It's not already a dictionary, so load and convert it.
+            if type(c) != dict:  # It's not already a dictionary, so load and convert it.
                 # print("PilomarImage.AddExifTags: Loading",c)
                 try:
-                    with open(c, "r", encoding="utf-8") as f:
+                    with open(c, encoding="utf-8") as f:
                         c = json.load(f)
                 except Exception as e:  # pylint: disable=broad-except
                     print(
@@ -1749,39 +1688,25 @@ class PilomarImage(AttributeMaster):
             ) in tagdict.items():
                 if key == "Copyright":
                     # 'owner') # Who owns the photograph?
-                    exif_dict["0th"][piexif.ImageIFD.Copyright] = self.exif_string(
-                        value
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.Copyright] = self.exif_string(value)
                 elif key == "DateTime":
                     # NowUTC())
-                    exif_dict["0th"][piexif.ImageIFD.DateTime] = self.exif_datetime(
-                        value
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.DateTime] = self.exif_datetime(value)
                 elif key == "DocumentName":
                     # "light_yyyymmddhhmmss_01")
-                    exif_dict["0th"][piexif.ImageIFD.DocumentName] = self.exif_string(
-                        value
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.DocumentName] = self.exif_string(value)
                 elif key == "ExposureTime":
                     # 0.5) # seconds. (Store as numerator/denominator, so 0.5 = (5,10)
-                    exif_dict["0th"][piexif.ImageIFD.ExposureTime] = self.exif_float(
-                        value
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.ExposureTime] = self.exif_float(value)
                 elif key == "HostComputer":
                     # 'pilomar')
-                    exif_dict["0th"][piexif.ImageIFD.HostComputer] = self.exif_string(
-                        value
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.HostComputer] = self.exif_string(value)
                 elif key == "ImageDescription":
                     # 'pilomar image')
-                    exif_dict["0th"][piexif.ImageIFD.ImageDescription] = (
-                        self.exif_string(value)
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.ImageDescription] = self.exif_string(value)
                 elif key == "ImageHistory":
                     # 'pilomar image')
-                    exif_dict["0th"][piexif.ImageIFD.ImageHistory] = self.exif_string(
-                        value
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.ImageHistory] = self.exif_string(value)
                 elif key == "ImageID":
                     # "light_yyyymmddhhmmss_01")
                     exif_dict["0th"][piexif.ImageIFD.ImageID] = self.exif_string(value)
@@ -1793,18 +1718,14 @@ class PilomarImage(AttributeMaster):
                     exif_dict["0th"][piexif.ImageIFD.Model] = self.exif_string(value)
                 elif key == "ProcessingSoftware":
                     # "pilomar")
-                    exif_dict["0th"][piexif.ImageIFD.ProcessingSoftware] = (
-                        self.exif_string(value)
-                    )
+                    exif_dict["0th"][piexif.ImageIFD.ProcessingSoftware] = self.exif_string(value)
 
                 elif key == "Software":
                     # "pilomar")
                     exif_dict["0th"][piexif.ImageIFD.Software] = self.exif_string(value)
                 elif key == "GPSDateStamp":
                     # NowUTC())
-                    exif_dict["GPS"][piexif.GPSIFD.GPSDateStamp] = self.exif_datetime(
-                        value
-                    )
+                    exif_dict["GPS"][piexif.GPSIFD.GPSDateStamp] = self.exif_datetime(value)
                 ##           'GPSLatitude': (self.exif_float(54),self.exif_float(0),self.exif_float(0)) # DMS
                 # GPS co-ordinates must be a tuple of 'exif float' values, but the values must be integers. piexif.dump() fails otherwise.
                 elif key == "GPSLatitude":
@@ -1816,9 +1737,7 @@ class PilomarImage(AttributeMaster):
                     )
                 elif key == "GPSLatitudeRef":
                     # 'N') # DMS
-                    exif_dict["GPS"][piexif.GPSIFD.GPSLatitudeRef] = self.exif_string(
-                        value
-                    )
+                    exif_dict["GPS"][piexif.GPSIFD.GPSLatitudeRef] = self.exif_string(value)
                 ##           'GPSLongitude': (self.exif_float(0),self.exif_float(30),self.exif_float(0)) # DMS
                 elif key == "GPSLongitude":
                     # DMS
@@ -1829,40 +1748,26 @@ class PilomarImage(AttributeMaster):
                     )
                 elif key == "GPSLongitudeRef":
                     # 'W') # DMS
-                    exif_dict["GPS"][piexif.GPSIFD.GPSLongitudeRef] = self.exif_string(
-                        value
-                    )
+                    exif_dict["GPS"][piexif.GPSIFD.GPSLongitudeRef] = self.exif_string(value)
                 elif key == "CameraOwnerName":
                     # 'owner') # Who owns the equipment?
-                    exif_dict["Exif"][piexif.ExifIFD.CameraOwnerName] = (
-                        self.exif_string(value)
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.CameraOwnerName] = self.exif_string(value)
                 elif key == "DateTimeOriginal":
                     # NowUTC())
-                    exif_dict["Exif"][piexif.ExifIFD.DateTimeOriginal] = (
-                        self.exif_datetime(value)
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.DateTimeOriginal] = self.exif_datetime(value)
 
                 elif key == "DateTimeDigitized":
                     # NowUTC())
-                    exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized] = (
-                        self.exif_datetime(value)
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized] = self.exif_datetime(value)
                 elif key == "ExposureMode":
                     # 1) # Exposure mode - manual.
-                    exif_dict["Exif"][piexif.ExifIFD.ExposureMode] = self.exif_int(
-                        value
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.ExposureMode] = self.exif_int(value)
                 elif key == "FocalLength":
                     # 50.0) # mm
-                    exif_dict["Exif"][piexif.ExifIFD.FocalLength] = self.exif_float(
-                        value
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.FocalLength] = self.exif_float(value)
                 elif key == "FocalLengthIn35mmFilm":
                     # 280.0) # mm
-                    exif_dict["Exif"][piexif.ExifIFD.FocalLengthIn35mmFilm] = (
-                        self.exif_float(value)
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.FocalLengthIn35mmFilm] = self.exif_float(value)
                 elif key == "Humidity":
                     # 80.0) # Percentage
                     exif_dict["Exif"][piexif.ExifIFD.Humidity] = self.exif_float(value)
@@ -1871,14 +1776,10 @@ class PilomarImage(AttributeMaster):
                     exif_dict["Exif"][piexif.ExifIFD.Pressure] = self.exif_float(value)
                 elif key == "ShutterSpeedValue":
                     # 0.5) # Exposure seconds.
-                    exif_dict["Exif"][piexif.ExifIFD.ShutterSpeedValue] = (
-                        self.exif_float(value)
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.ShutterSpeedValue] = self.exif_float(value)
                 elif key == "Temperature":
                     # -10.0) # C
-                    exif_dict["Exif"][piexif.ExifIFD.Temperature] = self.exif_float(
-                        value
-                    )
+                    exif_dict["Exif"][piexif.ExifIFD.Temperature] = self.exif_float(value)
         # Turn exif data back into binary.
         exif_bytes = piexif.dump(exif_dict)
         # Save image with new exif data tags. Still at 100% quality, but some artifacts will be created.
@@ -1955,9 +1856,7 @@ class PilomarImage(AttributeMaster):
                         exif_data = {}
             except Exception as e:  # pylint: disable=broad-except
                 print("PilomarImage.get_exif(", filename, ")failed:", e)
-                self.log(
-                    "PilomarImage.get_exif(", filename, ") failed:", e, terminal=False
-                )
+                self.log("PilomarImage.get_exif(", filename, ") failed:", e, terminal=False)
         else:
             self.log(
                 "PilomarImage.get_exif(",
@@ -1970,9 +1869,7 @@ class PilomarImage(AttributeMaster):
 
     def load_file(self, filename, loadexif=False):
         """Load image buffer from disc."""
-        self.log(
-            "pilomarimage", self.name, ".load_file(", filename, ")", terminal=False
-        )
+        self.log("pilomarimage", self.name, ".load_file(", filename, ")", terminal=False)
         self._initialize()
         self.image_buffer = cv2.imread(filename, cv2.IMREAD_COLOR)
         if self.image_exists():
@@ -2015,9 +1912,7 @@ class PilomarImage(AttributeMaster):
         exif_dict: Can be a dictionary of exif_tags to write. Created by piexif utility. (Fill force writing via 'pil' library.)
                    If you specify EXIF tags in this parameter the library will automatically switch to 'pil'.
         """
-        self.log(
-            "pilomarimage", self.name, ".save_file(", filename, ")", terminal=False
-        )
+        self.log("pilomarimage", self.name, ".save_file(", filename, ")", terminal=False)
         if exif_dict is not None:
             library = "pil"  # Must use Pillow to write files with exif tags.
         if self.image_exists():
@@ -2091,9 +1986,7 @@ class PilomarImage(AttributeMaster):
             print("PilomarImage.save_file(", filename, "): The file was not saved.")
         return result
 
-    def save_buffer(
-        self, image_buffer, filename, quality=None, library="opencv", exif_dict=None
-    ):
+    def save_buffer(self, image_buffer, filename, quality=None, library="opencv", exif_dict=None):
         """Save image buffer to disc.
         To specify the quality for jpeg files you can use a call like this...
             cv2.imwrite(filename,self.image_buffer,[int(cv2.IMWRITE_JPEG_QUALITY), 90]
@@ -2119,9 +2012,7 @@ class PilomarImage(AttributeMaster):
                     f"pilomarimage{self.name}.save_buffer({filename}) via PIL.",
                     terminal=False,
                 )
-                pil_buffer = self.opencv_to_pil(
-                    image_buffer
-                )  # Get buffer as a PIL object.
+                pil_buffer = self.opencv_to_pil(image_buffer)  # Get buffer as a PIL object.
                 if exif_dict is None:
                     exif_dict = {}  # No EXIF tags to write.
                 if quality is None:
@@ -2157,9 +2048,7 @@ class PilomarImage(AttributeMaster):
             print(
                 f"PilomarImage.save_buffer({filename}): Image dimensions exceed bmp limits.({height}, {width})"
             )
-        elif (
-            ift in ["jpg", "jpeg"] and maxdim > 65535
-        ):  # jpeg dimensions can't exceed this size.
+        elif ift in ["jpg", "jpeg"] and maxdim > 65535:  # jpeg dimensions can't exceed this size.
             print(
                 f"PilomarImage.save_buffer({filename}): Image dimensions exceed jpeg limits.({height}, {width})"
             )
@@ -2167,9 +2056,7 @@ class PilomarImage(AttributeMaster):
         result = False  # Failed unless a file exists which contains something.
         if os.path.exists(filename):
             if os.path.getsize(filename) == 0:
-                print(
-                    f"PilomarImage.save_buffer({filename}): The file exists but it is empty."
-                )
+                print(f"PilomarImage.save_buffer({filename}): The file exists but it is empty.")
             else:
                 result = True
         else:
@@ -2198,9 +2085,7 @@ class PilomarImage(AttributeMaster):
         self.modified_timestamp = now_utc()
         return True
 
-    def scale_image(
-        self, scale=None, vscale=None, hscale=None, width=None, height=None
-    ):
+    def scale_image(self, scale=None, vscale=None, hscale=None, width=None, height=None):
         """Scale the current image buffer by 'scale' ratio.
         scale is applied in both dimensions.
         vscale is applied to vertical only.
@@ -2236,9 +2121,7 @@ class PilomarImage(AttributeMaster):
         self.modified_timestamp = now_utc()
         return True
 
-    def normalize_buffer(
-        self, image_buffer, min_out, max_out, min_in=None, max_in=None
-    ):
+    def normalize_buffer(self, image_buffer, min_out, max_out, min_in=None, max_in=None):
         """Normalize values of an array to between min_out and max_out.
         Parameters ------------------------------------
         image_buffer : The array to normalise.
@@ -2251,13 +2134,9 @@ class PilomarImage(AttributeMaster):
         c_min = np.min(image_buffer)
         c_max = np.max(image_buffer)
         if min_in is not None:
-            c_min = min(
-                c_min, min_in
-            )  # Force a minimum input value even if it's not in the array.
+            c_min = min(c_min, min_in)  # Force a minimum input value even if it's not in the array.
         if max_in is not None:
-            c_max = max(
-                c_max, max_in
-            )  # Firce a maximum input value even if it's not in the array.
+            c_max = max(c_max, max_in)  # Firce a maximum input value even if it's not in the array.
         c_span = c_max - c_min
         self.log(
             f"PilomarImage.NormalizeArray(): Output limits: min: {min_out} max: {max_out} span: {(max_out - min_out)}",
@@ -2287,9 +2166,7 @@ class PilomarImage(AttributeMaster):
             )  # Couldn't normalize, so clip instead.
         return result_buffer
 
-    def draw_contours(
-        self, contourcolor=(255, 255, 255), thickness=1, lower_t=30, upper_t=200
-    ):
+    def draw_contours(self, contourcolor=(255, 255, 255), thickness=1, lower_t=30, upper_t=200):
         """WIP: Create new image buffer with contours added."""
         image_buffer = self.image_buffer.copy()  # Get copy of the current image.
         normal_buffer = self.normalize_buffer(
@@ -2325,9 +2202,7 @@ class PilomarImage(AttributeMaster):
             normal_buffer, "grayscale"
         )  # Get grayscale copy of the current image.
         edges = cv2.Canny(gray, lower_t, upper_t)  # Find Canny edges
-        contour_list, _ = cv2.findContours(
-            edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
-        )
+        contour_list, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         image_buffer = cv2.drawContours(
             image_buffer, contour_list, -1, contourcolor, thickness
         )  # -1 = 'draw all the detected contours'
@@ -2431,9 +2306,7 @@ class PilomarImage(AttributeMaster):
     def clone_image(self, donor):
         """Make this a copy of some other buffer.
         donor is a reference to another pilomarimage instance."""
-        self.log(
-            "pilomarimage", self.name, ".clone_image(", donor.name, ")", terminal=False
-        )
+        self.log("pilomarimage", self.name, ".clone_image(", donor.name, ")", terminal=False)
         if isinstance(donor.image_buffer, type(None)):
             self.image_buffer = None
         else:
@@ -2467,9 +2340,7 @@ class PilomarImage(AttributeMaster):
         low return values = More blurred.
         high return values = More crisp."""
         self.log("pilomarimage", self.name, ".sharpness()", terminal=False)
-        canny = cv2.Canny(
-            self.new_buffer_type("grayscale"), 50, 250
-        )  # Use canny edge detection.
+        canny = cv2.Canny(self.new_buffer_type("grayscale"), 50, 250)  # Use canny edge detection.
         sharpness = np.mean(canny)
         return sharpness
 
@@ -2490,18 +2361,12 @@ class PilomarImage(AttributeMaster):
         *Q* UNDER DEVELOPMENT!
         Several ways to perform a merge. This is testing a couple of them.
         Likely to change in the future."""
-        self.log(
-            "pilomarimage", self.name, ".merge_layer(", donor.name, ")", terminal=False
-        )
+        self.log("pilomarimage", self.name, ".merge_layer(", donor.name, ")", terminal=False)
         gt = self.get_type()
         if gt == "grayscale":  # Grayscale images inherit the average of the two arrays.
-            self.image_buffer = ((self.image_buffer + donor.image_buffer) / 2).astype(
-                np.uint8
-            )
+            self.image_buffer = ((self.image_buffer + donor.image_buffer) / 2).astype(np.uint8)
         elif gt == "bgr":  # BGR images inherit average of the two arrays.
-            self.image_buffer = ((self.image_buffer + donor.image_buffer) / 2).astype(
-                np.uint8
-            )
+            self.image_buffer = ((self.image_buffer + donor.image_buffer) / 2).astype(np.uint8)
         else:  # BGRA can use the 'A' channel to decide how much to inherit.
             # Scale everything 0.0 - 1.0
             b1 = self.image_buffer.copy().astype(np.float16) / 255
@@ -2747,9 +2612,7 @@ class PilomarImage(AttributeMaster):
         self.log("pilomarimage", self.name, ".line_detection()", terminal=False)
         # Code based upon https://www.meteornews.net/2020/05/05/d64-nl-meteor-detecting-project/
         # Make a gray-scale copy and save the result in the variable 'gray'
-        markup_copy = (
-            self.image_buffer.copy()
-        )  # Make a copy of the buffer for marking up later.
+        markup_copy = self.image_buffer.copy()  # Make a copy of the buffer for marking up later.
         if len(markup_copy.shape) < 3:
             markup_color = 255  # 'grayscale'
         elif self.image_buffer.shape[2] == 3:
@@ -2762,17 +2625,13 @@ class PilomarImage(AttributeMaster):
         # Apply the Canny edge algorithm
         canny = cv2.Canny(blur, 100, 200, 3)
         # The Hough line detection algorithm.
-        lines = cv2.HoughLinesP(
-            canny, 1, np.pi / 180, 25, minLineLength=50, maxLineGap=5
-        )
+        lines = cv2.HoughLinesP(canny, 1, np.pi / 180, 25, minLineLength=50, maxLineGap=5)
         linereturn = []  # The list of selected lines that will be returned.
         longest = 0  # Length of longest line.
         if type(lines) != type(None):  # We have something to process.
             for i, line in enumerate(lines):  # Check each detected line in turn.
                 x1, y1, x2, y2 = line[0]  # Coordinates of each end of the line.
-                length = math.sqrt(
-                    (x2 - x1) ** 2 + (y2 - y1) ** 2
-                )  # Length of the line.
+                length = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)  # Length of the line.
                 if length < 10:
                     continue  # Too short.
                 self.log(
@@ -2817,9 +2676,7 @@ class PilomarImage(AttributeMaster):
         # Apply the Canny edge algorithm
         canny = cv2.Canny(blur, 100, 200, 3)
         # The Hough line detection algorithm.
-        lines = cv2.HoughLinesP(
-            canny, 1, np.pi / 180, 25, minLineLength=50, maxLineGap=5
-        )
+        lines = cv2.HoughLinesP(canny, 1, np.pi / 180, 25, minLineLength=50, maxLineGap=5)
         linereturn = []  # The list of selected lines that will be returned.
         longest = 0  # Length of longest line.
         if type(lines) != type(None):  # We have something to process.
@@ -3087,9 +2944,7 @@ class PilomarImage(AttributeMaster):
         self.image_mask = np.ones_like(self.image_buffer, np.uint8)
         self.created_timestamp = now_utc()
         self.modified_timestamp = now_utc()
-        self.exif_data = (
-            {}
-        )  # Empty dictionary of any associated EXIF tags loaded from an image.
+        self.exif_data = {}  # Empty dictionary of any associated EXIF tags loaded from an image.
         self.action_list = [["new", (height, width), imagetype, datatype]]
         return True
 
@@ -3130,8 +2985,7 @@ class PilomarImage(AttributeMaster):
         object_positions = np.array(positions, dtype=np.float)
 
         # Iteratively apply forces to the object list until the locations stabilise.
-        for m in range(iterations):  # Set limit to processing.
-
+        for _m in range(iterations):  # Set limit to processing.
             # Note the positions at the start of the iteration.
             previous_positions = object_positions.copy()
 
@@ -3174,12 +3028,8 @@ class PilomarImage(AttributeMaster):
                             forces[j] -= force  # Apply force if object can move.
 
             # Apply a spring force between any attracted objects.
-            for i, attraction in enumerate(
-                attractions
-            ):  # Go through the list of attractions.
-                index_a = attraction[
-                    0
-                ]  # Find the two objects being attracted to each other.
+            for i, attraction in enumerate(attractions):  # Go through the list of attractions.
+                index_a = attraction[0]  # Find the two objects being attracted to each other.
                 index_b = attraction[1]
                 object_a = objects[index_a]  # Get the object attributes.
                 object_b = objects[index_b]
@@ -3214,18 +3064,14 @@ class PilomarImage(AttributeMaster):
                 previous_positions
             ):  # Check how far each object has moved in this iteration.
                 newpos = object_positions[i]
-                move = (
-                    ((newpos[0] - origpos[0]) ** 2) + ((newpos[1] - origpos[1]) ** 2)
-                ) ** 0.5
+                move = (((newpos[0] - origpos[0]) ** 2) + ((newpos[1] - origpos[1]) ** 2)) ** 0.5
                 delta = max(move, delta)  # Keep the largest move detected so far.
             if delta < delta_min:
                 break  # Stable solution found, nothing is moving enough.
 
         return object_positions.tolist()  # Return updated position list.
 
-    def separate_objects(
-        self, positions, objects, k=0.1, dt=0.1, iterations=100, delta_min=4.0
-    ):
+    def separate_objects(self, positions, objects, k=0.1, dt=0.1, iterations=100, delta_min=4.0):
         """
         Arrange Objects on an image without overlapping using physics calculations.
         !! This is NOT a full force-directed model. It just reduces overlaps.
@@ -3255,8 +3101,7 @@ class PilomarImage(AttributeMaster):
         # squareform() converts the compressed matrix into a 'redundant' matrix,
         # but it's easier to find the distances between specific objects in this format.
         # distances = squareform(pdist(object_positions)) # Calculated in ChatGPT but not used.
-        for m in range(iterations):  # Set limit to processing.
-
+        for _m in range(iterations):  # Set limit to processing.
             # Note the positions at the start of the iteration.
             previous_positions = object_positions.copy()
 
@@ -3323,9 +3168,7 @@ class PilomarImage(AttributeMaster):
                 previous_positions
             ):  # Check how far each object has moved in this iteration.
                 newpos = object_positions[i]
-                move = (
-                    ((newpos[0] - origpos[0]) ** 2) + ((newpos[1] - origpos[1]) ** 2)
-                ) ** 0.5
+                move = (((newpos[0] - origpos[0]) ** 2) + ((newpos[1] - origpos[1]) ** 2)) ** 0.5
                 delta = max(move, delta)  # Keep the largest move detected so far.
             # print ("separate_objects_full: m",m,"delta",delta)
             if delta < delta_min:
@@ -3346,9 +3189,7 @@ class PilomarImage(AttributeMaster):
 
         # Rotate the image using cv2.warpAffine()
         M = cv2.getRotationMatrix2D(location, angle, 1)
-        imagebuffer = cv2.warpAffine(
-            imagebuffer, M, (imagebuffer.shape[1], imagebuffer.shape[0])
-        )
+        imagebuffer = cv2.warpAffine(imagebuffer, M, (imagebuffer.shape[1], imagebuffer.shape[0]))
         return imagebuffer
 
     def overlay_buffer(imagebuffer, overlaybuffer, x, y):
@@ -3375,9 +3216,7 @@ class PilomarImage(AttributeMaster):
         if y + h > imagebuffer_height:  # Clip overlay if it doesn't all fit.
             h = imagebuffer_height - y
             overlaybuffer = overlaybuffer[:h, :, :]
-        if (
-            overlaybuffer.shape[2] < 4
-        ):  # No transparency so just combine the two images directly.
+        if overlaybuffer.shape[2] < 4:  # No transparency so just combine the two images directly.
             overlaybuffer = np.concatenate(
                 [
                     overlaybuffer,
@@ -3389,9 +3228,7 @@ class PilomarImage(AttributeMaster):
                 ],
                 axis=2,
             )
-        overlaybuffer_image = overlaybuffer[
-            ..., :3
-        ]  # Get the bgr channels of the overlay.
+        overlaybuffer_image = overlaybuffer[..., :3]  # Get the bgr channels of the overlay.
         mask = (
             overlaybuffer[..., 3:] / 255.0
         )  # Create a mask per pixel of the overlay based upon transparency of each pixel.
@@ -3403,9 +3240,7 @@ class PilomarImage(AttributeMaster):
 
     def rotate_image(self, angle):
         """Accepts 0,90,180,270"""
-        self.log(
-            "pilomarimage", self.name, ".rotate_image(", angle, ")", terminal=False
-        )
+        self.log("pilomarimage", self.name, ".rotate_image(", angle, ")", terminal=False)
         angle = angle % 360  # Always in range 0-360 degrees.
         if angle >= 45 and angle < 135:
             rotate_code = cv2.ROTATE_90_CLOCKWISE
@@ -3518,9 +3353,7 @@ class PilomarImage(AttributeMaster):
     def BVdX(self, fromi, toi):
         # Span of BV values from LOWER to UPPER sample limits.
         try:
-            result = (
-                PilomarImage.COLORPOINTS[toi][0] - PilomarImage.COLORPOINTS[fromi][0]
-            )
+            result = PilomarImage.COLORPOINTS[toi][0] - PilomarImage.COLORPOINTS[fromi][0]
         except Exception as e:  # pylint: disable=broad-except
             self.log(
                 f"PilomarImage.{self.name}.BVdX: fromi {fromi} toi {toi} failed: {e}",
@@ -3532,10 +3365,7 @@ class PilomarImage(AttributeMaster):
     def BVdR(self, fromi, toi):
         # Span of BLUE channel values from LOWER to UPPER sample limits.
         try:
-            result = (
-                PilomarImage.COLORPOINTS[toi][1][0]
-                - PilomarImage.COLORPOINTS[fromi][1][0]
-            )
+            result = PilomarImage.COLORPOINTS[toi][1][0] - PilomarImage.COLORPOINTS[fromi][1][0]
         except Exception as e:
             self.log(
                 "pilomarimage",
@@ -3553,10 +3383,7 @@ class PilomarImage(AttributeMaster):
     def BVdG(self, fromi, toi):
         # Span of GREEN channel values from LOWER to UPPER sample limits.
         try:
-            result = (
-                PilomarImage.COLORPOINTS[toi][1][1]
-                - PilomarImage.COLORPOINTS[fromi][1][1]
-            )
+            result = PilomarImage.COLORPOINTS[toi][1][1] - PilomarImage.COLORPOINTS[fromi][1][1]
         except Exception as e:  # pylint: disable=broad-except
             self.log(
                 f"PilomarImage.{self.name}.BVdG: fromi {fromi} toi {toi} failed: {e}",
@@ -3568,10 +3395,7 @@ class PilomarImage(AttributeMaster):
     def BVdB(self, fromi, toi):
         # Span of BLUE channel values from LOWER to UPPER sample limits.
         try:
-            result = (
-                PilomarImage.COLORPOINTS[toi][1][2]
-                - PilomarImage.COLORPOINTS[fromi][1][2]
-            )
+            result = PilomarImage.COLORPOINTS[toi][1][2] - PilomarImage.COLORPOINTS[fromi][1][2]
         except Exception as e:  # pylint: disable=broad-except
             self.log(
                 f"PilomarImage.{self.name}.BVdB: fromi {fromi} toi {toi} failed: {e}",
@@ -3583,13 +3407,10 @@ class PilomarImage(AttributeMaster):
     def BVInterpolate(self, BV, fromi, toi):
         try:
             # Position of our point between the two reference points. This is the scale applied to R,G,B channels.
-            BVProportion = (BV - PilomarImage.COLORPOINTS[fromi][0]) / self.BVdX(
-                fromi, toi
-            )
+            BVProportion = (BV - PilomarImage.COLORPOINTS[fromi][0]) / self.BVdX(fromi, toi)
             # Scale RED channel relative to the BV position.
             r = round(
-                (BVProportion * self.BVdR(fromi, toi))
-                + PilomarImage.COLORPOINTS[fromi][1][0],
+                (BVProportion * self.BVdR(fromi, toi)) + PilomarImage.COLORPOINTS[fromi][1][0],
                 0,
             )
             # Colour channel values must be 0-255
@@ -3597,16 +3418,14 @@ class PilomarImage(AttributeMaster):
             r = min(255, r)
             # Scale GREEN channel relative to the BV position.
             g = round(
-                (BVProportion * self.BVdG(fromi, toi))
-                + PilomarImage.COLORPOINTS[fromi][1][1],
+                (BVProportion * self.BVdG(fromi, toi)) + PilomarImage.COLORPOINTS[fromi][1][1],
                 0,
             )
             g = max(0, g)
             g = min(255, g)
             # Scale BLUE channel relative to the BV position.
             b = round(
-                (BVProportion * self.BVdB(fromi, toi))
-                + PilomarImage.COLORPOINTS[fromi][1][2],
+                (BVProportion * self.BVdB(fromi, toi)) + PilomarImage.COLORPOINTS[fromi][1][2],
                 0,
             )
             b = max(0, b)
@@ -3753,9 +3572,7 @@ class PilomarImage(AttributeMaster):
             blurradius += 1  # Must be odd.
         # 2nd enlarge the stars using a blur filter.
         # - This increases the radius of each star, so when we reduce the image size, the star survives the shrinking.
-        self.image_buffer = cv2.GaussianBlur(
-            self.image_buffer, (blurradius, blurradius), 0
-        )
+        self.image_buffer = cv2.GaussianBlur(self.image_buffer, (blurradius, blurradius), 0)
         # 3rd sharpen these larger star dots back into more definite black-or-white.
         # - Use adaptive thresholding now to make the stars more crisp.
         # - Adaptive means that the threshold limit between BLACK and WHITE is chosen by the function.
@@ -4023,7 +3840,9 @@ class PilomarImage(AttributeMaster):
             if not result:
                 break  # Failure.
             # Save image after each step.
-            intermediate_name = f"{outputdir}/step_thru_filter_script_{str(filtercount).rjust(3, '0')}.jpg"
+            intermediate_name = (
+                f"{outputdir}/step_thru_filter_script_{str(filtercount).rjust(3, '0')}.jpg"
+            )
             self.save_file(intermediate_name)
             if hasattr(window, "print"):
                 window.print(f"Saving intermediate {intermediate_name.split('/')[-1]}")
@@ -4061,9 +3880,7 @@ class PilomarImage(AttributeMaster):
             print("RunFilterScript(): No valid script name.")
             return False
         if scriptname not in PilomarImage.FILTERSCRIPTS:  # Script doesn't exist.
-            self.log(
-                f"RunFilterScript({scriptname}): Script does not exist.", terminal=False
-            )
+            self.log(f"RunFilterScript({scriptname}): Script does not exist.", terminal=False)
             print(f"RunFilterScript({scriptname}): Script does not exist.")
             return False
         filterscript = PilomarImage.FILTERSCRIPTS[scriptname]
@@ -4221,40 +4038,33 @@ class PilomarImage(AttributeMaster):
         ratio = min(max(ratio, 0.0), 1.0)  # Keep within permitted limits.
         if len(color1) == 4:  # Adjust BGRA
             b = min(
-                self.dim_channel(color1[0], ratio)
-                + self.dim_channel(color2[0], (1 - ratio)),
+                self.dim_channel(color1[0], ratio) + self.dim_channel(color2[0], (1 - ratio)),
                 255,
             )
             g = min(
-                self.dim_channel(color1[1], ratio)
-                + self.dim_channel(color2[1], (1 - ratio)),
+                self.dim_channel(color1[1], ratio) + self.dim_channel(color2[1], (1 - ratio)),
                 255,
             )
             r = min(
-                self.dim_channel(color1[2], ratio)
-                + self.dim_channel(color2[2], (1 - ratio)),
+                self.dim_channel(color1[2], ratio) + self.dim_channel(color2[2], (1 - ratio)),
                 255,
             )
             a = min(
-                self.dim_channel(color1[3], ratio)
-                + self.dim_channel(color2[3], (1 - ratio)),
+                self.dim_channel(color1[3], ratio) + self.dim_channel(color2[3], (1 - ratio)),
                 255,
             )
             return (b, g, r, a)
         elif len(color1) == 3:  # Adjust BGR
             b = min(
-                self.dim_channel(color1[0], ratio)
-                + self.dim_channel(color2[0], (1 - ratio)),
+                self.dim_channel(color1[0], ratio) + self.dim_channel(color2[0], (1 - ratio)),
                 255,
             )
             g = min(
-                self.dim_channel(color1[1], ratio)
-                + self.dim_channel(color2[1], (1 - ratio)),
+                self.dim_channel(color1[1], ratio) + self.dim_channel(color2[1], (1 - ratio)),
                 255,
             )
             r = min(
-                self.dim_channel(color1[2], ratio)
-                + self.dim_channel(color2[2], (1 - ratio)),
+                self.dim_channel(color1[2], ratio) + self.dim_channel(color2[2], (1 - ratio)),
                 255,
             )
             return (b, g, r)
@@ -4306,9 +4116,7 @@ class PilomarImage(AttributeMaster):
             thickness=-1,
         )
         # Scale back up to full image size.
-        fieldimg = cv2.resize(
-            fieldimg, (width, height), interpolation=self.resize_method
-        )
+        fieldimg = cv2.resize(fieldimg, (width, height), interpolation=self.resize_method)
         # Combine
         fieldimg = np.add(self.image_buffer, fieldimg)
         # Clip to uint8 values.
@@ -4324,9 +4132,7 @@ class PilomarImage(AttributeMaster):
         if self.image_missing():
             print(f"pilomarimage {self.name} .fake_noise: No image in the buffer.")
         # 'bgr' buffer of random values.
-        fieldimg = np.random.randint(
-            0, 25, (self.get_height(), self.get_width(), 3), np.uint16
-        )
+        fieldimg = np.random.randint(0, 25, (self.get_height(), self.get_width(), 3), np.uint16)
         fieldimg = np.add(fieldimg, self.image_buffer)
         # Clip to uint8 values
         self.image_buffer = np.clip(fieldimg, 0, 255).astype(np.uint8)
@@ -4354,13 +4160,9 @@ class PilomarImage(AttributeMaster):
         # start xx% into the path.
         ystart = int(self.interpolate(x1, y1, x2, y2, x1 + ((x2 - x1) * trimfactor)))
         # end xx% from end of the path.
-        xend = int(
-            self.interpolate(y1, x1, y2, x2, y1 + ((y2 - y1) * (1 - trimfactor)))
-        )
+        xend = int(self.interpolate(y1, x1, y2, x2, y1 + ((y2 - y1) * (1 - trimfactor))))
         # end xx% from end of the path.
-        yend = int(
-            self.interpolate(x1, y1, x2, y2, x1 + ((x2 - x1) * (1 - trimfactor)))
-        )
+        yend = int(self.interpolate(x1, y1, x2, y2, x1 + ((x2 - x1) * (1 - trimfactor))))
         return xstart, ystart, xend, yend
 
     def fake_meteor(self):  # Generate fake meteor streak
@@ -4416,7 +4218,7 @@ class PilomarImage(AttributeMaster):
         grayscale_white = 255
         # GRAYSCALE image. HEIGHT, WIDTH inherited from reference image.
         self.new(self.get_dimensions(), "grayscale", np.uint8)
-        for star_x, star_y, star_r in starlist:
+        for star_x, star_y, _star_r in starlist:
             self.image_buffer = cv2.circle(
                 self.image_buffer,
                 (star_x, star_y),
@@ -4436,9 +4238,7 @@ class PilomarImage(AttributeMaster):
         Doesn't modify ImageBuffer
         """
         if self.image_missing():
-            print(
-                f"pilomarimage {self.name} .measure_contrast: No image in the buffer."
-            )
+            print(f"pilomarimage {self.name} .measure_contrast: No image in the buffer.")
         michelson_contrast = None
         stddev_contrast = None
         cvimagebuffer = self.new_buffer_type("grayscale")  # Needs grayscale buffer.
@@ -4508,9 +4308,7 @@ class PilomarImage(AttributeMaster):
 
     def set_pen_color(self, color):
         """Set current pen color."""
-        self.pen_color = self.safe_color(
-            color
-        )  # Make sure color depth matches image depth.
+        self.pen_color = self.safe_color(color)  # Make sure color depth matches image depth.
         self.action_list.append(["set_pen_color", color])
         return True
 
@@ -4578,9 +4376,7 @@ class PilomarImage(AttributeMaster):
             newcolor = tuple(newcol)
         return newcolor
 
-    def draw_line(
-        self, startcoord, endcoord, color=None, thickness=None, arrowpixels=None
-    ):
+    def draw_line(self, startcoord, endcoord, color=None, thickness=None, arrowpixels=None):
         """Use opencv linedrawing.
         startcoord = (x,y)
         endcoord = (x,y)
@@ -4617,9 +4413,7 @@ class PilomarImage(AttributeMaster):
                 line_type=cv2.LINE_AA,
                 tipLength=arrowproportion,
             )
-        self.action_list.append(
-            ["drawline", startcoord, endcoord, color, thickness, arrowpixels]
-        )
+        self.action_list.append(["drawline", startcoord, endcoord, color, thickness, arrowpixels])
         self.modified_timestamp = now_utc()
         return True
 
@@ -4665,8 +4459,7 @@ class PilomarImage(AttributeMaster):
             )
         else:
             distance = math.sqrt(
-                ((endcoord[0] - startcoord[0]) ** 2)
-                + ((endcoord[1] - startcoord[1]) ** 2)
+                ((endcoord[0] - startcoord[0]) ** 2) + ((endcoord[1] - startcoord[1]) ** 2)
             )
             # ArrowedLine specifies arrow size as proportion of line length.
             # We need constant 10pixel arrow heads.
@@ -4721,9 +4514,7 @@ class PilomarImage(AttributeMaster):
             thickness=thickness,
             lineType=cv2.LINE_AA,
         )
-        self.action_list.append(
-            ["drawcircle", center_x, center_y, rad, color, thickness]
-        )
+        self.action_list.append(["drawcircle", center_x, center_y, rad, color, thickness])
         self.modified_timestamp = now_utc()
         return True
 
@@ -4761,9 +4552,7 @@ class PilomarImage(AttributeMaster):
             thickness=thickness,
             lineType=cv2.LINE_AA,
         )
-        self.action_list.append(
-            ["drawedgecircle", center_x, center_y, rad, color, thickness]
-        )
+        self.action_list.append(["drawedgecircle", center_x, center_y, rad, color, thickness])
         self.modified_timestamp = now_utc()
         return True
 
@@ -4877,9 +4666,7 @@ class PilomarImage(AttributeMaster):
                     lineType=cv2.LINE_AA,
                 )
                 prevcolor = gradedcolor
-        self.action_list.append(
-            ["fadecircle", center_x, center_y, rad, color, fadecolor]
-        )
+        self.action_list.append(["fadecircle", center_x, center_y, rad, color, fadecolor])
         self.modified_timestamp = now_utc()
         return True
 
@@ -4888,9 +4675,7 @@ class PilomarImage(AttributeMaster):
         xdim = overall pixel width.
         ydim = overall pixel height including tails of letters.
         baseline = y pixel offset to account for tails of letters."""
-        (label_width, label_height), baseline = cv2.getTextSize(
-            text, self.font, size, thickness
-        )
+        (label_width, label_height), baseline = cv2.getTextSize(text, self.font, size, thickness)
         xdim = label_width
         ydim = label_height + baseline
         return xdim, ydim, baseline
@@ -5001,9 +4786,7 @@ class PilomarImage(AttributeMaster):
         # Add border.
         # Draw a border around the text.
         if border is not None:
-            self.draw_rectangle(
-                (minx, miny), (maxx, maxy), color=color, thickness=thickness
-            )
+            self.draw_rectangle((minx, miny), (maxx, maxy), color=color, thickness=thickness)
         # Now add text.
         # 1st line. # Take over painting of border and background to make it a block instead.
         for i, line in enumerate(textlines):
@@ -5126,9 +4909,7 @@ class PilomarImage(AttributeMaster):
         else:
             b = 0
         # This would collide with existing text, so don't add it.
-        if self.text_collision(
-            x - b, y + ybase + b, x + xdim + b, y - ydim + ybase - b
-        ):
+        if self.text_collision(x - b, y + ybase + b, x + xdim + b, y - ydim + ybase - b):
             ok_22_draw = False  # It's not safe to draw.
         else:
             ok_22_draw = True  # It's safe to draw.
@@ -5527,9 +5308,7 @@ class PilomarImage(AttributeMaster):
         # If printing multiple lines of text,
         # this is the start point for the previous line if your printing upwards.
         self.prev_text_y = fromy - ydim
-        self.action_list.append(
-            ["addedgetext", text, fromx, fromy, color, size, thickness]
-        )
+        self.action_list.append(["addedgetext", text, fromx, fromy, color, size, thickness])
         self.modified_timestamp = now_utc()
         return True
 
@@ -5541,9 +5320,7 @@ class PilomarImage(AttributeMaster):
         thickness = self.safe_thickness(thickness)
         color = self.safe_color(color)
         # *Q* OrientCoord() to do.
-        cv2.drawPoly(
-            self.image_buffer, np.array([pointlist]), color=color, thickness=thickness
-        )
+        cv2.drawPoly(self.image_buffer, np.array([pointlist]), color=color, thickness=thickness)
         self.action_list.append(["drawpolygon", pointlist, color, thickness])
         self.modified_timestamp = now_utc()
         return True
@@ -5554,9 +5331,7 @@ class PilomarImage(AttributeMaster):
         """Draw polygon.
         pointlist is a list of (x,y) tuples."""
         if self.image_missing():
-            print(
-                f"pilomarimage {self.name} .draw_edge_polygon: No image in the buffer."
-            )
+            print(f"pilomarimage {self.name} .draw_edge_polygon: No image in the buffer.")
         thickness = self.safe_thickness(thickness)
         if edgethickness is None:
             edgethickness = 1  # center thickness + 1 pixel either side.
@@ -5569,9 +5344,7 @@ class PilomarImage(AttributeMaster):
             color=edgecolor,
             thickness=int(thickness + (2 * edgethickness)),
         )
-        cv2.drawPoly(
-            self.image_buffer, np.array([pointlist]), color=color, thickness=thickness
-        )
+        cv2.drawPoly(self.image_buffer, np.array([pointlist]), color=color, thickness=thickness)
         self.action_list.append(
             ["drawedgepolygon", pointlist, color, edgecolor, thickness, edgethickness]
         )
@@ -5598,12 +5371,8 @@ class PilomarImage(AttributeMaster):
         color = self.safe_color(color)
         startcoord = self.orient_coord(startcoord)  # Get height right way up.
         endcoord = self.orient_coord(endcoord)  # Get height right way up.
-        self.image_buffer = cv2.rectangle(
-            self.image_buffer, startcoord, endcoord, color, thickness
-        )
-        self.action_list.append(
-            ["drawrectangle", startcoord, endcoord, color, thickness]
-        )
+        self.image_buffer = cv2.rectangle(self.image_buffer, startcoord, endcoord, color, thickness)
+        self.action_list.append(["drawrectangle", startcoord, endcoord, color, thickness])
         self.modified_timestamp = now_utc()
         return True
 
@@ -5655,9 +5424,7 @@ class PilomarImage(AttributeMaster):
                     self.image_buffer, startcoord, endcoord, gradedcolor, thickness=-1
                 )
                 prevcolor = gradedcolor
-        self.action_list.append(
-            ["faderectangle", startcoord, endcoord, color, fadecolor]
-        )
+        self.action_list.append(["faderectangle", startcoord, endcoord, color, fadecolor])
         self.modified_timestamp = now_utc()
         return True
 
@@ -5739,9 +5506,7 @@ class PilomarImage(AttributeMaster):
         end_angle = 0-360
         Respects 'invert_height' attribute."""
         if self.image_missing():
-            print(
-                f"pilomarimage {self.name} .draw_edge_ellipse: No image in the buffer."
-            )
+            print(f"pilomarimage {self.name} .draw_edge_ellipse: No image in the buffer.")
         thickness = self.safe_thickness(thickness)
         color = self.safe_color(color)
         edgethickness = self.safe_thickness(edgethickness)
@@ -6069,9 +5834,7 @@ class PilomarImage(AttributeMaster):
             self.draw_circle(center_x=x, center_y=y, rad=2, color=color, thickness=-1)
         # Draw ring around the centre of the crosshairs.
         if style & PilomarImage.CROSSHAIR_RING:
-            self.draw_circle(
-                center_x=x, center_y=y, rad=radius, color=color, thickness=thickness
-            )
+            self.draw_circle(center_x=x, center_y=y, rad=radius, color=color, thickness=thickness)
         # Draw vertical and horizontal lines of the crosshairs.
         if style & PilomarImage.CROSSHAIR_SPOKES:
             # Process each spoke in turn.
@@ -6137,9 +5900,7 @@ class PilomarImage(AttributeMaster):
 
         You can add crosshair styles to combine them."""
         if self.image_missing():
-            print(
-                f"pilomarimage {self.name}.draw_edge_crosshairs: No image in the buffer."
-            )
+            print(f"pilomarimage {self.name}.draw_edge_crosshairs: No image in the buffer.")
         # Draw edge first.
         self.draw_crosshairs(
             x,
@@ -6346,9 +6107,7 @@ class PilomarImage(AttributeMaster):
             print("ImageBuffer is empty")
         print(f"Type: {self.get_type()}")
         michelson_contrast, stddev_contrast = self.measure_contrast()
-        print(
-            f"Michelson contrast: {michelson_contrast}, STD DEV contrast: {stddev_contrast}"
-        )
+        print(f"Michelson contrast: {michelson_contrast}, STD DEV contrast: {stddev_contrast}")
         print(f"sharpness: {self.sharpness()}")
         print(f"Pen: Color: {self.pen_color}, Thickness: {self.pen_thickness}")
         print(f"ActionList: {self.action_list}")

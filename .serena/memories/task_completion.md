@@ -1,0 +1,6 @@
+- No formal pytest/ruff/black/mypy configuration was found in repo metadata during onboarding.
+- After code changes, at minimum run a targeted smoke check relevant to the changed module and `python -m compileall pilomar` from the repo root.
+- If entrypoint/startup behavior changed, run `python -m pilomar` and verify imports/environment checks reach the expected stage.
+- If dependency or packaging files changed, rerun `pip install -r requirements.txt` or `pip install -e .` as needed and optionally `python -m build`.
+- Avoid treating `build/` artifacts as source of truth; validate against files under `pilomar/`.
+- When refactoring, verify imports still point to the new package structure and preserve legacy/reference code in `src/` unless a task explicitly says otherwise.

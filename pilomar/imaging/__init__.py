@@ -20,19 +20,22 @@ Functions:
     analog_gain: Apply analog gain to image
 """
 
-from .data_types import DataSet, DataPoint, FdObject, FdEdge
+from .data_types import DataPoint, DataSet, FdEdge, FdObject
 from .image import PilomarImage
 from .keogram import PilomarKeogram
 
 # FITS support (requires astropy and picamera2)
-from .fits import (
-    FitsCapture,
-    date_to_jd,
-    normalize_array,
-    color_gain,
-    analog_gain,
-    rotate_image,
-)
+try:
+    from .fits import (
+        FitsCapture,
+        analog_gain,
+        color_gain,
+        date_to_jd,
+        normalize_array,
+        rotate_image,
+    )
+except ImportError:
+    pass
 
 __all__ = [
     "PilomarImage",

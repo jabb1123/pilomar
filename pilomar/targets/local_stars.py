@@ -7,7 +7,7 @@ updates when the target moves significantly.
 Copyright: GNU General Public License v3.0
 """
 
-from typing import Optional, List, Callable
+from collections.abc import Callable
 
 import pandas
 
@@ -122,9 +122,7 @@ class LocalStars(AttributeMaster):
             & (self.master_df["magnitude"] <= self.magnitude)
         ]
 
-        self.log(
-            f"LocalStars.update: Starting with {len(self._df)} stars", terminal=False
-        )
+        self.log(f"LocalStars.update: Starting with {len(self._df)} stars", terminal=False)
 
         # Handle RA wraparound at 0/360 boundary
         if self.min_ra_deg < 0:
@@ -176,21 +174,17 @@ class LocalStars(AttributeMaster):
         self._df = self._df[: self.maxstars]
 
         self.updated = self._now_func()
-        self.log(
-            f"LocalStars.update: Selected {len(self._df.index)} rows", terminal=False
-        )
+        self.log(f"LocalStars.update: Selected {len(self._df.index)} rows", terminal=False)
 
         # Set index to HIP number but keep column
         self.log("LocalStars.update: Setting index", terminal=False)
         self._df = self._df.set_index("hip", drop=False)
         self.column_names = list(self._df.columns)
-        self.log(
-            f"LocalStars.update: ColumnNames are {self.column_names}", terminal=False
-        )
+        self.log(f"LocalStars.update: ColumnNames are {self.column_names}", terminal=False)
 
         return True
 
-    def column_index(self, name: str) -> Optional[int]:
+    def column_index(self, name: str) -> int | None:
         """Get column index for a column name.
 
         This returns the column index used in Pandas .iloc[] references.
@@ -210,7 +204,7 @@ class LocalStars(AttributeMaster):
             return None
         return self.column_names.index(name)
 
-    def set_filter(self, filterlist: List[int]):
+    def set_filter(self, filterlist: list[int]):
         """Set the star filter list.
 
         Only stars with HIP numbers in this list will be retained.
@@ -242,10 +236,7 @@ class LocalStars(AttributeMaster):
         self.log(f"LocalStars.get({ra}, {dec}): Begin", terminal=False)
 
         # Check if target has moved enough to trigger refresh
-        if (
-            abs(self.ra - ra) > self._update_angle
-            or abs(self.dec - dec) > self._update_angle
-        ):
+        if abs(self.ra - ra) > self._update_angle or abs(self.dec - dec) > self._update_angle:
             self.log("LocalStars.get: Target moved, triggering refresh", terminal=False)
             self._df = None
 

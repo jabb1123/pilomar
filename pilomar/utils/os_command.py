@@ -12,9 +12,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-import subprocess
 import locale
-from typing import List
+import subprocess
 
 from pilomar.core.base import AttributeMaster
 
@@ -51,7 +50,7 @@ class OsCommand(AttributeMaster):
         self.return_code = 0
         self.last_output = []
 
-    def execute(self, cmd: str, output: str = "none") -> List[str]:
+    def execute(self, cmd: str, output: str = "none") -> list[str]:
         """Execute a command and record it to the log file.
 
         Command and result are always recorded in the log file.
@@ -74,9 +73,9 @@ class OsCommand(AttributeMaster):
         returncode = 0
 
         try:
-            result = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.DEVNULL
-            ).decode("utf-8")
+            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode(
+                "utf-8"
+            )
         except subprocess.CalledProcessError as e:
             self.last_error = e
             returncode = e.returncode
@@ -90,9 +89,7 @@ class OsCommand(AttributeMaster):
                     f"OsCommand.execute({cmd}) returned output {e.output}",
                     terminal=False,
                 )
-                self.log(
-                    f"OsCommand.execute({cmd}) returned cmd {e.cmd}", terminal=False
-                )
+                self.log(f"OsCommand.execute({cmd}) returned cmd {e.cmd}", terminal=False)
                 self.log(
                     f"OsCommand.execute({cmd}) returned stdout {e.stdout}",
                     terminal=False,
@@ -143,9 +140,9 @@ class OsCommand(AttributeMaster):
         returncode = 0
 
         try:
-            result = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.DEVNULL
-            ).decode("utf-8")
+            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode(
+                "utf-8"
+            )
         except subprocess.CalledProcessError as e:
             self.last_error = e
             if self.log is not None:

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Data loader module for the Pilomar application.
 
@@ -18,7 +17,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pandas
 from skyfield.api import load as sf_load
@@ -63,16 +62,16 @@ class CatalogPaths:
 class CatalogData:
     """Container for loaded catalog data."""
 
-    star_names: Dict[str, Dict] = field(default_factory=dict)
-    messier: Dict[str, Dict] = field(default_factory=dict)
-    meteors: Dict[str, Dict] = field(default_factory=dict)
-    hipparcos_df: Optional[pandas.DataFrame] = None
-    ngc_df: Optional[pandas.DataFrame] = None
-    comets_df: Optional[pandas.DataFrame] = None
-    constellation_links: List[List[str]] = field(default_factory=list)
-    constellation_names: Dict[str, str] = field(default_factory=dict)
-    constellation_stars: List[str] = field(default_factory=list)
-    planets: Optional[Any] = None  # Skyfield ephemeris
+    star_names: dict[str, dict] = field(default_factory=dict)
+    messier: dict[str, dict] = field(default_factory=dict)
+    meteors: dict[str, dict] = field(default_factory=dict)
+    hipparcos_df: pandas.DataFrame | None = None
+    ngc_df: pandas.DataFrame | None = None
+    comets_df: pandas.DataFrame | None = None
+    constellation_links: list[list[str]] = field(default_factory=list)
+    constellation_names: dict[str, str] = field(default_factory=dict)
+    constellation_stars: list[str] = field(default_factory=list)
+    planets: Any | None = None  # Skyfield ephemeris
 
 
 class CatalogLoader(AttributeMaster):
@@ -115,8 +114,8 @@ class CatalogLoader(AttributeMaster):
     def __init__(
         self,
         paths: CatalogPaths,
-        logger: Optional[Any] = None,
-        skyfield_loader: Optional[Any] = None,
+        logger: Any | None = None,
+        skyfield_loader: Any | None = None,
     ):
         """Initialize catalog loader.
 
@@ -132,7 +131,7 @@ class CatalogLoader(AttributeMaster):
         self.data = CatalogData()
 
     @staticmethod
-    def load_json(filename: str) -> Dict:
+    def load_json(filename: str) -> dict:
         """Load a JSON file as a Python dictionary.
 
         Args:
@@ -142,18 +141,18 @@ class CatalogLoader(AttributeMaster):
             Dictionary from JSON, or empty dict if file doesn't exist
         """
         if os.path.exists(filename):
-            with open(filename, "r", encoding="utf-8") as f:
+            with open(filename, encoding="utf-8") as f:
                 return json.load(f)
         return {}
 
-    def load_star_names(self) -> Dict[str, Dict]:
+    def load_star_names(self) -> dict[str, dict]:
         """Load star name dictionary (HIP number -> name, constellation)."""
         if not self.data.star_names:
             self.log("Loading star names from", self.paths.star_names, terminal=False)
             self.data.star_names = self.load_json(self.paths.star_names)
         return self.data.star_names
 
-    def load_messier(self) -> Dict[str, Dict]:
+    def load_messier(self) -> dict[str, dict]:
         """Load and process Messier object catalog.
 
         Returns:
@@ -170,7 +169,7 @@ class CatalogLoader(AttributeMaster):
             self.data.messier = messier
         return self.data.messier
 
-    def _process_messier_entry(self, entry: Dict) -> None:
+    def _process_messier_entry(self, entry: dict) -> None:
         """Add computed fields to a Messier catalog entry."""
         # Right Ascension
         ra_h = entry["ra"][0]
@@ -198,7 +197,7 @@ class CatalogLoader(AttributeMaster):
         entry["widthdeg"] = float(entry.get("width", 1)) / 60
         entry["heightdeg"] = float(entry.get("height", 1)) / 60
 
-    def load_meteors(self) -> Dict[str, Dict]:
+    def load_meteors(self) -> dict[str, dict]:
         """Load meteor shower catalog."""
         if not self.data.meteors:
             self.log("Loading meteor showers from", self.paths.meteors, terminal=True)
@@ -209,7 +208,7 @@ class CatalogLoader(AttributeMaster):
         self,
         reload: bool = False,
         performance_trim: bool = False,
-        magnitude_cutoff: Optional[float] = None,
+        magnitude_cutoff: float | None = None,
     ) -> pandas.DataFrame:
         """Load NGC catalog as a Pandas DataFrame.
 
@@ -229,23 +228,17 @@ class CatalogLoader(AttributeMaster):
                 self.data.ngc_df = pandas.read_pickle(self.paths.ngc_cache)
             else:
                 self.log("Generating NGC dataframe from", self.paths.ngc, terminal=True)
-                self.data.ngc_df = self._generate_ngc_dataframe(
-                    performance_trim=performance_trim
-                )
+                self.data.ngc_df = self._generate_ngc_dataframe(performance_trim=performance_trim)
 
             # Apply magnitude filter if specified
             if magnitude_cutoff is not None and self.data.ngc_df is not None:
-                self.data.ngc_df = self._trim_dim_ngc(
-                    self.data.ngc_df, magnitude_cutoff
-                )
+                self.data.ngc_df = self._trim_dim_ngc(self.data.ngc_df, magnitude_cutoff)
 
         if self.data.ngc_df is None:
             raise RuntimeError("NGC DataFrame could not be loaded.")
         return self.data.ngc_df
 
-    def _generate_ngc_dataframe(
-        self, performance_trim: bool = False
-    ) -> pandas.DataFrame:
+    def _generate_ngc_dataframe(self, performance_trim: bool = False) -> pandas.DataFrame:
         """Generate NGC DataFrame from JSON source.
 
         Args:
@@ -279,7 +272,7 @@ class CatalogLoader(AttributeMaster):
 
         return df
 
-    def _process_ngc_entry(self, name: str, entry: Dict) -> None:
+    def _process_ngc_entry(self, name: str, entry: dict) -> None:
         """Add computed fields to an NGC catalog entry."""
         # Right Ascension
         ra_h = entry.get("rah", 0)
@@ -334,7 +327,6 @@ class CatalogLoader(AttributeMaster):
             DataFrame of Hipparcos stars
         """
         if self.data.hipparcos_df is None or reload:
-
             self.log("Loading Hipparcos catalog from", hipparcos.URL, terminal=True)
 
             if self.skyfield_loader:
@@ -359,7 +351,6 @@ class CatalogLoader(AttributeMaster):
             DataFrame indexed by comet designation
         """
         if self.data.comets_df is None or reload:
-
             self.log("Loading comets from", mpc.COMET_URL, terminal=True)
 
             if self.skyfield_loader:
@@ -381,18 +372,15 @@ class CatalogLoader(AttributeMaster):
 
         return self.data.comets_df
 
-    def get_comet_list(self) -> List[str]:
+    def get_comet_list(self) -> list[str]:
         """Get list of comet designations."""
         if self.data.comets_df is None:
             self.load_comets()
-        if (
-            self.data.comets_df is not None
-            and "designation" in self.data.comets_df.columns
-        ):
+        if self.data.comets_df is not None and "designation" in self.data.comets_df.columns:
             return self.data.comets_df["designation"].tolist()
         return []
 
-    def get_ngc_namelist(self) -> List[str]:
+    def get_ngc_namelist(self) -> list[str]:
         """Get list of NGC object names."""
         if self.data.ngc_df is None:
             self.load_ngc()
@@ -400,7 +388,7 @@ class CatalogLoader(AttributeMaster):
             return self.data.ngc_df["name"].tolist()
         return []
 
-    def load_constellations(self) -> Tuple[List[List[str]], Dict[str, str], List[str]]:
+    def load_constellations(self) -> tuple[list[list[str]], dict[str, str], list[str]]:
         """Load constellation patterns from Stellarium.
 
         Returns:
@@ -410,7 +398,6 @@ class CatalogLoader(AttributeMaster):
             - star_list: List of HIP numbers in constellation patterns
         """
         if not self.data.constellation_links:
-
             stellarium_url = "https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern/constellationship.fab"
 
             # Load constellation names
@@ -478,11 +465,10 @@ class CatalogLoader(AttributeMaster):
             if self.skyfield_loader:
                 self.data.planets = self.skyfield_loader(ephemeris)
             else:
-
                 self.data.planets = sf_load(ephemeris)
         return self.data.planets
 
-    def check_comet_data_age(self) -> Optional[int]:
+    def check_comet_data_age(self) -> int | None:
         """Check how old the cached comet data is.
 
         Returns:
@@ -494,7 +480,7 @@ class CatalogLoader(AttributeMaster):
             return None
 
         try:
-            with open(filename, "r", encoding="utf-8") as f:
+            with open(filename, encoding="utf-8") as f:
                 line = f.readline()
                 # YYYYMMDD is at position 81:89 in MPC format
                 date_str = line[81:89]
@@ -526,7 +512,7 @@ class CatalogLoader(AttributeMaster):
         return sign * (abs(degrees) + minutes / 60 + seconds / 3600)
 
     @staticmethod
-    def angle_to_hms(degrees: float) -> Tuple[int, int, float]:
+    def angle_to_hms(degrees: float) -> tuple[int, int, float]:
         """Convert degrees to hours/minutes/seconds."""
         total_hours = degrees / 15
         hours = int(total_hours)
@@ -536,7 +522,7 @@ class CatalogLoader(AttributeMaster):
         return hours, minutes, seconds
 
     @staticmethod
-    def angle_to_dms(degrees: float) -> Tuple[int, int, float]:
+    def angle_to_dms(degrees: float) -> tuple[int, int, float]:
         """Convert decimal degrees to degrees/minutes/seconds."""
         sign = 1 if degrees >= 0 else -1
         degrees = abs(degrees)
@@ -548,7 +534,7 @@ class CatalogLoader(AttributeMaster):
 
 
 # Convenience functions for one-off loading
-def load_dictionary(filename: str) -> Dict:
+def load_dictionary(filename: str) -> dict:
     """Load a JSON file as dictionary. Convenience wrapper."""
     return CatalogLoader.load_json(filename)
 
@@ -563,11 +549,11 @@ def dms_to_degrees(d: float, m: float, s: float) -> float:
     return CatalogLoader.dms_to_angle(d, m, s)
 
 
-def degrees_to_hms(degrees: float) -> Tuple[int, int, float]:
+def degrees_to_hms(degrees: float) -> tuple[int, int, float]:
     """Convert degrees to hours/minutes/seconds."""
     return CatalogLoader.angle_to_hms(degrees)
 
 
-def degrees_to_dms(degrees: float) -> Tuple[int, int, float]:
+def degrees_to_dms(degrees: float) -> tuple[int, int, float]:
     """Convert decimal degrees to degrees/minutes/seconds."""
     return CatalogLoader.angle_to_dms(degrees)

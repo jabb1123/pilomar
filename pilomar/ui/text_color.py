@@ -497,9 +497,7 @@ class TextColor:
             # Vertical edge on left. Color if needed.
             # Border color is specified.
             if borderfg is not None and borderbg is not None:
-                temp += TextColor.fgbgcolor(
-                    borderfg, borderbg, TextColor.SYMBOLS["vertical"]
-                )
+                temp += TextColor.fgbgcolor(borderfg, borderbg, TextColor.SYMBOLS["vertical"])
             else:
                 temp += TextColor.SYMBOLS["vertical"]
             # Text inside box. Color if needed.
@@ -511,9 +509,7 @@ class TextColor:
             elif justify == "r":
                 line = line.strip().rjust(maxlen)  # right justify.
             else:
-                line = (line + " " * maxlen)[
-                    :maxlen
-                ]  # Just pad whatever we were given.
+                line = (line + " " * maxlen)[:maxlen]  # Just pad whatever we were given.
             # - Add color.
             # Text color is specified.
             if textfg is not None and textbg is not None:
@@ -523,9 +519,7 @@ class TextColor:
             # Vertical edge on right. Color if needed.
             # Border color is specified.
             if borderfg is not None and borderbg is not None:
-                temp += TextColor.fgbgcolor(
-                    borderfg, borderbg, TextColor.SYMBOLS["vertical"]
-                )
+                temp += TextColor.fgbgcolor(borderfg, borderbg, TextColor.SYMBOLS["vertical"])
             else:
                 temp += TextColor.SYMBOLS["vertical"]
             printlines.append(temp)
@@ -592,12 +586,8 @@ class TextColor:
         if fgfalse is None:
             fgfalse = TextColor.RED
         temp = str(value)
-        temp = temp.replace(
-            "True", TextColor.fgbgcolor(fgtrue, TextColor.BLACK, "True")
-        )
-        temp = temp.replace(
-            "False", TextColor.fgbgcolor(fgfalse, TextColor.BLACK, "False")
-        )
+        temp = temp.replace("True", TextColor.fgbgcolor(fgtrue, TextColor.BLACK, "True"))
+        temp = temp.replace("False", TextColor.fgbgcolor(fgfalse, TextColor.BLACK, "False"))
         return temp
 
     @staticmethod
@@ -663,9 +653,7 @@ class TextColor:
     def getterminalsize():  # Common
         """Return tuple of the current screen dimensions.
         (cols,rows)"""
-        print(
-            "TextColor.getterminalsize() is deprecated in favour of TextColor.terminalsize()"
-        )
+        print("TextColor.getterminalsize() is deprecated in favour of TextColor.terminalsize()")
         cols = 80
         rows = 24
         cols = int(TextColor.oscommand("tput cols")[0])
@@ -752,9 +740,9 @@ class TextColor:
     def oscommand(cmd):  # Common
         """Execute a command,result is returned as clean list of lines."""
         try:
-            result = subprocess.check_output(
-                cmd, shell=True, stderr=subprocess.DEVNULL
-            ).decode("utf-8")
+            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode(
+                "utf-8"
+            )
         except subprocess.CalledProcessError as e:
             print(f"TextColor.oscommand({cmd}) returned {e}")
             print(f"TextColor.oscommand({cmd}) returned returncode {e.returncode}")
@@ -1013,7 +1001,6 @@ class TextColor:
         if color:
             oppcol = 255 - colnum
         else:
-
             if colnum == TextColor.BLACK:
                 oppcol = TextColor.WHITE
             else:

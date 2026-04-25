@@ -16,11 +16,11 @@ Classes:
 
 __version__ = "0.1.0"
 
-from datetime import datetime
 import json
-from typing import Dict, List, Union
+from datetime import datetime
 
 from pilomar.ui.menu import ProcedureMenu
+
 from .text_color import TextColor
 
 
@@ -212,7 +212,7 @@ class BigLetters:
     """Primitive large font sizes."""
 
     def __init__(self):
-        self.letter_dictionary: Dict[str, List[str]] = {}
+        self.letter_dictionary: dict[str, list[str]] = {}
         self.initialise_ld()
 
     def initialise_ld(self):
@@ -286,27 +286,27 @@ class Field:
         self.justify: str = justify  # 'left','centre','right'
         self.type: str = "Data"  # 'Data' field or 'ProgressBar'
         # Current color if it differs from the display defaults.
-        self.fg_color: Union[int, None] = None
-        self.bg_color: Union[int, None] = None
+        self.fg_color: int | None = None
+        self.bg_color: int | None = None
         # Progress bar specific attributes.
-        self.pb_min: Union[int, None] = None  # Minimum value of a progress bar field.
-        self.pb_max: Union[int, None] = None  # Maximum value of a progress bar field.
+        self.pb_min: int | None = None  # Minimum value of a progress bar field.
+        self.pb_max: int | None = None  # Maximum value of a progress bar field.
         self.pb_fg: int = TextColor.GREEN  # 'done' color of bar.
         self.pb_bg: int = TextColor.YELLOW  # 'todo' color of bar.
         # Colors used for ranges of values.
         # LOWLOW and HIGHHIGH values use these colors
-        self.bad_fg: Union[int, None] = None
+        self.bad_fg: int | None = None
         # LOWLOW and HIGHHIGH values use these colors
-        self.bad_bg: Union[int, None] = None
+        self.bad_bg: int | None = None
         # LOW and HIGH values use these colors
-        self.poor_fg: Union[int, None] = None
+        self.poor_fg: int | None = None
         # LOW and HIGH values use these colors
-        self.poor_bg: Union[int, None] = None
+        self.poor_bg: int | None = None
         # Special effects.
         # Seconds between changing FG/BG colors when blinking. 0 = No blink.
         self.blink_rate: int = 0
         # FG/BG pairs to alternate between when blinking.
-        self.blink_colors: List[List[int]] = [
+        self.blink_colors: list[list[int]] = [
             [TextColor.WHITE, TextColor.BLACK],
             [TextColor.RED, TextColor.BLACK],
         ]
@@ -341,17 +341,17 @@ class ColorDisplay:
     __version__ = "0.0.6"
     # Handles of all defined windows. Useful for scanning/updating all available windows.
     # The defining class contains some methods which can perform general updates via this list.
-    defined_windows: List["ColorDisplay"] = []
+    defined_windows: list["ColorDisplay"] = []
 
     # Array of major rows/columns that ColorDisplay instances can self-align with.
-    cd_layout: List[List[int]] = []
+    cd_layout: list[list[int]] = []
     # Each entry defines a high level 'column' of ColorDisplay locations.
     # [[fromcol,colwidth],[fromcol,colwidth],...]
     # When defining new ColorDisplay instances you can then just refer to
     # these columns rather than tailoring the coordinates of each individual window.
 
     @staticmethod
-    def add_cd_entry(colwidth: int, startcol: Union[int, None] = None):
+    def add_cd_entry(colwidth: int, startcol: int | None = None):
         """Add new entry to the ColorDisplay.CDLayout list.
         You must assign colwidth, but startcol is optional.
         If startcol is not specified, the next available one is assigned.
@@ -445,19 +445,15 @@ class ColorDisplay:
             )
         self.display_columns: int = columns
         # What's the location of the 1st cell in the display on the actual terminal?
-        self.display_row: Union[int, None] = row
-        self.display_col: Union[int, None] = col
+        self.display_row: int | None = row
+        self.display_col: int | None = col
         if self.display_row is not None and self.display_rows is not None:
             # Where does the display END ?
-            self.last_display_row: Union[int, None] = (
-                self.display_row + self.display_rows - 1
-            )
+            self.last_display_row: int | None = self.display_row + self.display_rows - 1
         else:
             self.last_display_row = None
         if self.display_col is not None and self.display_columns is not None:
-            self.last_display_col: Union[int, None] = (
-                self.display_col + self.display_columns
-            )
+            self.last_display_col: int | None = self.display_col + self.display_columns
         else:
             self.last_display_col = None
         # For scrolling displays you can provide a list of alternating text colors to use.
@@ -515,13 +511,11 @@ class ColorDisplay:
         # we need character, foreground color and background color.
         # Foreground colour of each character.
         self.fg_color = [
-            [self.default_fg for c in range(self.display_columns)]
-            for r in range(self.display_rows)
+            [self.default_fg for c in range(self.display_columns)] for r in range(self.display_rows)
         ]
         # Background colour of each character.
         self.bg_color = [
-            [self.default_bg for c in range(self.display_columns)]
-            for r in range(self.display_rows)
+            [self.default_bg for c in range(self.display_columns)] for r in range(self.display_rows)
         ]
         # Characters to display.
         self.character = [
@@ -530,13 +524,11 @@ class ColorDisplay:
         # Store the default state of the window here. This is used if the window is 'cleared'.
         # Foreground colour of each character.
         self.default_fgcolor = [
-            [self.default_fg for c in range(self.display_columns)]
-            for r in range(self.display_rows)
+            [self.default_fg for c in range(self.display_columns)] for r in range(self.display_rows)
         ]
         # Background colour of each character.
         self.default_bgcolor = [
-            [self.default_bg for c in range(self.display_columns)]
-            for r in range(self.display_rows)
+            [self.default_bg for c in range(self.display_columns)] for r in range(self.display_rows)
         ]
         # Characters to display.
         self.default_character = [
@@ -544,16 +536,14 @@ class ColorDisplay:
         ]
         # List of the display commands last issued to paint the display.
         # Used to check for changes.
-        self.prev_line_strings: List[Union[str, None]] = [
-            None for r in range(self.display_rows)
-        ]
+        self.prev_line_strings: list[str | None] = [None for r in range(self.display_rows)]
         # If set to true, Display() method will only update
         # lines of the display that it thinks have changed.
         self.reduce_io = False
         # List of any active sprites in the display.
-        self.sprites: List[CdSprite] = []
+        self.sprites: list[CdSprite] = []
         # Cache of recently printed lines, used for repainting and exporting.
-        self.print_history: List[str] = []
+        self.print_history: list[str] = []
         # 0 means data starts at the first row of the window,
         # 1 means there's a title or something in row 0, etc.
         # Scrolling takes this into account.
@@ -566,7 +556,7 @@ class ColorDisplay:
         # When did the display last update?
         self.last_refresh = None
         # List of fields if defined.
-        self.fields: List[Field] = []
+        self.fields: list[Field] = []
         # If TRUE the corners are highlighted in RED,
         # and the FIELDS are highlighted in YELLOW(for layout checking)
         self.mark_display = False
@@ -645,9 +635,7 @@ class ColorDisplay:
     def add_field(self, name, row, column, length=10, justify="l"):
         """Add a field to the list of fields recognised in this window.
         Duplicates are allowed."""
-        self.fields.append(
-            Field(name=name, row=row, col=column, length=length, justify=justify)
-        )
+        self.fields.append(Field(name=name, row=row, col=column, length=length, justify=justify))
         return True
 
     def initialize_progress_bar(self, name, minval, maxval, fg=None, bg=None):
@@ -696,9 +684,7 @@ class ColorDisplay:
                     # No name yet. Assign default.
                     if name == "":
                         name = str(nextid)
-                    self.add_field(
-                        name=name, row=r, column=start, length=(c - start) + 1
-                    )
+                    self.add_field(name=name, row=r, column=start, length=(c - start) + 1)
                     # Clear the 'working' field name values ready for next field we find.
                     start = None
                     name = ""
@@ -725,9 +711,11 @@ class ColorDisplay:
         finp = float(cinp)
         return finp
 
-    def export_fields(self, filename, initialdictionary={}):
+    def export_fields(self, filename, initialdictionary=None):
         """Export field values to json file.
         Data is appended to any values already existing in initialdictionary."""
+        if initialdictionary is None:
+            initialdictionary = {}
         tempdict = initialdictionary
         for field in self.fields:
             tempdict[self.display_name + "." + field.name] = field.value
@@ -746,22 +734,19 @@ class ColorDisplay:
                 t = datetime.now().timestamp()
                 # Cycle through the list of BlinkColor pairs.
                 c = round(t / f.blink_rate, 0) % len(f.blink_colors)
-                self.field_value(
-                    f.name, c, fg=f.blink_colors[c][0], bg=f.blink_colors[c][1]
-                )
+                self.field_value(f.name, c, fg=f.blink_colors[c][0], bg=f.blink_colors[c][1])
         return True
 
     def set_blink_status(
         self,
         name,
         blinkrate,
-        blinkcolors=[
-            [TextColor.WHITE, TextColor.BLACK],
-            [TextColor.BLACK, TextColor.WHITE],
-        ],
+        blinkcolors=None,
     ):
         """Setup blink data."""
         # Validate the color list.
+        if blinkcolors is None:
+            blinkcolors = [[TextColor.WHITE, TextColor.BLACK], [TextColor.BLACK, TextColor.WHITE]]
         lOK = True
         for a in blinkcolors:
             # Must be 2 colors listed in each entry.
@@ -774,9 +759,7 @@ class ColorDisplay:
                     f.blink_rate = blinkrate
                     f.blink_colors = blinkcolors
 
-    def field_value(
-        self, name, value, fg: Union[int, None] = None, bg: Union[int, None] = None
-    ):
+    def field_value(self, name, value, fg: int | None = None, bg: int | None = None):
         """Update the value of a field and display it."""
         found_it = False
         pc = 0
@@ -796,9 +779,7 @@ class ColorDisplay:
                 if f.type == "ProgressBar":
                     # Limit value to progress bar limits.
                     if f.pb_max is not None and f.pb_min is not None:
-                        pval = float(
-                            max(min(self.get_float_value(value), f.pb_max), f.pb_min)
-                        )
+                        pval = float(max(min(self.get_float_value(value), f.pb_max), f.pb_min))
                     if fg is None:
                         # Default to predefined progress bar colors.
                         fg = f.pb_fg
@@ -806,10 +787,7 @@ class ColorDisplay:
                         bg = f.pb_bg
                     # Calculate % complete (offset by -1 to allow for Python 'range' function)
                     if f.pb_max is not None and f.pb_min is not None:
-                        pc = (
-                            round(f.length * (pval - f.pb_min) / (f.pb_max - f.pb_min))
-                            - 1
-                        )
+                        pc = round(f.length * (pval - f.pb_min) / (f.pb_max - f.pb_min)) - 1
                     for i in range(f.length):
                         # 'completed' section of progress bar.
                         if i <= pc:
@@ -876,9 +854,7 @@ class ColorDisplay:
                 break
         # Transfer the colors.
         if fromfield is not None and tofield is not None:
-            found_it = self.field_color(
-                toname, fg=fromfield.fg_color, bg=fromfield.bg_color
-            )
+            found_it = self.field_color(toname, fg=fromfield.fg_color, bg=fromfield.bg_color)
         return found_it
 
     def field_color(self, name, fg=None, bg=None):
@@ -904,9 +880,7 @@ class ColorDisplay:
                 f.bg_color = bg
         return found_it
 
-    def initialize_color_range(
-        self, name, badfg=None, badbg=None, poorfg=None, poorbg=None
-    ):
+    def initialize_color_range(self, name, badfg=None, badbg=None, poorfg=None, poorbg=None):
         """Set colour range for a field."""
         found_it = False  # Not found the field yet.
         for f in self.fields:  # Search the field list.
@@ -943,7 +917,7 @@ class ColorDisplay:
 
     def list_fields(self) -> dict:
         """Return dictionary of fields recognised in the window."""
-        dict_obj: Dict[str, Dict[str, Union[int, str]]] = {}
+        dict_obj: dict[str, dict[str, int | str]] = {}
         for f in self.fields:
             dict_obj[f.name] = {
                 "row": f.row,
@@ -995,7 +969,7 @@ class ColorDisplay:
         bg=None,
         border=True,
         fill=True,
-        overwritelist=["+", "-", "|", " "],
+        overwritelist=None,
     ):
         """Use unicode line characters to draw a box on a ColorDisplay window.
         fromloc = (fromrow,fromcol)
@@ -1011,6 +985,8 @@ class ColorDisplay:
                         the display and ONLY these characters get overwritten, this lets
                         you have overlapping titles or gaps in the box if needed by using
                         other characters that are not in the overwritelist"""
+        if overwritelist is None:
+            overwritelist = ["+", "-", "|", " "]
         fromrow, fromcol = fromloc
         torow, tocol = toloc
         fromrow = self.clip_row(fromrow)
@@ -1193,7 +1169,7 @@ class ColorDisplay:
             lines = 1
         if lines > self.display_rows:
             lines = self.display_rows
-        for i in range(lines):
+        for _i in range(lines):
             self.character.pop(self.first_scroll_row)  # Remove entire 1st data row.
             self.fg_color.pop(self.first_scroll_row)
             self.bg_color.pop(self.first_scroll_row)
@@ -1201,16 +1177,10 @@ class ColorDisplay:
                 [" " for c in range(self.display_columns)]
             )  # Add empty row at end of window.
             self.fg_color.append(
-                [
-                    self.default_fgs[self.fg_color_index]
-                    for c in range(self.display_columns)
-                ]
+                [self.default_fgs[self.fg_color_index] for c in range(self.display_columns)]
             )
             self.bg_color.append(
-                [
-                    self.default_bgs[self.bg_color_index]
-                    for c in range(self.display_columns)
-                ]
+                [self.default_bgs[self.bg_color_index] for c in range(self.display_columns)]
             )
         if immediate:
             self.display(immediate=immediate)
@@ -1284,8 +1254,8 @@ class ColorDisplay:
         text,
         row: int,
         col: int,
-        fg: Union[int, None] = None,
-        bg: Union[int, None] = None,
+        fg: int | None = None,
+        bg: int | None = None,
     ):
         """Place a string at any given location in the display buffer.
         +ve co-ordinates are top-to-bottom, left-to-right
@@ -1311,9 +1281,7 @@ class ColorDisplay:
         print(
             "***** ColorDisplay.Draw() method called. Depricated. Use ColorDisplay.display() method instead."
         )
-        self.display(
-            screenheight=screenheight, screenwidth=screenwidth, immediate=immediate
-        )
+        self.display(screenheight=screenheight, screenwidth=screenwidth, immediate=immediate)
 
     def _mark_display(self):
         """Quickly highlights window dimensions and fields.
@@ -1406,9 +1374,7 @@ class ColorDisplay:
                 and s.column < self.display_columns
             ):  # In range.
                 linelist[s.row] = (
-                    linelist[s.row][: s.column]
-                    + s.symbol[0:1]
-                    + linelist[s.row][s.column + 1 :]
+                    linelist[s.row][: s.column] + s.symbol[0:1] + linelist[s.row][s.column + 1 :]
                 )
         return linelist
 
@@ -1612,9 +1578,7 @@ class ColorDisplay:
                 and self.last_display_col is not None
                 and self.last_display_col + 1 < maxscreencol
             ):
-                line += TextColor.fgbgcolor(
-                    self.border_fg, self.border_bg, vertical_char
-                )
+                line += TextColor.fgbgcolor(self.border_fg, self.border_bg, vertical_char)
             # The line has changed. So display the new string.
             # Otherwise save display time and leave it unchanged.
             if not self.reduce_io or self.prev_line_strings[r] != line:
@@ -1644,27 +1608,26 @@ class ColorDisplay:
                     self.border_bg,
                     (horizontal_char * self.display_columns) + corner_char,
                 )
-            print(
-                TextColor.cursor(self.display_col, self.display_row + self.display_rows)
-                + line
-            )
+            print(TextColor.cursor(self.display_col, self.display_row + self.display_rows) + line)
         self.last_refresh = datetime.now()
 
     @staticmethod
-    def global_export_fields(filename, initialdictionary={}):
+    def global_export_fields(filename, initialdictionary=None):
         """Export field values from all windows to json file.
         Data is appended to any values already existing in initialdictionary."""
-        tempdict = ColorDisplay.global_save_to_dictionary(
-            initialdictionary=initialdictionary
-        )
+        if initialdictionary is None:
+            initialdictionary = {}
+        tempdict = ColorDisplay.global_save_to_dictionary(initialdictionary=initialdictionary)
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(tempdict, f, default=str)
         return True
 
     @staticmethod
-    def global_save_to_dictionary(initialdictionary={}):
+    def global_save_to_dictionary(initialdictionary=None):
         """Export field values from all windows to dictionary.
         Data is appended to any values already existing in initialdictionary."""
+        if initialdictionary is None:
+            initialdictionary = {}
         tempdict = initialdictionary
         for w in ColorDisplay.defined_windows:
             for field in w.fields:
@@ -1678,9 +1641,7 @@ class ColorDisplay:
         found_it = False
         for w in ColorDisplay.defined_windows:
             try:
-                temp = w.field_format(
-                    name=name, justify=justify, pattern=pattern, bwz=bwz
-                )
+                temp = w.field_format(name=name, justify=justify, pattern=pattern, bwz=bwz)
                 if temp:
                     found_it = True
             except:

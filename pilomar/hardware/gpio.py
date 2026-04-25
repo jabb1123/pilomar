@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 # Raspberry Pi GPIO library.
 # Presents an interface to the GPIO handlers on the Raspberry Pi SBCs.
@@ -22,14 +22,14 @@ try:
 
     GPIO.setmode(GPIO.BCM)
     GPIO_DRIVER = "GPIO"
-except:  # No support for RPi.GPIO detected.
+except (ImportError, RuntimeError):  # No support for RPi.GPIO detected.
     pass
 
 try:
     import gpiod  # Handling IO signals. If available.
 
     GPIO_DRIVER = "GPIOD"
-except:  # No support for GPIOD detected.
+except (ImportError, RuntimeError):  # No support for GPIOD detected.
     pass
 
 if GPIO_DRIVER == "GPIOD":  # Select the GPIO handling chip.
@@ -37,10 +37,14 @@ if GPIO_DRIVER == "GPIOD":  # Select the GPIO handling chip.
         GPIOchip = gpiod.Chip(
             "gpiochip4"
         )  # In very early RPi5 Bookworm builds the GPIO chip is 'gpiochip4'.
-    except:
-        GPIOchip = gpiod.Chip(
-            "gpiochip0"
-        )  # In later RPi5 Bookworm builds the GPIO chip is 'gpiochip0'.
+    except Exception:
+        try:
+            GPIOchip = gpiod.Chip(
+                "gpiochip0"
+            )  # In later RPi5 Bookworm builds the GPIO chip is 'gpiochip0'.
+        except Exception:
+            GPIOchip = None
+            GPIO_DRIVER = None
 
 
 def cleanup_gpio():
@@ -80,7 +84,9 @@ class InputPinGpio:
         self.pin = pinbcm  # The BCM number of the pin.
         self.name = name  # A reference name of the pin.
         self.Pull = pull.lower()  # Is this a PULL_UP or PULL_DOWN input.
-        self.invert = invert  # IsOn/IsOff methods invert their value. IsHigh/IsLow remain unchanged.
+        self.invert = (
+            invert  # IsOn/IsOff methods invert their value. IsHigh/IsLow remain unchanged.
+        )
         if self.pin is not None:
             self.enabled = enabled
         else:
@@ -208,7 +214,9 @@ class OutputPinGpio:
         self.pin = pinbcm  # The BCM pin number.
         self.name = name  # Reference name for the pin.
         self.State = state  # It's logical on/off state.
-        self.invert = invert  # Flips electrical state to be opposite of logical state. LOW=ON, HIGH=OFF.
+        self.invert = (
+            invert  # Flips electrical state to be opposite of logical state. LOW=ON, HIGH=OFF.
+        )
         # Only real pins can be enabled.
         if self.pin is not None:
             self.enabled = enabled
@@ -354,7 +362,9 @@ class InputPinGpiod:
         self.name = name  # A reference name of the pin.
         self.Line = GPIOchip.get_line(pinbcm)  # Grab the IO line for this input.
         self.Pull = pull  # Is this a PULL_UP or PULL_DOWN input.
-        self.invert = invert  # IsOn/IsOff methods invert their value. IsHigh/IsLow remain unchanged.
+        self.invert = (
+            invert  # IsOn/IsOff methods invert their value. IsHigh/IsLow remain unchanged.
+        )
         if self.pin is not None:
             self.enabled = enabled
         else:
@@ -513,9 +523,7 @@ class OutputPinGpiod:
         self.Line.request(
             consumer=name, type=gpiod.LINE_REQ_DIR_OUT
         )  # Define a consumer for the line.
-        outputpin_gpiod.OutputPins.append(
-            self
-        )  # Add this output to the list of defined pins.
+        outputpin_gpiod.OutputPins.append(self)  # Add this output to the list of defined pins.
         self.Refresh()
 
     def On(self):

@@ -15,9 +15,10 @@
 import os
 import traceback
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from pilomar.ui.display import ColorDisplay
+if TYPE_CHECKING:
+    from pilomar.ui.display import ColorDisplay
 
 from pilomar.core.time_utils import now_utc
 
@@ -32,12 +33,12 @@ class LogFile:
 
     __version__ = "0.2.0"
 
-    error_window: ColorDisplay
+    error_window: "ColorDisplay | None"
 
     def __init__(
         self,
         filename: str,
-        clock_offset: Optional[float] = None,
+        clock_offset: float | None = None,
         flush: bool = False,
         append: bool = True,
     ):
@@ -59,7 +60,7 @@ class LogFile:
         self.default_show_time: bool = True
 
         self.filename: str = filename
-        self.clock_offset: Optional[float] = clock_offset
+        self.clock_offset: float | None = clock_offset
         self.prev_log_time: datetime = now_utc()
         self.error_list: list = []
 
@@ -67,6 +68,8 @@ class LogFile:
         self.detail_filter: list = ["u", "f", "d"]  # user, flow, detail
         self.level_filter: list = ["i", "w", "e"]  # info, warning, error
         self.fast_flush: bool = flush
+
+        self.error_window: ColorDisplay | None = None
 
         if os.path.exists(filename):
             if append:
@@ -80,15 +83,11 @@ class LogFile:
     def show_config(self):
         """Display current configuration."""
         self.log("LogFile.show_config(): default_terminal", self.default_terminal)
-        self.log(
-            "LogFile.show_config(): default_error_prompt", self.default_error_prompt
-        )
+        self.log("LogFile.show_config(): default_error_prompt", self.default_error_prompt)
         self.log("LogFile.show_config(): default_level", self.default_level)
         self.log("LogFile.show_config(): default_detail", self.default_detail)
         self.log("LogFile.show_config(): default_separator", self.default_separator)
-        self.log(
-            "LogFile.show_config(): default_copy_to_window", self.default_copy_to_window
-        )
+        self.log("LogFile.show_config(): default_copy_to_window", self.default_copy_to_window)
         self.log("LogFile.show_config(): default_show_time", self.default_show_time)
         self.log("LogFile.show_config(): filename", self.filename)
         self.log("LogFile.show_config(): clock_offset", self.clock_offset)
@@ -198,9 +197,7 @@ class LogFile:
         self.prev_log_time = now_utc()
         return True
 
-    def report_exception(
-        self, e: Exception, level: str = "error", comment: str = ""
-    ) -> None:
+    def report_exception(self, e: Exception, level: str = "error", comment: str = "") -> None:
         """Record any exception class in the log file.
 
         This does not terminate, it just reports/logs the exception
@@ -226,9 +223,7 @@ class LogFile:
         if comment != "":
             self.log(f"LogFile.report_exception(): Comment: {comment}", level=level)
 
-    def raise_exception(
-        self, e: Exception, level: str = "error", comment: str = ""
-    ) -> None:
+    def raise_exception(self, e: Exception, level: str = "error", comment: str = "") -> None:
         """Record any exception class in the log file then terminate.
 
         Args:
@@ -250,9 +245,7 @@ class LogFile:
             )
         if comment != "":
             self.log(f"LogFile.raise_exception(): Comment: {comment}", level=level)
-        raise RuntimeError(
-            "Program exception raised"
-        ) from e  # pylint: disable=raise-missing-from
+        raise RuntimeError("Program exception raised") from e  # pylint: disable=raise-missing-from
 
     def record_traceback(self, e: Exception, terminal: bool = True) -> None:
         """Use Traceback module to report the execution stack to the log file.
@@ -290,9 +283,7 @@ class LogFile:
                     level="error",
                 )
                 break
-            unique_filename = (
-                file_elements[0] + "_" + str(counter) + "." + file_elements[1]
-            )
+            unique_filename = file_elements[0] + "_" + str(counter) + "." + file_elements[1]
             if not os.path.exists(unique_filename):
                 break
 

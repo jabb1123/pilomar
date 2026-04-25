@@ -9,8 +9,8 @@ import requests  # To handle json response for seeing conditions from online ser
 from requests.exceptions import HTTPError  # Error handling.
 
 from pilomar.core.base import AttributeMaster
-from pilomar.ui.text_color import TextColor
 from pilomar.core.time_utils import hr_seconds
+from pilomar.ui.text_color import TextColor
 
 
 class Celestrak(AttributeMaster):
@@ -63,11 +63,7 @@ class Celestrak(AttributeMaster):
                     "Consider refreshing it."
                 )
             )
-            print(
-                TextColor.yellow(
-                    "Check the source of data from the celestrak.org website."
-                )
-            )
+            print(TextColor.yellow("Check the source of data from the celestrak.org website."))
         else:
             print(TextColor.green(f"{name} TLE data is {daysold} days old."))
 
@@ -77,14 +73,10 @@ class Celestrak(AttributeMaster):
             self.log("celestrak.Refresh: Begin", terminal=False)
             self.log("celestrak.Refresh: Try disc cache", terminal=False)
         self.tle_dict = {}  # No data until refreshed.
-        self.load_cache(
-            self.celestrak_cache_filename
-        )  # Try to load from disc if recent enough.
+        self.load_cache(self.celestrak_cache_filename)  # Try to load from disc if recent enough.
         if self.tle_dict == {}:  # Empty, get a fresh copy.
             if self.log is not None:
-                self.log(
-                    "celestrak.Refresh: Download fresh from internet.", terminal=False
-                )
+                self.log("celestrak.Refresh: Download fresh from internet.", terminal=False)
             if self.download_data():
                 if self.log is not None:
                     self.log("celestrak.Refresh: Successful.", terminal=False)
@@ -119,9 +111,7 @@ class Celestrak(AttributeMaster):
             else:
                 print("celestrak.Refresh: Failed to identify any satellies.")
         if self.log is not None:
-            self.log(
-                f"celestrak.Refresh: Satellites: {self.satellite_list}", terminal=False
-            )
+            self.log(f"celestrak.Refresh: Satellites: {self.satellite_list}", terminal=False)
             self.log("celestrak.Refresh: done", terminal=False)
 
     def download_data(self):
@@ -159,9 +149,7 @@ class Celestrak(AttributeMaster):
         """How many seconds old is a file?"""
         if os.path.exists(filename):
             mtime = os.path.getmtime(filename)
-            td = datetime.now() - datetime.fromtimestamp(
-                mtime
-            )  # *Q* Offset not supported.
+            td = datetime.now() - datetime.fromtimestamp(mtime)  # *Q* Offset not supported.
             result = int(td.total_seconds())
         else:
             result = None
@@ -186,7 +174,7 @@ class Celestrak(AttributeMaster):
             if fa is not None and (
                 force or fa < (5 * 24 * 60 * 60)
             ):  # Only use the cache if less than 5 days old.
-                with open(filename, "r", encoding="utf-8") as f:
+                with open(filename, encoding="utf-8") as f:
                     self.log(
                         f"celestrak.LoadCache: Loading Cache: {filename}, force={force}",
                         terminal=False,

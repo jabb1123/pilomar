@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Target module for Pilomar.
 
@@ -8,9 +7,11 @@ about an observation target including position calculations, rise/set times,
 field rotation, and visibility checks.
 """
 
+from __future__ import annotations
+
 import math
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from pilomar.celestial.trig import angle_to_hms, relative_alt_az
 from pilomar.core.base import AttributeMaster
@@ -23,8 +24,8 @@ from .fixed_point import FixedPoint
 from .sky_context import HardwareContext, SkyContext, TimeContext
 
 if TYPE_CHECKING:
-    from pilomar.core.logger import LogFile
     from pilomar.control.motor import MotorControl
+    from pilomar.core.logger import LogFile
 
 
 class Target(AttributeMaster):
@@ -69,15 +70,15 @@ class Target(AttributeMaster):
         sky: SkyContext,
         time_ctx: TimeContext,
         hardware: HardwareContext,
-        object_type: Optional[str] = None,
-        constellation: Optional[str] = None,
-        description: Optional[str] = None,
+        object_type: str | None = None,
+        constellation: str | None = None,
+        description: str | None = None,
         magnitude: float = 0.0,
-        search_group: Optional[str] = None,
-        search_term: Optional[str] = None,
-        object_diameter: Optional[float] = None,
-        comet_pandas_row: Optional[Any] = None,
-        logger: Optional[LogFile] = None,
+        search_group: str | None = None,
+        search_term: str | None = None,
+        object_diameter: float | None = None,
+        comet_pandas_row: Any | None = None,
+        logger: LogFile | None = None,
     ):
         """Initialize the Target instance."""
         # Set up logger first
@@ -134,13 +135,11 @@ class Target(AttributeMaster):
         self.scheduled_end = None
 
         # Star cache for quick calculations
-        self.quick_star_cache: Dict = {}
+        self.quick_star_cache: dict = {}
 
         # Tracking map span (read from parameters if available)
         params = hardware.parameters
-        self.tracking_map_span = (
-            getattr(params, "tracking_map_span", 10.0) if params else 10.0
-        )
+        self.tracking_map_span = getattr(params, "tracking_map_span", 10.0) if params else 10.0
 
     # -------------------------------------------------------------------------
     # Properties and shortcuts
@@ -162,7 +161,7 @@ class Target(AttributeMaster):
         return self._hardware.camera
 
     @property
-    def motor_controls(self) -> List["MotorControl"]:
+    def motor_controls(self) -> list[MotorControl]:
         """Get motor controls from hardware context."""
         return self._hardware.motor_controls or []
 
@@ -223,8 +222,8 @@ class Target(AttributeMaster):
     # -------------------------------------------------------------------------
 
     def az_alt_degrees(
-        self, time: Optional[Any] = None, updatespeed: bool = False
-    ) -> Tuple[float, float]:
+        self, time: Any | None = None, updatespeed: bool = False
+    ) -> tuple[float, float]:
         """Returns current altitude and azimuth of the target.
 
         Args:
@@ -235,9 +234,7 @@ class Target(AttributeMaster):
             Tuple of (azimuth_degrees, altitude_degrees)
         """
         if self.home_site is None:
-            raise RuntimeError(
-                f"Target.az_alt_degrees({self.name}): HomeSite not defined"
-            )
+            raise RuntimeError(f"Target.az_alt_degrees({self.name}): HomeSite not defined")
 
         t = time if time is not None else self.current_time()
 
@@ -282,14 +279,9 @@ class Target(AttributeMaster):
         if updatespeed:
             if self.prev_t is not None:
                 timediff = (
-                    self._time_ctx.ts_to_datetime(t)
-                    - self._time_ctx.ts_to_datetime(self.prev_t)
+                    self._time_ctx.ts_to_datetime(t) - self._time_ctx.ts_to_datetime(self.prev_t)
                 ).total_seconds()
-                if (
-                    timediff != 0.0
-                    and self.prev_az is not None
-                    and self.prev_alt is not None
-                ):
+                if timediff != 0.0 and self.prev_az is not None and self.prev_alt is not None:
                     self.az_speed = (azd - self.prev_az) / timediff
                     self.alt_speed = (altd - self.prev_alt) / timediff
                 else:
@@ -305,7 +297,7 @@ class Target(AttributeMaster):
 
         return azd, altd
 
-    def ra_dec_hours(self, time: Optional[Any] = None) -> Tuple[Any, Any]:
+    def ra_dec_hours(self, time: Any | None = None) -> tuple[Any, Any]:
         """Returns RA and Dec as Skyfield Angle objects.
 
         Args:
@@ -315,9 +307,7 @@ class Target(AttributeMaster):
             Tuple of (ra, dec) as Skyfield Angle objects
         """
         if self.home_site is None:
-            raise RuntimeError(
-                f"Target.ra_dec_hours({self.name}): HomeSite not defined"
-            )
+            raise RuntimeError(f"Target.ra_dec_hours({self.name}): HomeSite not defined")
 
         t = time if time is not None else self.current_time()
 
@@ -339,7 +329,7 @@ class Target(AttributeMaster):
 
         return ra, dec
 
-    def ra_dec_degrees(self, time: Optional[Any] = None) -> Tuple[float, float]:
+    def ra_dec_degrees(self, time: Any | None = None) -> tuple[float, float]:
         """Returns RA and Dec as degree values.
 
         Args:
@@ -352,8 +342,8 @@ class Target(AttributeMaster):
         return ra._degrees, dec.degrees
 
     def alt_az_to_ra_dec(
-        self, alt: float, az: float, time: Optional[Any] = None, asdegrees: bool = False
-    ) -> Tuple[Any, Any]:
+        self, alt: float, az: float, time: Any | None = None, asdegrees: bool = False
+    ) -> tuple[Any, Any]:
         """Convert alt/az coordinates to RA/Dec.
 
         Args:
@@ -377,8 +367,8 @@ class Target(AttributeMaster):
         return ra, dec
 
     def ra_dec_to_alt_az(
-        self, ra: float, dec: float, time: Optional[Any] = None, asdegrees: bool = True
-    ) -> Tuple[float, float]:
+        self, ra: float, dec: float, time: Any | None = None, asdegrees: bool = True
+    ) -> tuple[float, float]:
         """Convert RA/Dec to alt/az coordinates.
 
         Args:
@@ -407,8 +397,8 @@ class Target(AttributeMaster):
         return alt.degrees, az.degrees
 
     def planet_az_alt_degrees(
-        self, name: str = "moon", time: Optional[Any] = None
-    ) -> Tuple[float, float]:
+        self, name: str = "moon", time: Any | None = None
+    ) -> tuple[float, float]:
         """Returns altitude and azimuth of any planetary object.
 
         Args:
@@ -419,9 +409,7 @@ class Target(AttributeMaster):
             Tuple of (azimuth_degrees, altitude_degrees)
         """
         if self.home_site is None:
-            raise RuntimeError(
-                f"Target.planet_az_alt_degrees({name}): HomeSite not defined"
-            )
+            raise RuntimeError(f"Target.planet_az_alt_degrees({name}): HomeSite not defined")
 
         t = time if time is not None else self.current_time()
         solarobject = self._sky.planets[name]
@@ -439,9 +427,7 @@ class Target(AttributeMaster):
         """Return True if this is a fixed alt/az point."""
         return isinstance(self.handle, FixedPoint)
 
-    def can_multisession_align(
-        self, acceptable_types: Union[List[str], None] = None
-    ) -> bool:
+    def can_multisession_align(self, acceptable_types: list[str] | None = None) -> bool:
         """Returns True if target can be live stacked across sessions.
 
         Static objects (against star background) can be aligned for stacking.
@@ -462,7 +448,7 @@ class Target(AttributeMaster):
     # Visibility and limits
     # -------------------------------------------------------------------------
 
-    def visible(self, time: Optional[Any] = None) -> bool:
+    def visible(self, time: Any | None = None) -> bool:
         """Return True if target is in observable portion of sky.
 
         Args:
@@ -484,7 +470,7 @@ class Target(AttributeMaster):
 
         return result
 
-    def approaching_limit(self, time: Optional[Any] = None) -> bool:
+    def approaching_limit(self, time: Any | None = None) -> bool:
         """Return True if target is approaching telescope movement limit.
 
         Args:
@@ -510,7 +496,7 @@ class Target(AttributeMaster):
     # Rise/Set calculations
     # -------------------------------------------------------------------------
 
-    def next_rise_set_object(self) -> Tuple[Optional[Any], Optional[Any]]:
+    def next_rise_set_object(self) -> tuple[Any | None, Any | None]:
         """Return next horizon event times for distant objects (Moon and beyond).
 
         Returns:
@@ -530,7 +516,7 @@ class Target(AttributeMaster):
 
         t, y = self._sky.almanac.find_discrete(t0, t1, f)
 
-        for ti, yi in zip(t, y):
+        for ti, yi in zip(t, y, strict=False):
             self.log(
                 f"target.next_rise_set_object({self.name}): zipped",
                 ti,
@@ -547,7 +533,7 @@ class Target(AttributeMaster):
 
         return risetime, settime
 
-    def next_rise_set_satellite(self) -> Tuple[Optional[Any], Optional[Any]]:
+    def next_rise_set_satellite(self) -> tuple[Any | None, Any | None]:
         """Return next horizon event times for satellites.
 
         Returns:
@@ -567,11 +553,9 @@ class Target(AttributeMaster):
         t_to = self._ts_delta(t_from, dd=1)
 
         min_alt = getattr(self.parameters, "MinSatellitealtitude", 10.0)
-        times, events = self.handle.find_events(
-            self.home_site_topos, t_from, t_to, min_alt
-        )
+        times, events = self.handle.find_events(self.home_site_topos, t_from, t_to, min_alt)
 
-        for eventtime, eventtype in zip(times, events):
+        for eventtime, eventtype in zip(times, events, strict=False):
             if eventtype == 2 and settime is None and risetime is not None:
                 settime = eventtime.utc_datetime()
             if eventtype == 0 and risetime is None:
@@ -581,7 +565,7 @@ class Target(AttributeMaster):
 
         return risetime, settime
 
-    def rise_set(self) -> Tuple[Optional[Any], Optional[Any]]:
+    def rise_set(self) -> tuple[Any | None, Any | None]:
         """Return next rise and set times for the object.
 
         Returns:
@@ -603,7 +587,7 @@ class Target(AttributeMaster):
         )
         return risetime, settime
 
-    def next_rise_set(self) -> Tuple[Optional[str], Optional[Any]]:
+    def next_rise_set(self) -> tuple[str | None, Any | None]:
         """Return next horizon event type and time.
 
         Returns:
@@ -626,7 +610,7 @@ class Target(AttributeMaster):
 
         return eventtype, eventtime
 
-    def next_rise_set_hhmm(self, window: Optional[int] = None) -> str:
+    def next_rise_set_hhmm(self, window: int | None = None) -> str:
         """Returns next rise or set time as HH:MM string.
 
         Args:
@@ -666,7 +650,7 @@ class Target(AttributeMaster):
     # Twilight and lunar calculations
     # -------------------------------------------------------------------------
 
-    def twilight_level(self, time: Optional[Any] = None) -> str:
+    def twilight_level(self, time: Any | None = None) -> str:
         """Return twilight level for current location.
 
         NOTE: The target should be the sun for this to be meaningful.
@@ -691,7 +675,7 @@ class Target(AttributeMaster):
         else:
             return "nighttime"
 
-    def lunar_phase(self, time: Optional[Any] = None) -> float:
+    def lunar_phase(self, time: Any | None = None) -> float:
         """Return the phase of the Moon in degrees.
 
         0 = New Moon, 180 = Full Moon
@@ -708,7 +692,7 @@ class Target(AttributeMaster):
         result = self._sky.almanac.moon_phase(self._sky.planets, time)
         return result.degrees
 
-    def moon_full(self, time: Optional[Any] = None) -> float:
+    def moon_full(self, time: Any | None = None) -> float:
         """Return percentage of full moon (light pollution indicator).
 
         Args:
@@ -730,7 +714,7 @@ class Target(AttributeMaster):
     # Magnitude calculations
     # -------------------------------------------------------------------------
 
-    def current_magnitude(self, time: Optional[Any] = None) -> float:
+    def current_magnitude(self, time: Any | None = None) -> float:
         """Calculate current apparent magnitude if possible.
 
         Args:
@@ -781,12 +765,8 @@ class Target(AttributeMaster):
             k_lum = self.comet_pandas_row["magnitude_k"]
 
         t = self.current_time()
-        _, _, sun_body_dist = (
-            self._sky.planets["sun"].at(t).observe(self.handle).radec()
-        )
-        _, _, earth_body_dist = (
-            self.home_site.at(t).observe(self.handle).apparent().altaz()
-        )
+        _, _, sun_body_dist = self._sky.planets["sun"].at(t).observe(self.handle).radec()
+        _, _, earth_body_dist = self.home_site.at(t).observe(self.handle).apparent().altaz()
 
         apparent_mag = (
             g_abs
@@ -833,9 +813,7 @@ class Target(AttributeMaster):
 
         return True
 
-    def rotation_point_alt_az_degrees(
-        self, time: Optional[Any] = None
-    ) -> Tuple[float, float]:
+    def rotation_point_alt_az_degrees(self, time: Any | None = None) -> tuple[float, float]:
         """Get alt/az of the rotation reference point.
 
         Args:
@@ -849,12 +827,10 @@ class Target(AttributeMaster):
         if self.rotation_point is None:
             self.choose_rotation_point()
 
-        alt, az, _ = (
-            self.home_site.at(time).observe(self.rotation_point).apparent().altaz()
-        )
+        alt, az, _ = self.home_site.at(time).observe(self.rotation_point).apparent().altaz()
         return alt.degrees, az.degrees
 
-    def rotation_point_bearing(self, time: Optional[Any] = None) -> float:
+    def rotation_point_bearing(self, time: Any | None = None) -> float:
         """Calculate bearing of field rotation reference point relative to target.
 
         Args:
@@ -881,9 +857,7 @@ class Target(AttributeMaster):
             pixel_height = sensor.pixel_height
             pixel_width = sensor.pixel_width
 
-        star_x, star_y = plot_relative_alt_az(
-            plot_alt, plot_az, pixel_height, pixel_width
-        )
+        star_x, star_y = plot_relative_alt_az(plot_alt, plot_az, pixel_height, pixel_width)
 
         xpos = round(pixel_width / 2)
         ypos = round(pixel_height / 2)
@@ -893,7 +867,7 @@ class Target(AttributeMaster):
 
         return math.degrees(math.atan2(opposite, adjacent))
 
-    def rotation_arc(self, span: int = 3600, time: Optional[Any] = None) -> float:
+    def rotation_arc(self, span: int = 3600, time: Any | None = None) -> float:
         """Return field rotation rate scaled to requested time span.
 
         Args:
@@ -916,9 +890,7 @@ class Target(AttributeMaster):
         rate = (a2 - a1) * span / calcperiod
         return rate
 
-    def rotation_pixels(
-        self, angle: Optional[float] = None, radius: Optional[float] = None
-    ) -> float:
+    def rotation_pixels(self, angle: float | None = None, radius: float | None = None) -> float:
         """Convert field rotation to pixel count at image corner.
 
         Args:
@@ -948,7 +920,7 @@ class Target(AttributeMaster):
 
         return arclength
 
-    def plot_rotation_point(self, time: Optional[Any] = None) -> Tuple[float, float]:
+    def plot_rotation_point(self, time: Any | None = None) -> tuple[float, float]:
         """Return image x,y coordinates of field rotation reference point.
 
         Args:
@@ -998,11 +970,11 @@ class Target(AttributeMaster):
 
     def forecast_path(
         self,
-        time: Optional[Any] = None,
+        time: Any | None = None,
         days: int = 30,
         step_hours: int = 24,
-        fov: Optional[float] = None,
-    ) -> List[Tuple[Any, float, float]]:
+        fov: float | None = None,
+    ) -> list[tuple[Any, float, float]]:
         """Calculate path target will take through sky.
 
         Args:
@@ -1053,8 +1025,8 @@ class Target(AttributeMaster):
         return points
 
     def forecast_range(
-        self, time: Optional[Any] = None, days: int = 30
-    ) -> Tuple[float, float, float, float]:
+        self, time: Any | None = None, days: int = 30
+    ) -> tuple[float, float, float, float]:
         """Forecast path and return min/max RA/Dec.
 
         Args:
@@ -1080,9 +1052,7 @@ class Target(AttributeMaster):
 
         return min_ra, min_dec, max_ra, max_dec
 
-    def forecast_centre(
-        self, time: Optional[Any] = None, days: int = 30
-    ) -> Tuple[float, float]:
+    def forecast_centre(self, time: Any | None = None, days: int = 30) -> tuple[float, float]:
         """Forecast path and return centre of motion.
 
         Args:

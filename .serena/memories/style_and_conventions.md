@@ -1,0 +1,7 @@
+- Current direction is the refactored `pilomar/` package, not the flat `src/` modules; keep `src/` intact as comparison/legacy during migration.
+- Naming target from roadmap/migration docs: PascalCase classes; snake_case functions, methods, variables, attributes, and file names.
+- Prefer logical package organization by domain (`core`, `hardware`, `monitoring`, etc.) and explicit imports from the new package paths.
+- Type hints are being added in the refactored code and should be used where practical.
+- Docstrings should follow Google-style guidance from the roadmap; newer modules already use module/class/function docstrings.
+- Preserve backward-compatible behavior where possible during migration; roadmap notes suggest deprecated markers or compatibility layers when needed.
+- Newer code style in `pilomar/` is conventional Python with UTF-8, dataclasses where appropriate, and clearer object names than the legacy code.

@@ -6,6 +6,7 @@ observation sessions.
 """
 
 from pilomar.core.base import AttributeMaster
+
 from .entry import SessionEntry
 
 
@@ -34,7 +35,7 @@ class SessionList(AttributeMaster):
     def reset(self):
         """Reset the session list to empty state."""
         self.session_list = []
-        self.sort_options = ["SearchTerm", "Az", "Alt", "Magnitude", "DiameterPixels"]
+        self.sort_options = ["search_term", "az", "alt", "magnitude", "diameter_pixels"]
         self.sort_choice = 4  # Sort by size initially
         self.dirty_bit = False
         self.updated_timestamp = self._now_func()
@@ -77,37 +78,33 @@ class SessionList(AttributeMaster):
         self.dirty_bit = True
 
     def sort_by_age(self):
-        """Sort the list by LastObserved (youngest first)."""
+        """Sort the list by last_observed (youngest first)."""
         for entry in self.session_list:
-            if entry.LastObserved is None:
+            if entry.last_observed is None:
                 self.log(
                     "SessionList(",
                     self.name,
                     ").sort_by_age:",
-                    entry.Name,
-                    "LastObserved is not set. Cannot sort.",
+                    entry.name,
+                    "last_observed is not set. Cannot sort.",
                     level="error",
                 )
                 return
 
-        self.session_list = sorted(
-            self.session_list, reverse=True, key=lambda x: x.LastObserved
-        )
+        self.session_list = sorted(self.session_list, reverse=True, key=lambda x: x.last_observed)
 
     def sort_by_start_time(self):
         """Sort the list by observation_start."""
         for entry in self.session_list:
             if entry.observation_start is None:
                 self.log(
-                    f"SessionList({self.name}).sort_by_start_time: {entry.Name} observation_start is not set. Cannot sort.",
+                    f"SessionList({self.name}).sort_by_start_time: {entry.name} observation_start is not set. Cannot sort.",
                     level="error",
                 )
                 return
 
         try:
-            self.session_list = sorted(
-                self.session_list, key=lambda x: x.observation_start
-            )
+            self.session_list = sorted(self.session_list, key=lambda x: x.observation_start)
         except Exception:
             self.log("SessionList.sort_by_start_time: Unable to sort.", level="error")
 
@@ -120,7 +117,7 @@ class SessionList(AttributeMaster):
         for entry in self.session_list:
             if entry._get_param(fieldname, None) is None:
                 self.log(
-                    f"SessionList({self.name}).sort_by_field: {entry.Name} {fieldname} is not set. Cannot sort.",
+                    f"SessionList({self.name}).sort_by_field: {entry.name} {fieldname} is not set. Cannot sort.",
                     level="error",
                 )
                 return

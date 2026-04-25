@@ -24,3 +24,4 @@ var/
 *.mo
 *.py[cod]
 *$py.class
+data/

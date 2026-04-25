@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 # Pilomar's cpu monitor class.
 # Also provides some measurements of RPi's voltage/current measurements.
@@ -64,21 +64,13 @@ class CpuMonitor(AttributeMaster):  # 1 references.
             "cpu2",
             "cpu3",
         ]  # These are the cores to measure.
-        self.core_used = [0] * len(
-            self.core_list
-        )  # Individual core used slots since system start.
-        self.core_idle = [0] * len(
-            self.core_list
-        )  # Individual core idle slots since system start.
-        self.core_busy = [0] * len(
-            self.core_list
-        )  # Individual core busy slots since system start.
+        self.core_used = [0] * len(self.core_list)  # Individual core used slots since system start.
+        self.core_idle = [0] * len(self.core_list)  # Individual core idle slots since system start.
+        self.core_busy = [0] * len(self.core_list)  # Individual core busy slots since system start.
         self.power_timestamp = datetime.now()
         self.power_data = {"timestamp": self.power_timestamp}
         self.throttle_timestamp = datetime.now()
-        self.throttle_data = {
-            "timestamp": self.throttle_timestamp
-        }  # Clear out the readings.
+        self.throttle_data = {"timestamp": self.throttle_timestamp}  # Clear out the readings.
         self.poll_all(force=True)  # Update the stats initially.
 
     def freq_changed(self):
@@ -373,11 +365,7 @@ class CpuMonitor(AttributeMaster):  # 1 references.
                 multiplier=1000,
             )
         try:
-            if (
-                self.curr_freq is not None
-                and self.max_freq is not None
-                and self.max_freq != 0
-            ):
+            if self.curr_freq is not None and self.max_freq is not None and self.max_freq != 0:
                 self.clock_percent = int(round(100 * self.curr_freq / self.max_freq, 0))
             else:
                 self.clock_percent = None  # Not measured yet.
@@ -404,18 +392,12 @@ class CpuMonitor(AttributeMaster):  # 1 references.
 
         """
         if force or self.cpu_timer.due():  # Time to update the CPU figures.
-            statslist = self.os_cmd(
-                "cat /proc/stat"
-            )  # Check /proc/stat for specific core figures.
+            statslist = self.os_cmd("cat /proc/stat")  # Check /proc/stat for specific core figures.
 
             # Update CPU figures.
             result = ""
-            for (
-                statsline
-            ) in statslist:  # Find the statistics for this core in the result.
-                if (
-                    statsline.split()[0] == "cpu"
-                ):  # 1st element will match the core name.
+            for statsline in statslist:  # Find the statistics for this core in the result.
+                if statsline.split()[0] == "cpu":  # 1st element will match the core name.
                     result = statsline
                     break
             if result == "":
@@ -492,9 +474,7 @@ class CpuMonitor(AttributeMaster):  # 1 references.
                         )
                     else:  # No log handler available, print the error instead.
                         print(f"cpumonitor({self.name}).poll_all({core}) failed.")
-                        print(
-                            f"cpumonitor({self.name}).poll_all({core}) Error: {str(e)}"
-                        )
+                        print(f"cpumonitor({self.name}).poll_all({core}) Error: {str(e)}")
             self.measured_time = datetime.now()
             self.log_cpu_temp()
             self.cpu_frequency()  # Update CPU clock speed attributes.

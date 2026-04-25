@@ -13,44 +13,40 @@ Copyright: GNU General Public License v3.0
 """
 
 from .constants import (
-    VERSION,
     ACCEPTABLE_CONTROLLER_VERSIONS,
     DEGREE_SYMBOL,
     SYMBOLS,
+    VERSION,
 )
-
 from .data_loader import (
-    CatalogPaths,
     CatalogData,
     CatalogLoader,
-    load_dictionary,
-    hms_to_degrees,
-    dms_to_degrees,
-    degrees_to_hms,
+    CatalogPaths,
     degrees_to_dms,
+    degrees_to_hms,
+    dms_to_degrees,
+    hms_to_degrees,
+    load_dictionary,
 )
-
-from .target_chooser import (
-    TargetSelectionContext,
-    TargetChooser,
-    create_target_chooser,
-)
-
-from .observation import (
-    ObservationStatus,
-    ObservationResult,
-    ObservationContext,
-    ObservationLoop,
-    start_observation,
-    go_to_target,
-    document_session,
-)
-
 from .main import (
-    ApplicationContext,
     Application,
+    ApplicationContext,
     find_project_root,
     main,
+)
+from .observation import (
+    ObservationContext,
+    ObservationLoop,
+    ObservationResult,
+    ObservationStatus,
+    document_session,
+    go_to_target,
+    start_observation,
+)
+from .target_chooser import (
+    TargetChooser,
+    TargetSelectionContext,
+    create_target_chooser,
 )
 
 __all__ = [

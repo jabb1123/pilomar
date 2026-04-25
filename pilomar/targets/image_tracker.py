@@ -6,17 +6,14 @@ images for auto-correction and basic image tracking.
 Copyright: GNU General Public License v3.0
 """
 
-from datetime import datetime
 import math
-from typing import Callable, List, Union
-
-import numpy as np
+from collections.abc import Callable
+from datetime import datetime
 
 import astroalign
 
-
 from pilomar.core.base import AttributeMaster
-from pilomar.core.time_utils import now_utc_str, now_hms
+from pilomar.core.time_utils import now_hms, now_utc_str
 
 
 class ImageTracker(AttributeMaster):
@@ -44,8 +41,8 @@ class ImageTracker(AttributeMaster):
         drift_window=None,
         dev_window=None,
         parameters=None,
-        now_func: Union[Callable, None] = None,
-        timestamp_func: Union[Callable, None] = None,
+        now_func: Callable | None = None,
+        timestamp_func: Callable | None = None,
     ):
         """Initialize image tracker.
 
@@ -125,10 +122,10 @@ class ImageTracker(AttributeMaster):
     def set_master_image(
         self,
         cv_image_buffer,
-        starcount: Union[int, None] = None,
-        starlist: Union[List, None] = None,
+        starcount: int | None = None,
+        starlist: list | None = None,
         timestamp=None,
-        min_magnitude: Union[float, None] = None,
+        min_magnitude: float | None = None,
     ):
         """Register a new master target reference image.
 
@@ -182,9 +179,7 @@ class ImageTracker(AttributeMaster):
             )
             self.target_min_magnitude = min_magnitude
 
-        self.log(
-            "ImageTracker.set_master_image: Registered new target image", terminal=False
-        )
+        self.log("ImageTracker.set_master_image: Registered new target image", terminal=False)
 
         # Calculate stars if not provided
         if self.master_image:
@@ -210,15 +205,11 @@ class ImageTracker(AttributeMaster):
                 )
                 if self._camera_window:
                     now_hms_val = now_hms()
-                    self._camera_window.print(
-                        f"{now_hms_val} {filename.split('/')[-1]}"
-                    )
+                    self._camera_window.print(f"{now_hms_val} {filename.split('/')[-1]}")
                 self.master_image.save_file(filename)
 
         # Calculate transformation
-        self.log(
-            "ImageTracker.set_master_image: Calling search_master_image", terminal=False
-        )
+        self.log("ImageTracker.set_master_image: Calling search_master_image", terminal=False)
         result = self.search_master_image()
         self.log(
             f"ImageTracker.set_master_image: search_master_image returned {result}",
@@ -236,9 +227,7 @@ class ImageTracker(AttributeMaster):
         self.log(f"ImageTracker.set_target_image: Begin: Zone {zone}", terminal=False)
 
         if cv_image_buffer is None:
-            self.log(
-                "ImageTracker.set_target_image: Received None buffer", terminal=False
-            )
+            self.log("ImageTracker.set_target_image: Received None buffer", terminal=False)
             return
 
         if timestamp is None:
@@ -268,9 +257,7 @@ class ImageTracker(AttributeMaster):
                 )
                 if self._camera_window:
                     now_hms_val = now_hms()
-                    self._camera_window.print(
-                        f"{now_hms_val} {filename.split('/')[-1]}"
-                    )
+                    self._camera_window.print(f"{now_hms_val} {filename.split('/')[-1]}")
                 self.target_image.save_file(filename)
 
     def set_latest_image(self, cv_image_buffer, timestamp=None):
@@ -283,9 +270,7 @@ class ImageTracker(AttributeMaster):
         self.log("ImageTracker.set_latest_image: Begin", terminal=False)
 
         if cv_image_buffer is None:
-            self.log(
-                "ImageTracker.set_latest_image: Received None buffer", terminal=False
-            )
+            self.log("ImageTracker.set_latest_image: Received None buffer", terminal=False)
             return
 
         if timestamp is None:
@@ -344,9 +329,7 @@ class ImageTracker(AttributeMaster):
                 )
                 if self._camera_window:
                     now_hms_val = now_hms()
-                    self._camera_window.print(
-                        f"{now_hms_val} {filename.split('/')[-1]}"
-                    )
+                    self._camera_window.print(f"{now_hms_val} {filename.split('/')[-1]}")
                 self.latest_image.save_file(filename)
 
     def choose_search_sequence(self):
@@ -359,9 +342,7 @@ class ImageTracker(AttributeMaster):
         self.zone_list = []
 
         if not self.master_image or not self.latest_image:
-            self.log(
-                "ImageTracker.choose_search_sequence: Missing images", terminal=False
-            )
+            self.log("ImageTracker.choose_search_sequence: Missing images", terminal=False)
             return
 
         master_width = self.master_image.get_width()
@@ -395,8 +376,7 @@ class ImageTracker(AttributeMaster):
 
             while row_count <= 10:  # Safety limit
                 dist = math.sqrt(
-                    (zone_center_x - master_center_x) ** 2
-                    + (zone_center_y - master_center_y) ** 2
+                    (zone_center_x - master_center_x) ** 2 + (zone_center_y - master_center_y) ** 2
                 )
 
                 # Create mirror zones radiating from center
@@ -535,7 +515,6 @@ class ImageTracker(AttributeMaster):
                     and self.target_image.image_buffer is not None
                     and self.latest_image.image_buffer is not None
                 ):
-
                     transform, (lsl, tsl) = astroalign.find_transform(
                         source=self.latest_image.image_buffer,
                         target=self.target_image.image_buffer,
@@ -608,9 +587,7 @@ class ImageTracker(AttributeMaster):
         self.log("ImageTracker.save_tracking_analysis: Begin", terminal=False)
         # Full implementation would create annotated image showing matches
         # This is a placeholder for the complex visualization code
-        self.log(
-            f"ImageTracker.save_tracking_analysis: Zone {zone} (stub)", terminal=False
-        )
+        self.log(f"ImageTracker.save_tracking_analysis: Zone {zone} (stub)", terminal=False)
 
     def valid_star_values(self, entry) -> bool:
         """Check if star entry has valid coordinate values.
@@ -625,7 +602,5 @@ class ImageTracker(AttributeMaster):
             return False
         if isinstance(entry[0], (float, int)) and isinstance(entry[1], (float, int)):
             return True
-        self.log(
-            f"ImageTracker.valid_star_values: Invalid entry {entry}", terminal=True
-        )
+        self.log(f"ImageTracker.valid_star_values: Invalid entry {entry}", terminal=True)
         return False

@@ -11,22 +11,22 @@ Modules:
     menu: Interactive menu systems
 """
 
-from .keyboard import KeyboardScanner
-from .text_color import TextColor
 from .display import (
-    CdSprite,
-    MessageWindow,
     BigLetters,
-    Field,
+    CdSprite,
     ColorDisplay,
+    Field,
+    MessageWindow,
 )
+from .keyboard import KeyboardScanner
 from .menu import (
-    Menu,
-    ProcedureMenu,
-    OptionMenu,
-    ListChooser,
     FileChooser,
+    ListChooser,
+    Menu,
+    OptionMenu,
+    ProcedureMenu,
 )
+from .text_color import TextColor
 
 __all__ = [
     # Keyboard

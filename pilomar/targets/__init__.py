@@ -12,16 +12,16 @@ Copyright: GNU General Public License v3.0
 """
 
 from .fixed_point import FixedPoint
-from .quickstar import QuickStar
 from .local_stars import LocalStars
-from .sky_context import SkyContext, TimeContext, HardwareContext
+from .quickstar import QuickStar
+from .sky_context import HardwareContext, SkyContext, TimeContext
 
 # Target requires Skyfield - import conditionally
 try:
     from .target import Target
 
     _TARGET_AVAILABLE = True
-except ImportError:
+except (ImportError, NameError):
     _TARGET_AVAILABLE = False
     Target = None
 
@@ -30,7 +30,7 @@ try:
     from .image_tracker import ImageTracker
 
     _IMAGETRACKER_AVAILABLE = True
-except ImportError:
+except (ImportError, NameError):
     _IMAGETRACKER_AVAILABLE = False
     ImageTracker = None
 
