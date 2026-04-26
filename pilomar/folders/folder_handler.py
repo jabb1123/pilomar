@@ -300,9 +300,10 @@ class FolderHandler(AttributeMaster):
 
         Args:
             key: Folder key.
-            foldername: Folder path.
+            foldername: Folder path (not sanitised here — callers are
+                responsible for sanitising user-supplied name components
+                before constructing the path).
         """
-        foldername = self.clean_filename(foldername)
         folder = self._to_path_type(foldername)
         folderpath = self.join_path(self.project_root, str(folder))
         entry = {"path": str(folderpath), "exists": self.path_exists(folderpath)}
@@ -424,17 +425,18 @@ class FolderHandler(AttributeMaster):
                 terminal=False,
             )
 
-    def create_folder_by_path(self, folderpath):
+    def create_folder_by_path(self, folderpath, mode: int = 0o755):
         """Create folder and parent directories.
 
         Args:
             folderpath: Path to create.
+            mode: Permission bits for newly created directories (default 0o755).
         """
         try:
             self.log(f"FolderHandler.create_folder_by_path({folderpath})", terminal=False)
             folderpath = self._to_path_type(folderpath)
             if folderpath.is_file():
                 folderpath = folderpath.parent
-            folderpath.mkdir(mode=0o777, parents=True, exist_ok=True)
+            folderpath.mkdir(mode=mode, parents=True, exist_ok=True)
         except Exception as e:  # pylint: disable=broad-except
             self.log(f"FolderHandler.create_folder_by_path error: {e}", level="error")

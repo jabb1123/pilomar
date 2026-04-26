@@ -97,9 +97,9 @@ class DirectSlewController(AttributeMaster):
             terminal=True,
         )
 
-        # Pause tracking
+        # Stop tracking and wait for its thread to exit before moving.
         if self.tracker is not None:
-            self.tracker.running = False
+            self.tracker.stop()
 
         self.driver.set_rates(0.0, 0.0)
         time.sleep(0.2)
@@ -133,7 +133,7 @@ class DirectSlewController(AttributeMaster):
 
         # Resume tracking
         if resume_tracking and self.tracker is not None:
-            self.tracker._start()
+            self.tracker.start()
 
     # ------------------------------------------------------------------
     # Internal helpers

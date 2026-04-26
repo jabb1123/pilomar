@@ -14,56 +14,110 @@ import time
 
 
 class KeyboardScanner:
-    """Non-blocking keyboard scanner using curses library.
+    """Non-blocking keyboard scanner using a persistent curses session.
 
-    Provides non-blocking keyboard input capabilities for terminal applications.
+    Initialises curses once in ``__init__`` and keeps the screen alive for the
+    lifetime of the object.  Call :meth:`close` (or use as a context manager)
+    to restore the terminal when done.
 
-    Example:
-        scanner = KeyboardScanner()
-        key = scanner.check()
-        if key.lower() == 'x':
-            break
+    Using a persistent session avoids the overhead of ``curses.wrapper()`` on
+    every :meth:`check` call, and enabling ``keypad(True)`` lets curses decode
+    multi-byte escape sequences into ``curses.KEY_*`` integer constants so that
+    arrow keys are recognised correctly.
+
+    Example::
+
+        with KeyboardScanner() as scanner:
+            while True:
+                key = scanner.check()
+                if key == "esc":
+                    break
     """
 
     def __init__(self):
-        """Initialize the keyboard scanner."""
-        self.current_key_code = -1
-        self.current_character = ""
-        self.translations: dict[str, str] = {
-            chr(9): "tab",
-            chr(10): "enter",
-            chr(27): "esc",
-            chr(27) + chr(91) + chr(97): "cursorup",
-            chr(27) + chr(91) + chr(98): "cursordown",
-            chr(27) + chr(91) + chr(99): "cursorright",
-            chr(27) + chr(91) + chr(100): "cursorleft",
-            chr(265): "f1",
-            chr(267): "f2",
+        """Initialise curses and configure a non-blocking screen."""
+        # Initialise curses once — keep the screen alive for all subsequent reads.
+        self._stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        self._stdscr.keypad(True)  # decode escape sequences → KEY_* integers
+        self._stdscr.nodelay(True)  # getch() returns -1 immediately if no key
+
+        self.current_key_code: int = -1
+        self.current_character: str = ""
+
+        # Translation table keyed on *integer* key codes.
+        # curses.KEY_UP etc. are ints; control characters are also ints here.
+        self.translations: dict[int, str] = {
+            9: "tab",
+            10: "enter",
+            27: "esc",
+            curses.KEY_UP: "cursorup",
+            curses.KEY_DOWN: "cursordown",
+            curses.KEY_RIGHT: "cursorright",
+            curses.KEY_LEFT: "cursorleft",
+            curses.KEY_F1: "f1",
+            curses.KEY_F2: "f2",
         }
 
-    def _scan(self, stdscr) -> None:
-        """Non-blocking check for keypress (internal curses callback).
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
-        Args:
-            stdscr: Curses standard screen object
-        """
-        stdscr.nodelay(True)  # Do not wait for input
-        self.current_key_code = stdscr.getch()
-        self.current_character = ""
-        if self.current_key_code > -1:
-            self.current_character = chr(self.current_key_code)
+    def close(self) -> None:
+        """Restore the terminal to its normal state."""
+        try:
+            curses.nocbreak()
+            self._stdscr.keypad(False)
+            curses.echo()
+            curses.endwin()
+        except curses.error:
+            pass
 
-    def wait_for_keypress(self, timeout: float) -> str:
-        """Pause for specified time, scanning keyboard.
+    def __enter__(self) -> "KeyboardScanner":
+        return self
 
-        Any input will interrupt the delay and be returned.
-        Keyboard is checked every second.
+    def __exit__(self, *_) -> None:
+        self.close()
 
-        Args:
-            timeout: Number of seconds to wait
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def check(self) -> str:
+        """Check for a keypress (non-blocking).
 
         Returns:
-            Key pressed, or empty string if timeout
+            Translated name for special keys (e.g. ``'cursorup'``), the
+            character string for printable keys, or ``''`` if no key was
+            pressed.
+        """
+        self.current_key_code = self._stdscr.getch()
+        if self.current_key_code == -1:
+            self.current_character = ""
+            return ""
+
+        # Named keys (arrow keys, function keys, control characters)
+        if self.current_key_code in self.translations:
+            self.current_character = self.translations[self.current_key_code]
+        else:
+            try:
+                self.current_character = chr(self.current_key_code)
+            except (ValueError, OverflowError):
+                self.current_character = ""
+
+        return self.current_character
+
+    def wait_for_keypress(self, timeout: float) -> str:
+        """Pause for up to *timeout* seconds, returning any keypress early.
+
+        Keyboard is polled once per second.
+
+        Args:
+            timeout: Maximum seconds to wait.
+
+        Returns:
+            Key pressed, or ``''`` if the timeout elapsed without input.
         """
         keypress = ""
         while keypress == "" and timeout > 0:
@@ -72,47 +126,38 @@ class KeyboardScanner:
             keypress = self.check()
         return keypress
 
-    def check(self) -> str:
-        """Check for keypress (non-blocking).
+    def translate(self, key: str) -> str:
+        """Pass-through kept for backward compatibility.
 
-        Returns:
-            Character pressed, or empty string if none
-        """
-        curses.wrapper(self._scan)
-        return self.current_character
-
-    def translate(self, string: str) -> str:
-        """Translate character codes into descriptive text.
+        :meth:`check` now returns translated names directly, so this method
+        is a no-op for most callers.
 
         Args:
-            string: String of character codes
+            key: Key string to look up.
 
         Returns:
-            Translated string (e.g., code 27 becomes 'esc')
+            The same string (translation happens inside :meth:`check`).
         """
-        return self.translations.get(string, string)
+        return key
 
-    def string_check(self, translate: bool = False) -> str:
-        """Non-blocking check for keypress with buffering.
-
-        Concatenates entire queue of keypresses into a single value.
+    def string_check(self, translate: bool = False) -> str:  # noqa: ARG002
+        """Drain all buffered keypresses into a single string.
 
         Args:
-            translate: If True, translate character sequences to names
+            translate: Accepted for backward compatibility; ignored because
+                :meth:`check` already returns translated names.
 
         Returns:
-            All buffered keypresses as a string
+            Concatenation of all buffered keypresses.
         """
         keypress = ""
         key = self.check()
         while key != "":
             keypress += key
             key = self.check()
-        if translate:
-            keypress = self.translate(keypress)
         return keypress
 
     def flush(self) -> None:
-        """Flush any pending keypresses from the buffer."""
+        """Discard any pending keypresses from the buffer."""
         while self.check() != "":
             pass

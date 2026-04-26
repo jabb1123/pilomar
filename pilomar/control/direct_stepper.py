@@ -261,10 +261,14 @@ class DualStepperDriver(AttributeMaster):
         ticks = int(self.CHUNK_TIME * 1e6 / self.TICK_US)
 
         while self.running:
-            pulses = []
-
             az_rate = abs(self.az_rate)
             alt_rate = abs(self.alt_rate)
+
+            if az_rate == 0.0 and alt_rate == 0.0:
+                time.sleep(self.CHUNK_TIME)
+                continue
+
+            pulses = []
 
             az_inc = az_rate * self.TICK_US / 1e6
             alt_inc = alt_rate * self.TICK_US / 1e6
@@ -295,11 +299,6 @@ class DualStepperDriver(AttributeMaster):
                     pulses.append(pigpio.pulse(0, on_mask, self.TICK_US // 2))
                 else:
                     pulses.append(pigpio.pulse(0, 0, self.TICK_US))
-
-            if not pulses:
-                # Both rates are zero — sleep rather than send an empty wave
-                time.sleep(self.CHUNK_TIME)
-                continue
 
             self.pi.wave_add_generic(pulses)
             wid = self.pi.wave_create()

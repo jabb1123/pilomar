@@ -107,59 +107,53 @@ class LocalStars(AttributeMaster):
         self.min_dec_deg = self.dec - self.radius
         self.max_dec_deg = self.dec + self.radius
 
-        # Select stars within radius and magnitude limit
+        # Build one or two disjoint RA ranges to handle 0°/360° wraparound.
+        # Using disjoint slices avoids duplicate rows from overlapping masks.
+        wraps_low = self.min_ra_deg < 0
+        wraps_high = self.max_ra_deg > 360
+
+        if wraps_low:
+            # Range spans the 0° boundary: [min+360, 360] ∪ [0, max]
+            ra_ranges = [(self.min_ra_deg + 360, 360.0), (0.0, self.max_ra_deg)]
+            self.log(
+                f"LocalStars.update: RA wraparound (low) "
+                f"[{self.min_ra_deg + 360:.2f}°, 360°] ∪ [0°, {self.max_ra_deg:.2f}°]",
+                terminal=False,
+            )
+        elif wraps_high:
+            # Range spans the 360° boundary: [min, 360] ∪ [0, max-360]
+            ra_ranges = [(self.min_ra_deg, 360.0), (0.0, self.max_ra_deg - 360)]
+            self.log(
+                f"LocalStars.update: RA wraparound (high) "
+                f"[{self.min_ra_deg:.2f}°, 360°] ∪ [0°, {self.max_ra_deg - 360:.2f}°]",
+                terminal=False,
+            )
+        else:
+            ra_ranges = [(self.min_ra_deg, self.max_ra_deg)]
+            self.log(
+                f"LocalStars.update: RA [{self.min_ra_deg:.2f}°, {self.max_ra_deg:.2f}°]",
+                terminal=False,
+            )
+
         self.log(
-            f"LocalStars.update: CoreSelection RA {self.min_ra_deg}° to {self.max_ra_deg}°, "
-            f"Dec {self.min_dec_deg}° to {self.max_dec_deg}°",
+            f"LocalStars.update: Dec [{self.min_dec_deg:.2f}°, {self.max_dec_deg:.2f}°]",
             terminal=False,
         )
 
-        self._df = self.master_df.loc[
-            (self.master_df["ra_degrees"] >= self.min_ra_deg)
-            & (self.master_df["ra_degrees"] <= self.max_ra_deg)
-            & (self.master_df["dec_degrees"] >= self.min_dec_deg)
+        dec_mask = (
+            (self.master_df["dec_degrees"] >= self.min_dec_deg)
             & (self.master_df["dec_degrees"] <= self.max_dec_deg)
             & (self.master_df["magnitude"] <= self.magnitude)
-        ]
+        )
 
-        self.log(f"LocalStars.update: Starting with {len(self._df)} stars", terminal=False)
+        slices = []
+        for ra_lo, ra_hi in ra_ranges:
+            ra_mask = (self.master_df["ra_degrees"] >= ra_lo) & (
+                self.master_df["ra_degrees"] <= ra_hi
+            )
+            slices.append(self.master_df.loc[ra_mask & dec_mask])
 
-        # Handle RA wraparound at 0/360 boundary
-        if self.min_ra_deg < 0:
-            self.log(
-                f"LocalStars.update: -ve RA Selection {self.min_ra_deg + 360}° to 360°",
-                terminal=False,
-            )
-            df1 = self.master_df.loc[
-                (self.master_df["ra_degrees"] >= self.min_ra_deg + 360)
-                & (self.master_df["ra_degrees"] <= 360)
-                & (self.master_df["dec_degrees"] >= self.min_dec_deg)
-                & (self.master_df["dec_degrees"] <= self.max_dec_deg)
-                & (self.master_df["magnitude"] <= self.magnitude)
-            ]
-            self.log(
-                f"LocalStars.update: Appending {len(df1)} stars (<0 rule)",
-                terminal=False,
-            )
-            self._df = pandas.concat([self._df, df1])
-
-        if self.max_ra_deg > 360:
-            self.log(
-                f"LocalStars.update: +ve RA Selection 0° to {self.max_ra_deg - 360}°",
-                terminal=False,
-            )
-            df2 = self.master_df.loc[
-                (self.master_df["ra_degrees"] >= 0)
-                & (self.master_df["ra_degrees"] <= self.max_ra_deg - 360)
-                & (self.master_df["dec_degrees"] >= self.min_dec_deg)
-                & (self.master_df["dec_degrees"] <= self.max_dec_deg)
-                & (self.master_df["magnitude"] <= self.magnitude)
-            ]
-            self.log(
-                f"LocalStars.update: Appending {len(df2)} stars (>360 rule)",
-                terminal=False,
-            )
-            self._df = pandas.concat([self._df, df2])
+        self._df = pandas.concat(slices) if len(slices) > 1 else slices[0]
 
         # Sort by brightness (ascending magnitude = brightest first)
         self._df = self._df.sort_values(["magnitude"], ascending=[True])

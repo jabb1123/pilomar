@@ -131,6 +131,22 @@ class DirectSkyTracker(AttributeMaster):
         self.log(f"DirectSkyTracker.track_body: {body_name}", terminal=False)
         self._start()
 
+    def start(self) -> None:
+        """Start (or restart) the tracking loop for the current target.
+
+        If a thread is already running it is stopped first so there is never
+        more than one tracking thread active at a time.
+
+        Raises:
+            RuntimeError: If no target has been set.
+        """
+        if self.target is None:
+            raise RuntimeError("DirectSkyTracker.start: no target set.")
+        # Ensure any prior thread is fully stopped before spawning a new one.
+        if self.running or (self._thread is not None and self._thread.is_alive()):
+            self.stop()
+        self._start()
+
     def stop(self) -> None:
         """Stop the tracking loop and zero the motor rates."""
         self.running = False

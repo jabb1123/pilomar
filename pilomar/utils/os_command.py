@@ -17,6 +17,10 @@ import subprocess
 
 from pilomar.core.base import AttributeMaster
 
+# Sentinel values for the output parameter
+_OUTPUT_NONE = "none"
+_OUTPUT_TERMINAL = "terminal"
+
 
 class OsCommand(AttributeMaster):
     """Object to execute OS commands."""
@@ -50,139 +54,94 @@ class OsCommand(AttributeMaster):
         self.return_code = 0
         self.last_output = []
 
-    def execute(self, cmd: str, output: str = "none") -> list[str]:
-        """Execute a command and record it to the log file.
+    # ------------------------------------------------------------------
+    # Internal helper
+    # ------------------------------------------------------------------
 
-        Command and result are always recorded in the log file.
-        This should be thread safe.
+    def _run(self, cmd: str, output: str) -> tuple[list[str], int]:
+        """Run *cmd* in a shell, capture stdout+stderr, and dispatch output.
 
         Args:
-            cmd: Shell command to execute
-            output: Output destination:
-                   'terminal' - Display to terminal
-                   'none' - Suppress output (default)
-                   filename - Output is written to that file
+            cmd: Shell command to execute.
+            output: One of ``'none'``, ``'terminal'``, or a file path to
+                append command output to.  Any value other than the two
+                sentinel strings is treated as a file path.
 
         Returns:
-            List of output lines from the command
+            ``(lines, returncode)`` where *lines* is the list of stdout lines
+            and *returncode* is the process exit code (0 = success).
         """
         if self.log is not None:
             self.log(cmd, terminal=False)
 
         self.last_error = None
-        returncode = 0
 
-        try:
-            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode(
-                "utf-8"
-            )
-        except subprocess.CalledProcessError as e:
-            self.last_error = e
-            returncode = e.returncode
+        result = subprocess.run(
+            cmd,
+            shell=True,  # noqa: S602
+            capture_output=True,
+            text=True,
+        )
+        returncode = result.returncode
+
+        if returncode != 0:
+            self.last_error = result
             if self.log is not None:
-                self.log(f"OsCommand.execute({cmd}) returned {e}", terminal=False)
                 self.log(
-                    f"OsCommand.execute({cmd}) returned returncode {e.returncode}",
+                    f"OsCommand._run({cmd!r}) exit={returncode}",
                     terminal=False,
                 )
-                self.log(
-                    f"OsCommand.execute({cmd}) returned output {e.output}",
-                    terminal=False,
-                )
-                self.log(f"OsCommand.execute({cmd}) returned cmd {e.cmd}", terminal=False)
-                self.log(
-                    f"OsCommand.execute({cmd}) returned stdout {e.stdout}",
-                    terminal=False,
-                )
-                self.log(
-                    f"OsCommand.execute({cmd}) returned stderr {e.stderr}",
-                    terminal=False,
-                )
-            result = ""
+                if result.stdout:
+                    self.log(f"  stdout: {result.stdout.rstrip()}", terminal=False)
+                if result.stderr:
+                    self.log(f"  stderr: {result.stderr.rstrip()}", terminal=False)
 
-        lines = result.split("\n")
-        returnlist = []
+        lines = result.stdout.split("\n")
+
+        # Determine output destination
+        is_file = output not in (_OUTPUT_NONE, _OUTPUT_TERMINAL)
 
         for line in lines:
-            if "." in output:  # Assume output is a disc file
+            if is_file:
                 with open(output, "a") as f:
                     f.write(line + "\n")
-            if output == "terminal":
+            if output == _OUTPUT_TERMINAL:
                 print(line)
             if self.log is not None:
                 self.log(f"cmd output '{line}'", terminal=False)
-            returnlist.append(line)
 
-        self.last_output = returnlist
+        self.last_output = lines
         self.return_code = returncode
-        return returnlist
+        return lines, returncode
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def execute(self, cmd: str, output: str = "none") -> list[str]:
+        """Execute a command and return its output lines.
+
+        Args:
+            cmd: Shell command to execute.
+            output: Output destination — ``'terminal'``, ``'none'`` (default),
+                or a file path to append output to.
+
+        Returns:
+            List of output lines from the command.
+        """
+        lines, _ = self._run(cmd, output)
+        return lines
 
     def execute_code(self, cmd: str, output: str = "none") -> int:
-        """Execute a command and return the exit code.
-
-        Command and result are always recorded in the log file.
-        This should be thread safe.
+        """Execute a command and return its exit code.
 
         Args:
-            cmd: Shell command to execute
-            output: Output destination:
-                   'terminal' - Display to terminal
-                   'none' - Suppress output (default)
-                   filename - Output is written to that file
+            cmd: Shell command to execute.
+            output: Output destination — ``'terminal'``, ``'none'`` (default),
+                or a file path to append output to.
 
         Returns:
-            Return code (0 = Success, non-zero = error)
+            Exit code (0 = success, non-zero = error).
         """
-        if self.log is not None:
-            self.log(cmd, terminal=False)
-
-        self.last_error = None
-        returncode = 0
-
-        try:
-            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode(
-                "utf-8"
-            )
-        except subprocess.CalledProcessError as e:
-            self.last_error = e
-            if self.log is not None:
-                self.log(f"OsCommand.execute_code({cmd}) returned {e}", terminal=False)
-                self.log(
-                    f"OsCommand.execute_code({cmd}) returned returncode {e.returncode}",
-                    terminal=False,
-                )
-                self.log(
-                    f"OsCommand.execute_code({cmd}) returned output {e.output}",
-                    terminal=False,
-                )
-                self.log(
-                    f"OsCommand.execute_code({cmd}) returned cmd {e.cmd}",
-                    terminal=False,
-                )
-                self.log(
-                    f"OsCommand.execute_code({cmd}) returned stdout {e.stdout}",
-                    terminal=False,
-                )
-                self.log(
-                    f"OsCommand.execute_code({cmd}) returned stderr {e.stderr}",
-                    terminal=False,
-                )
-            returncode = e.returncode
-            result = ""
-
-        returnlist = []
-        lines = result.split("\n")
-
-        for line in lines:
-            if "." in output:
-                with open(output, "a") as f:
-                    f.write(line + "\n")
-            if output == "terminal":
-                print(line)
-            if self.log is not None:
-                self.log(f"cmd output '{line}'", terminal=False)
-            returnlist.append(line)
-
-        self.last_output = returnlist
-        self.return_code = returncode
+        _, returncode = self._run(cmd, output)
         return returncode

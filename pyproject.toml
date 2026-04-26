@@ -11,7 +11,7 @@ authors = [
 ]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
@@ -24,12 +24,15 @@ dependencies = [
     "pandas",
     "numpy",
     "astropy",
+    "pytz",
+    "requests",
     "gpiod",
     "RPi.GPIO; platform_system == 'Linux'",
 ]
 
 [tool.setuptools.packages.find]
-where = ["pilomar"]
+where = ["."]
+include = ["pilomar*"]
 
 [project.urls]
 Homepage = "https://github.com/Short-bus/pilomar"

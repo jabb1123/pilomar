@@ -1,7 +1,21 @@
 include README.md
 include LICENSE
 include CHANGELOG.md
-recursive-include pilomar/data *
-recursive-include pilomar/fonts *
-recursive-include pilomar/gerber *
-recursive-include pilomar/circuitpython *
+include requirements.txt
+
+# Runtime data files (loaded via project_root path at runtime, not importlib.resources)
+recursive-include data *.json *.bsp *.fab *.txt
+
+# Fonts bundled with the project (used by the UI renderer)
+recursive-include fonts *
+
+# PCB design files (not installed; included in sdist for completeness)
+recursive-include gerber *
+
+# Scripts
+recursive-include scripts *
+
+# Exclude Python cache and build artefacts from the sdist
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.egg-info
