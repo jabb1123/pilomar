@@ -1,0 +1,662 @@
+#!/usr/bin/python
+
+# Pilomar's disc (storage) monitor class.
+
+# This software is published under the GNU General Public License v3.0.
+# Also respect any pre-existing terms of any components that this incorporates.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+import os
+
+from pilomar.core.timer import Timer  # Pilomar's timer class.
+from pilomar.ui.text_color import TextColor
+from pilomar.utils.os_command import OsCommand  # OS Command execution.
+
+
+class DiskMonitor:  # 2 references.
+    """Class to monitor the storage capacity of the RPi.
+    Basic operation monitors the 'root' disc of the system (memory card).
+    But can also monitor other mounted disks, such as usb memory sticks.
+    - Will attempt to mount them using the default
+    Raspbian desktop auto-mounting behaviour if needed."""
+
+    def __init__(self, name="root", devname="/dev/root", path="/", disctype="boot", logger=None):
+        # If devname = None, create a null entry.
+        self.log = logger  # Which logger to use?
+        self.os_command = OsCommand(logger=logger)
+        self.os_command.execute = self.os_command.execute
+        self.os_command.execute_code = self.os_command.execute_code
+        # A label to refer to this instance.
+        self.name = name
+        # The storage mapping device name as seen by the operating system. /dev/root for example.
+        self.dev_name = devname
+        # 'boot' or 'usb'. 'usb' triggers some extra processing to check it is mounted and available.
+        self.disk_type = disctype
+        self.timer = Timer(60)  # Set timer for 60 seconds.
+        self.disk_free = 0  # Bytes free.
+        self.low_disk_mb = 500  # Megabytes min disc free.
+        # This is the path without any device label (ie /media/pi  or   /   )
+        self.path = path
+        # This is the path including the device label (ie /media/pi/USBMEMORY   )
+        self.df_path = path
+        # USB storage details.
+        # Which devices will be considered?
+        self.usb_scan_list = ["/dev/sda1", "/dev/sdb1"]
+        # Raise an alarm if we see these devices connected.
+        self.usb_alarm_labels = ["CIRCUITPY"]
+        # Label of the device when it was formatted. Something like 'USBMEMORY'.
+        # Will appear in DfPath and is part of drive mapping.
+        self.usb_label = None
+        # Unique ID
+        self.usb_uuid = None
+        # file system type. FAT/FAT32.
+        self.usb_type = None
+        # Unique ID
+        self.usb_part_uuid = None
+        if devname is not None:
+            # True if available (eg root or USB is mounted), else False.
+            self.drive_available = True
+            # USB devices may need mounting. Check 'em out!
+            if self.disk_type in ["usb"]:
+                # Check if USB memory stick is available.
+                self.find_usb(devname=self.dev_name)
+        else:
+            self.drive_available = False  # There is no drive.
+        # Kickstart the values.
+        self.poll(force=True)
+        if self.log is not None:
+            self.log(
+                f"discmonitor: Available storage on: {self.name} {self.dev_name} {self.path} {self.disk_free} bytes",
+                terminal=False,
+            )
+
+    def get_df_dictionary(self):
+        """Return df information as a dictionary."""
+        dictionary = {}
+        #    $ df -h
+        #    $ df -h [mountpath]
+        #    Filesystem      Size  Used Avail Use% Mounted on
+        #    /dev/root        29G  7.5G   21G  27% /
+        #    devtmpfs        750M     0  750M   0% /dev
+        #    tmpfs           911M     0  911M   0% /dev/shm
+        #    tmpfs           911M  8.6M  902M   1% /run
+        #    tmpfs           5.0M  4.0K  5.0M   1% /run/lock
+        #    tmpfs           911M     0  911M   0% /sys/fs/cgroup
+        #    /dev/mmcblk0p1  253M   49M  204M  20% /boot
+        #    tmpfs           183M     0  183M   0% /run/user/1000
+        #    /dev/sda1       ***G   **G   **G  *** /media/pi/USBMEMORY
+        # Conversions from 'human readable' forms back to float/integers.
+        convlist = [
+            ["K", 1024],
+            ["M", 1024**2],
+            ["G", 1024**3],
+            ["T", 1024**4],
+            ["%", 1],
+        ]
+        # Use the df command in human readable format.
+        c_cmd = "df -h"
+        # Execute command and gather result.
+        lines = self.os_command.execute(c_cmd)
+        # This will be a list of the column headers from the first line of the 'df' command output.
+        fieldnames = None
+        # Read the output lines one at a time.
+        for i, line in enumerate(lines):
+            # self.log("pilomardisc.get_df_dictionary(): Processing:",i,line,terminal=False)
+            # Split into individual fields.
+            lineitems = line.strip().split()
+            # poll through the devices.
+            if len(lineitems) > 0:
+                if i == 0:  # 1st line is just field names.
+                    # lineitems - Always use the 'en_US' labels, ignore the headings in the user's locale.
+                    fieldnames = [
+                        "Filesystem",
+                        "Size",
+                        "Used",
+                        "Avail",
+                        "Use%",
+                        "Mounted on",
+                    ]
+                # Other lines contain data.
+                else:
+                    # Run through the columns 1,2,3&4.
+                    # Ignore the filesystem and mount column.
+                    for j in [
+                        1,
+                        2,
+                        3,
+                        4,
+                    ]:
+                        v = lineitems[j]  # Get raw column value.
+                        # Convert from HumanReadable into absolute value.
+                        # Check all conversions.
+                        for ji in convlist:
+                            if ji[0] in v:  # This HR value can be converted.
+                                # Ignore final magnitude character,
+                                # convert the rest into a safe decimal string.
+                                fv = self.os_command.delocalize(v[:-1])
+                                # self.log("pilomardisc.get_df_dictionary():
+                                # Converted",v,"into",fv,terminal=False)
+                                # Convert from HR text value into absolute value.
+                                # v = int(float(v[:-1]) * ji[1])
+                                # How many powers of 10 does the magnitude character represent?
+                                sv = ji[1]
+                                v = int(
+                                    float(fv) * sv
+                                )  # Convert from HR text value into absolute value.
+                                break  # No need to convert further.
+                        lineitems[j] = v  # Store back in the line.
+                    dictentry = {}  # Create an entry for this particular drive mount.
+                    # Pull each field and convert into dictionary entry.
+                    for j, v in enumerate(lineitems):
+                        dictentry[fieldnames[j]] = lineitems[j]
+                    # Append this entry to the dictionary of all mount points.
+                    dictionary[lineitems[-1]] = dictentry
+        # self.log("pilomardisc.get_df_dictionary():",dictionary,terminal=False)
+        return dictionary
+
+    def poll(self, force=False):
+        """Decide if it is time to update the storage statistics."""
+        if force or self.timer.due():
+            dfdict = self.get_df_dictionary()
+            # Drive is available, so report the space left.
+            if self.drive_available:
+                self.disk_free = dfdict[self.df_path]["Avail"]
+            else:
+                # Drive isn't available, so no space.
+                self.disk_free = 0
+
+    def free_bytes(self, force=False) -> int:
+        """Return the amount of memory left free."""
+        # Make sure that the figures are the very latest.
+        self.poll(force=force)
+        return self.disk_free
+
+    def free_megabytes(self, force=False) -> int:
+        """Return the amount of memory left free in megabytes."""
+        return int(self.free_bytes(force=force) / (1024**2))
+
+    def free_gigabytes(self, force=False) -> int:
+        """Return the amount of memory left free in gigabytes."""
+        return int(self.free_bytes(force=force) / (1024**3))
+
+    def disc_ok(self, force=False) -> bool:
+        """Check that there is at least 500megabytes of storage available."""
+        megabytes = self.free_megabytes(force=force)
+        if megabytes < self.low_disk_mb:
+            return False
+        else:
+            return True
+
+    def split_spaces(self, origline, sep=" "):
+        """If text has been split into space separated list, but it contains quoted space values
+        the list gets split incorrectly.
+        This routine recombines these embedded spaces."""
+        returnlist = []
+        newentry = ""
+        insidequotes = False
+        for _, character in enumerate(origline):
+            # Quote mark, so start/stop quoted string.
+            if character == '"':
+                insidequotes = not insidequotes
+            # Add this character to the current list entry.
+            newentry += character
+            # Separator only acts as separator if we are outside a quoted string.
+            if character == sep and not insidequotes:
+                # Clean up the entry.
+                newentry = newentry.strip(sep)
+                # If something left then append it to the output list.
+                if newentry != "":
+                    returnlist.append(newentry)
+                    # Prepare to construct the next entry.
+                    newentry = ""
+        # Append any remaining entry.
+        if newentry != "":
+            returnlist.append(newentry)
+        return returnlist
+
+    def find_usb(self, devname="/dev/sda1"):
+        """Return True if a USB memory stick exists."""
+        # /dev/usb1 might mount automatically if desktop is running,
+        # but it doesn't happen when running headlessly.
+        # This method tries to mount the USB storage if found while running headlessly.
+        result = False  # Assume there's no USB memory available at first.
+        if self.log is not None:
+            self.log(
+                f"discmonitor.find_usb: Checking if {devname} is recognised",
+                terminal=False,
+            )
+        if (
+            devname in self.usb_scan_list
+        ):  # Safety check. Don't run commands with values we don't trust.
+            c_cmd = f"sudo blkid {devname}"
+            lines = self.os_command.execute(c_cmd)  # Run the command and gather the results.
+            # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
+            #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
+            # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
+            for line in lines:  # Run through each result line in turn.
+                if len(line) == 0:
+                    continue  # Ignore blanks.
+                # items = line.strip().split(" ") # Clean and separate out the line elements.
+                # Clean and separate out the line elements, respecting embedded spaces in quotes.
+                items = self.split_spaces(line)
+                if (
+                    items[0][:-1] == devname
+                ):  # Found the USB memory stick. Extract details. (Ignore trailing ':' character)
+                    # Volume label - Will be the folder name under /media/pi/{USBLabel}
+                    self.usb_label = items[1].split("=")[1].replace('"', "")
+                    # Unique ID of the memory stick.
+                    self.usb_uuid = items[2].split("=")[1].replace('"', "")
+                    # File system type - vfat / vfat32 etc.
+                    self.usb_fs_type = items[3].split("=")[1].replace('"', "")
+                    # Universal identifier.
+                    self.usb_part_uuid = items[4].split("=")[1].replace('"', "")
+                    if self.log is not None:
+                        self.log(
+                            f"discmonitor.find_usb: Device: {devname} Label: {self.usb_label} UUID: {self.usb_uuid} FS Type: {self.usb_fs_type} PARTUUID: {self.usb_part_uuid}",
+                            terminal=False,
+                        )
+                    result = True  # We're happy so far.
+        else:  # The device value was not valid. Tell the user.
+            textline = f"discmonitor.find_usb: '{devname}' is invalid. Must be in {validdevnames}"
+            if self.log is not None:
+                self.log(textline, level="error", terminal=True)
+            TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
+        if result:  # Previous steps succeeded.
+            if self.log is not None:
+                self.log(
+                    f"discmonitor.find_usb: {devname} is recognised as {self.usb_label}.",
+                    terminal=False,
+                )
+            # There's a space in the label name. Refuse to mount it.
+            if " " in self.usb_label:
+                textline = f"discmonitor.find_usb: Media label '{self.usb_label}' contains spaces, will not mount. Please rename the media."
+                if self.log is not None:
+                    self.log(textline, level="error", terminal=True)
+                TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
+                result = False
+        else:  # Previous steps failed.
+            textline = f"discmonitor.find_usb: {devname} is NOT recognised. USB storage will not be available."
+            if self.log is not None:
+                self.log(textline, terminal=False)
+            # TextColor.text_box(textline,fg=TextColor.RED,bg=TextColor.BLACK)
+
+        if result:  # OK so far.
+            # The path to the mapped drive as it will appear in 'df'
+            # command output and in directory structures later on.
+            self.df_path = os.path.join(self.path, self.usb_label)
+            if self.log is not None:
+                self.log(
+                    f"discmonitor.find_usb: Checking if {devname} is mounted as {self.df_path}",
+                    terminal=False,
+                )
+            # The directory exists.
+            # (Risk that this is a real directory on the SD card! See error warning later!)
+            if os.path.exists(self.df_path):
+                if self.log is not None:
+                    self.log(f"discmonitor.find_usb: {self.df_path} exists.", terminal=False)
+            # The directory does not exist.
+            # The drive is recognised by the system, but not mounted. Try to mount it now.
+            else:
+                if self.log is not None:
+                    self.log(
+                        f"discmonitor.find_usb: {self.df_path} does not exist. Will attempt to mount.",
+                        terminal=True,
+                    )
+                # Warn the user that the 'pi' user password will be required.
+                # The udisksctl utility requires it in order to mount the disc.
+                lines = [f"Mounting {self.usb_label} under {self.path}"]
+                TextColor.text_box(lines, fg=TextColor.GREEN, bg=TextColor.BLACK)
+                lines = [
+                    'You may be prompted for the "pi" user password as part of the mount process.',
+                    "If you do not give the correct password the USB storage will not be mounted.",
+                ]
+                TextColor.text_box(lines, fg=TextColor.CYAN, bg=TextColor.BLACK)
+                # Construct the mount command.
+                c_cmd = f"udisksctl mount -b {devname}"
+                # Show the user exactly what's being executed.
+                print(TextColor.yellow(f"Executing: {c_cmd}"))
+                # Check return code.
+                temp = self.os_command.execute_code(c_cmd)
+                # Return code '0' means success.
+                if temp == 0:
+                    print("Thank you.")
+                    if self.log is not None:
+                        self.log(
+                            f"discmonitor.find_usb: Mount {devname} as {self.df_path} success.",
+                            terminal=False,
+                        )
+                # Any other return code value means a problem.
+                else:
+                    result = False  # Failed.
+                    if self.log is not None:
+                        self.log(
+                            f"discmonitor.find_usb: Mount {devname} as {self.df_path} failed. (code {temp})",
+                            level="error",
+                            terminal=True,
+                        )
+        if result:  # OK so far.
+            # Get the 'df' results from the operating system.
+            dictionary = self.get_df_dictionary()
+            # We found it now in the list of mount points.
+            if self.df_path in dictionary:
+                if self.log is not None:
+                    self.log(
+                        f"discmonitor.find_usb: Check {devname} as {self.df_path} found in df listing.",
+                        terminal=False,
+                    )
+            # We still can't find it. Something failed.
+            else:
+                if self.log is not None:
+                    self.log(
+                        f"discmonitor.find_usb: Check {devname} as {self.df_path} not found in df listing.",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"discmonitor.find_usb: Troubleshooting: Check for rogue {self.df_path} folder on SD card.",
+                        terminal=False,
+                    )
+                lines = [
+                    "Troubleshooting",
+                    "If the USB drive is installed but does not appear in the .df listing:",
+                    f"There may be a false folder named {self.df_path} on the SD card which prevents mounting the USB memory.",
+                    "To solve :-",
+                    f"- Delete the false USB folder {self.df_path} from the SD card.",
+                    "- Restart the software.",
+                ]
+                TextColor.text_box(lines, fg=TextColor.YELLOW, bg=TextColor.BLACK)
+                # Troubleshooting.
+                # If USB didn't mount properly for any reason earlier,
+                # the system will create a folder on the SD card with the same name.
+                # - So os.path.exists returns TRUE,
+                # but in fact the USB memory isn't mounted, so the 'df' command will not list it...
+                # If you get this 'not found in df listing' error but the device is there, try
+                # - Remove the memory stick.
+                # - Delete the folder under /media/pi that represents the USB memory stick.
+                # - Reboot and try again.
+                # I've seen this happen after an O/S hang.
+                result = False  # Failed.
+        self.drive_available = result
+        if self.log is not None:
+            self.log(
+                f"discmonitor.find_usb: DriveAvailable {self.drive_available}",
+                terminal=False,
+            )
+        return result
+
+    def select_usb_devname(self):
+        """Check the list of available devices,
+            and choose the one most likely to be a USB Memory stick.
+            Static method, available without instantiating.
+
+        pi@pilomar2:~/pilomar/src $ sudo blkid
+        /dev/mmcblk0p1: LABEL_FATBOOT="boot" LABEL="boot" UUID="7EE8-8DC7" TYPE="vfat" PARTUUID="abf65704-01"
+        /dev/mmcblk0p2: LABEL="rootfs" UUID="63c616ab-0142-4859-9abe-94e2a99e8460" TYPE="ext4" PARTUUID="abf65704-02"
+        /dev/sda1: LABEL="CIRCUITPY" UUID="......" ....
+        /dev/sdb1: LABEL="USBMEMORY" UUID="C8F1-9D5D" TYPE="exfat" PARTUUID="62d3fde9-01"
+        /dev/mmcblk0: PTUUID="abf65704" PTTYPE="dos"
+
+        """
+        result = None
+        # List all connected devices.
+        lines = self.os_command.execute("sudo blkid")
+        for line in lines:
+            # Separate by spaces, but ignore spaces in quotes.
+            items = self.split_spaces(line)
+            if self.log is not None:
+                self.log(
+                    f"discmonitor.select_usb_devname: Considering {line}",
+                    terminal=False,
+                )
+            dev = items[0].split(":")[0]  # Remove the trailing ':' from the device.
+            if dev in self.usb_scan_list:  # This is a potential device...
+                if self.log is not None:
+                    self.log(
+                        f"discmonitor.select_usb_devname: Potential USB device {line}",
+                        terminal=False,
+                    )
+                label = ""  # No label yet.
+                for item in items:  # Find the label entry.
+                    if item.startswith("LABEL="):
+                        # Get the device label.
+                        label = item.split("=")[1].replace('"', "")
+                if label in self.usb_alarm_labels:  # Reject this type of device.
+                    if self.log is not None:
+                        self.log(
+                            f"discmonitor.select_usb_devname: Found a banned USB device connected. ({label})",
+                            level="error",
+                        )
+                    print(
+                        f"discmonitor.select_usb_devname: Found banned USB device connected. ({label})"
+                    )
+                else:  # Try this device!
+                    result = dev
+                    break
+        if self.log is not None:
+            self.log(f"discmonitor.select_usb_devname: Selected {result}", terminal=False)
+        return result
+
+    def list_usb_devices(self):
+        """Return list of USB devices.
+            Static method, available without instantiating.
+
+        pi@pilomar2:~/pilomar/src $ sudo blkid
+        /dev/sda1: LABEL="CIRCUITPY" UUID="......" ....
+        /dev/sdb1: LABEL="USBMEMORY" UUID="C8F1-9D5D" TYPE="exfat" PARTUUID="62d3fde9-01"
+
+        """
+        result = []
+        lines = self.os_command.execute("sudo blkid")  # List all connected devices.
+        for line in lines:
+            if len(line) < 1:
+                continue  # Ignore blank lines.
+            if self.log is not None:
+                self.log(f"discmonitor.ListUSBDevices: Considering {line}", terminal=False)
+            else:
+                print(f"discmonitor.ListUSBDevices: Considering {line}")
+            items = self.split_spaces(line)  # Separate by spaces, but ignore spaces in quotes.
+            dev = items[0].split(":")[0]  # Remove the trailing ':' from the device.
+            if dev in self.usb_scan_list:  # This is a potential device...
+                if self.log is not None:
+                    self.log(f"discmonitor.ListUSBDevices: Including {line}", terminal=False)
+                else:
+                    print(f"discmonitor.ListUSBDevices: Including {line}")
+                label = ""  # No label yet.
+                for item in items:  # Find the label entry.
+                    if item.startswith("LABEL="):
+                        label = item.split("=")[1].replace('"', "")  # Get the device label.
+                result.append([dev, label])
+            else:
+                if self.log is not None:
+                    self.log(f"discmonitor.ListUSBDevices: Excluding {line}", terminal=False)
+                else:
+                    print(f"discmonitor.ListUSBDevices: Excluding {line}")
+        if self.log is not None:
+            self.log(f"discmonitor.ListUSBDevices: listed: {result}", terminal=False)
+        return result
+
+    def find_usb_new(self, devname="/dev/sda1", retries=2):
+        """Return True if a USB memory stick exists.
+        Retries > 0, allows further attempst to enter password when mounting USB device.
+        """
+        # /dev/usb1 should mount automatically if 'boot to desktop' is enabled.
+        # This method tries to mount the USB storage if found while running headlessly.
+        result = False  # Assume there's no USB memory available at first.
+        if self.log is not None:
+            self.log(
+                f"discmonitor.find_usb: Checking if {devname} is recognised",
+                terminal=False,
+            )
+        # validdevnames = ['/dev/sda1','/dev/sdb1']
+        if (
+            devname in self.usb_scan_list
+        ):  # Safety check. Don't run commands with values we don't trust.
+            c_cmd = "sudo blkid " + devname
+            lines = self.os_command.execute(c_cmd)  # Run the command and gather the results.
+            # Example output:    /dev/sda1: LABEL="USBMEMORY" UUID="B267-53C5" TYPE="vfat" PARTUUID="c3072e18-01"
+            #                    /dev/sda1: LABEL="SAMSUNG USB" UUID="64A5-F009" TYPE="exfat"
+            # This will fail if the label has spaces in it! Rename the USB stick so that it doesn't!
+            for line in lines:  # Run through each result line in turn.
+                if len(line) == 0:
+                    continue  # Ignore blanks.
+                # items = line.strip().split(" ") # Clean and separate out the line elements.
+                # Clean and separate out the line elements, respecting embedded spaces in quotes.
+                items = self.split_spaces(line)
+                # Found the USB memory stick. Extract details. (Ignore trailing ':' character)
+                if items[0][:-1] == devname:
+                    # Volume label - Will be the folder name under /media/pi/{USBLabel}
+                    self.usb_label = items[1].split("=")[1].replace('"', "")
+                    # Unique ID of the memory stick.
+                    self.usb_uuid = items[2].split("=")[1].replace('"', "")
+                    # File system type - vfat / vfat32 etc.
+                    self.usb_fs_type = items[3].split("=")[1].replace('"', "")
+                    # Universal identifier.
+                    self.usb_part_uuid = items[4].split("=")[1].replace('"', "")
+                    if self.log is not None:
+                        self.log(
+                            f"discmonitor.find_usb: Device: {devname} Label: {self.usb_label} UUID: {self.usb_uuid} FS Type: {self.usb_fs_type} PARTUUID: {self.usb_part_uuid}",
+                            terminal=False,
+                        )
+                    result = True  # We're happy so far.
+        else:  # The device value was not valid. Tell the user.
+            textline = f"discmonitor.find_usb: '{devname}' is invalid. Must be in {validdevnames}"
+            if self.log is not None:
+                self.log(textline, level="error", terminal=True)
+            TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
+        if result:  # Previous steps succeeded.
+            if self.log is not None:
+                self.log(
+                    f"discmonitor.find_usb: {devname} is recognised as {self.usb_label}.",
+                    terminal=False,
+                )
+            # There's a space in the label name. Refuse to mount it.
+            if " " in self.usb_label:
+                textline = f"discmonitor.find_usb: Media label '{self.usb_label}' contains spaces, will not mount. Please rename the media."
+                if self.log is not None:
+                    self.log(textline, level="error", terminal=True)
+                TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
+                result = False
+        else:  # Previous steps failed.
+            textline = f"discmonitor.find_usb: {devname} is NOT recognised."
+            if self.log is not None:
+                self.log(textline, level="error", terminal=True)
+            TextColor.text_box(textline, fg=TextColor.RED, bg=TextColor.BLACK)
+
+        if result:  # OK so far.
+            # The path to the mapped drive as it will appear in 'df'
+            # command output and in directory structures later on.
+            self.df_path = os.path.join(self.path, self.usb_label)
+            if self.log is not None:
+                self.log(
+                    f"discmonitor.find_usb: Checking if {devname} is mounted as {self.df_path}",
+                    terminal=False,
+                )
+            # The directory exists.
+            # (Risk that this is a real directory on the SD card! See error warning later!)
+            if os.path.exists(self.df_path):
+                if self.log is not None:
+                    self.log(f"discmonitor.find_usb: {self.df_path} exists.", terminal=False)
+            # The directory does not exist.
+            # The drive is recognised by the system, but not mounted.
+            # Try to mount it now.
+            else:
+                if self.log is not None:
+                    self.log(
+                        f"discmonitor.find_usb: {self.df_path} does not exist. Will attempt to mount.",
+                        terminal=True,
+                    )
+                # Warn the user that the 'pi' user password will be required.
+                # The udisksctl utility requires it in order to mount the disc.
+                lines = [f"Mounting {self.usb_label} under {self.path}"]
+                TextColor.text_box(lines, fg=TextColor.GREEN, bg=TextColor.BLACK)
+                lines = [
+                    'You may be prompted for the "pi" user password as part of the mount process.',
+                    "If you do not give the correct password the USB storage will not be mounted.",
+                ]
+                TextColor.text_box(lines, fg=TextColor.CYAN, bg=TextColor.BLACK)
+                # Construct the mount command.
+                c_cmd = f"udisksctl mount -b {devname}"
+                # Show the user exactly what's being executed.
+                print(TextColor.yellow(f"Executing: {c_cmd}"))
+                # Try this command a few times in case password is wrong.
+                while retries >= 0:
+                    # Check return code.
+                    temp = self.os_command.execute_code(c_cmd)
+                    # Return code '0' means success.
+                    if temp == 0:
+                        print("Thank you.")
+                        if self.log is not None:
+                            self.log(
+                                f"discmonitor.find_usb: Mount {devname} as {self.df_path} success.",
+                                terminal=False,
+                            )
+                    # Any other return code value means a problem.
+                    else:
+                        # Failed.
+                        result = False
+                        if self.log is not None:
+                            self.log(
+                                f"discmonitor.find_usb: Mount {devname} as {self.df_path} failed. (code {temp})",
+                                level="error",
+                                terminal=True,
+                            )
+                    retries -= 1  #
+                    if retries >= 0:
+                        print("Please try again...")
+        # OK so far.
+        if result:
+            # Get the 'df' results from the operating system.
+            dictionary = self.get_df_dictionary()
+            # We found it now in the list of mount points.
+            if self.df_path in dictionary:
+                if self.log is not None:
+                    self.log(
+                        f"discmonitor.find_usb: Check {devname} as {self.df_path} found in df listing.",
+                        terminal=False,
+                    )
+            # We still can't find it. Something failed.
+            else:
+                if self.log is not None:
+                    self.log(
+                        f"discmonitor.find_usb: Check {devname} as {self.df_path} not found in df listing.",
+                        level="error",
+                        terminal=True,
+                    )
+                    self.log(
+                        f"discmonitor.find_usb: Troubleshooting: Check for rogue {self.df_path} folder on SD card.",
+                        terminal=False,
+                    )
+                lines = [
+                    "Troubleshooting",
+                    "If the USB drive is installed but does not appear in the .df listing:",
+                    f"There may be a false folder named {self.df_path} on the SD card which prevents mounting the USB memory.",
+                    "To solve :-",
+                    "- Remove the USB drive.",
+                    f"- Delete the false USB folder {self.df_path}",
+                    "- Restart the software.",
+                ]
+                TextColor.text_box(lines, fg=TextColor.YELLOW, bg=TextColor.BLACK)
+                # Troubleshooting. If USB didn't mount properly for any reason earlier,
+                # the system will create a folder on the SD card with the same name.
+                # - So os.path.exists returns TRUE, but in fact the USB memory isn't mounted,
+                # so the 'df' command will not list it...
+                # If you get this 'not found in df listing' error but the device is there, try
+                # - Remove the memory stick.
+                # - Delete the folder under /media/pi that represents the USB memory stick.
+                # - Reboot and try again.
+                # I've seen this happen after an O/S hang.
+                result = False  # Failed.
+        self.drive_available = result
+        if self.log is not None:
+            self.log(
+                f"discmonitor.find_usb: DriveAvailable {self.drive_available}",
+                terminal=False,
+            )
+        return result

@@ -1,0 +1,58 @@
+name: Release and Build Wheel
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    if: github.event.pull_request.merged == true || startsWith(github.ref, 'refs/tags/v')
+    needs: []   # CI workflow is a separate workflow; tag-based releases are triggered after CI passes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies and run tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install skyfield pandas numpy astropy pyserial pytz requests
+          pip install pytest
+          pip install -e .
+          pytest tests/ -q
+
+      - name: Install build tools
+        run: |
+          pip install build wheel
+
+      - name: Build wheel and sdist
+        run: |
+          python -m build
+
+      - name: Create GitHub Release (if tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          generate_release_notes: true
+
+      - name: Upload wheel as artifact (if not tag)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilomar-wheel
+          path: dist/*.whl

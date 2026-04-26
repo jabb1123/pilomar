@@ -1,0 +1,10 @@
+- Activate local environment: `source venv/bin/activate`
+- Install runtime dependencies: `pip install -r requirements.txt`
+- Install package in editable mode: `pip install -e .`
+- Run application entry point from repo root: `python -m pilomar`
+- Smoke-check syntax/package importability after edits: `python -m compileall pilomar`
+- Build distributables when packaging-related work changes: `python -m build`
+- Inspect repo state: `git status`, `git diff --stat`, `git diff`
+- Fast code/file search on Linux: `rg pattern`, `rg --files`, `find . -name '...'
+- View package layout quickly: `ls`, `tree -L 2` if installed
+- Raspberry Pi provisioning helpers live in `scripts/`; `buildpilomar` is deprecated and `buildpilomar_buster32` / `buildpilomar_bookworm64` are OS-specific setup scripts.

@@ -1,0 +1,7 @@
+- Pilomar is Raspberry Pi-based miniature observatory control software for camera/lens control, target tracking, image capture, and astronomy workflows.
+- Primary language: Python 3 package project using setuptools via pyproject.toml; runtime targets Linux/Raspberry Pi.
+- Main package is `pilomar/`; legacy/reference code remains in `src/`; packaging artifacts may appear in `build/` and `dist/`.
+- Key package areas: `app`, `core`, `config`, `control`, `hardware`, `monitoring`, `imaging`, `celestial`, `session`, `ui`, `utils`, `targets`.
+- Entry point is `python -m pilomar`, implemented in `pilomar/__main__.py`.
+- Dependencies are astronomy/scientific and hardware focused: skyfield, pandas, numpy, astropy, gpiod/RPi.GPIO, plus camera/image packages listed in requirements.txt.
+- Repo also contains Raspberry Pi provisioning/build helper scripts in `scripts/`, including OS-specific build scripts and a backup zip script.
