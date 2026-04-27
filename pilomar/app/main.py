@@ -77,6 +77,11 @@ class ApplicationContext:
     motor_controls: list[Any] = field(default_factory=list)
     mctl: Any = None  # Microcontroller
 
+    # Direct GPIO motor control (pigpio-based, no external MCU)
+    direct_driver: Any = None
+    direct_tracker: Any = None
+    direct_slew: Any = None
+
     # Threading
     camera_thread: Any = None
     mctl_thread: Any = None
@@ -172,11 +177,7 @@ class Application:
         # Get home latitude from parameters if available
         home_latitude = 0.0
         if self.ctx.parameters:
-            home_latitude = getattr(
-                self.ctx.parameters,
-                "HomeLat",
-                getattr(self.ctx.parameters, "_HomeLatVal", 0.0),
-            )
+            home_latitude = getattr(self.ctx.parameters, "_home_lat_val", 0.0)
 
         ctx = TargetSelectionContext(
             messier=self.ctx.messier_dict,
@@ -227,6 +228,9 @@ class Application:
             # Load parameters
             self._load_parameters()
 
+            # Initialize direct GPIO motor control
+            self._init_direct_motors()
+
             # Initialize Skyfield
             self._init_skyfield()
 
@@ -246,6 +250,75 @@ class Application:
 
             traceback.print_exc()
             return False
+
+    def _init_direct_motors(self) -> None:
+        """Initialize the direct-GPIO stepper driver, sky tracker and slew controller.
+
+        Only activates when ``DirectMotorEnabled`` is True in parameters.  Requires
+        the pigpio daemon to be running on the Pi.
+        """
+        if not self.ctx.parameters:
+            return
+        if not getattr(self.ctx.parameters, "direct_motor_enabled", False):
+            return
+
+        try:
+            import pigpio
+            from pilomar.control.direct_slew import DirectSlewController
+            from pilomar.control.direct_stepper import DualStepperDriver
+            from pilomar.control.direct_tracker import DirectSkyTracker
+        except ImportError as exc:
+            self._log(f"Direct motor control not available: {exc}", level="warning")
+            return
+
+        try:
+            p = self.ctx.parameters
+            pi = pigpio.pi()
+            if not pi.connected:
+                self._log(
+                    "pigpio daemon not running — direct motors disabled",
+                    level="warning",
+                )
+                return
+
+            self.ctx.direct_driver = DualStepperDriver(
+                pi,
+                az_step_pin=p.az_step_pin,
+                az_dir_pin=p.az_dir_pin,
+                alt_step_pin=p.alt_step_pin,
+                alt_dir_pin=p.alt_dir_pin,
+                az_steps_per_rev=p.az_steps_per_rev,
+                alt_steps_per_rev=p.alt_steps_per_rev,
+                flip_az=p.flip_az,
+                flip_alt=p.flip_alt,
+                home_pin=p.alt_home_pin,
+                logger=self.ctx.main_log,
+            )
+
+            self.ctx.direct_tracker = DirectSkyTracker(
+                driver=self.ctx.direct_driver,
+                lat=p._home_lat_val,
+                lon=p._home_lon_val,
+                logger=self.ctx.main_log,
+            )
+
+            self.ctx.direct_slew = DirectSlewController(
+                driver=self.ctx.direct_driver,
+                tracker=self.ctx.direct_tracker,
+                logger=self.ctx.main_log,
+            )
+
+            self._log(
+                f"Direct GPIO motors initialized "
+                f"(AZ step={p.az_step_pin}/dir={p.az_dir_pin}, "
+                f"ALT step={p.alt_step_pin}/dir={p.alt_dir_pin}, "
+                f"home_pin={p.alt_home_pin})"
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            self._log(f"Failed to initialize direct motors: {exc}", level="warning")
+            import traceback
+
+            traceback.print_exc()
 
     def _load_parameters(self) -> None:
         """Load parameters from file or create with defaults."""
@@ -664,6 +737,11 @@ class Application:
         )
         print(f"\nGOTO Target: {target_name}")
 
+        # --- Direct GPIO path ---
+        if self.ctx.direct_slew is not None:
+            self._goto_target_direct()
+            return
+
         # Check if motors are available
         if not self.ctx.motor_controls:
             print("Motors not initialized - cannot move telescope.")
@@ -688,8 +766,56 @@ class Application:
         else:
             print("Failed to complete move to target.")
 
+    def _goto_target_direct(self) -> None:
+        """GOTO using the direct GPIO slew controller."""
+        target = self.ctx.target
+        tracker = self.ctx.direct_tracker
+        slew = self.ctx.direct_slew
+
+        handle = target.get("handle") if isinstance(target, dict) else None
+        searchgroup = target.get("searchgroup", "") if isinstance(target, dict) else ""
+        searchterm = target.get("searchterm", "") if isinstance(target, dict) else ""
+
+        if searchgroup == "altaz":
+            # Target stored as explicit alt/az degrees
+            try:
+                alt, az = (float(v) for v in searchterm.split(","))
+            except (ValueError, AttributeError):
+                print("Could not parse alt/az target coordinates.")
+                return
+            print(f"Slewing to ALT={alt:.2f}° AZ={az:.2f}°...")
+            slew.slew_to_altaz(alt, az, resume_tracking=False)
+            print("Slew complete.")
+            return
+
+        if handle is None:
+            print("Target has no Skyfield handle — cannot compute position.")
+            return
+
+        # Point tracker at the target to resolve current alt/az
+        tracker.target = handle
+        alt, az = tracker.current_altaz()
+
+        if alt < 0:
+            print(f"Target is below the horizon (ALT={alt:.1f}°). Cannot slew.")
+            return
+
+        print(f"Target position: ALT={alt:.2f}° AZ={az:.2f}°")
+        print("Slewing to target (tracking will resume after slew)...")
+        slew.slew_to_altaz(alt, az, resume_tracking=True)
+        print("Slew complete. Tracking active.")
+
     def _home_motors(self) -> None:
         """Return motors to home position."""
+        if self.ctx.direct_driver is not None:
+            print("\nHoming altitude axis via tilt switch...")
+            try:
+                self.ctx.direct_driver.home_altitude()
+                print("Homing complete.")
+            except Exception as exc:  # pylint: disable=broad-except
+                print(f"Homing failed: {exc}")
+            return
+
         if not self.ctx.motor_controls:
             print("\nMotors not initialized.")
             print("(Would return telescope to home position)")
@@ -1111,8 +1237,8 @@ class Application:
 
         # Location
         if self.ctx.parameters:
-            lat = getattr(self.ctx.parameters, "HomeLat", "Not set")
-            lon = getattr(self.ctx.parameters, "HomeLon", "Not set")
+            lat = self.ctx.parameters.home_lat or "Not set"
+            lon = self.ctx.parameters.home_lon or "Not set"
             print(f"Location: {lat}, {lon}")
 
         # Time
@@ -1123,12 +1249,24 @@ class Application:
 
         # Hardware status
         print(f"\nCamera: {'Connected' if self.ctx.camera else 'Not initialized'}")
-        print(f"Motors: {'Ready' if self.ctx.motor_controls else 'Not initialized'}")
-        print(f"Microcontroller: {'Connected' if self.ctx.mctl else 'Not initialized'}")
+        if self.ctx.direct_driver is not None:
+            driver = self.ctx.direct_driver
+            print(
+                f"Motors (direct GPIO): AZ={driver.az_degrees():.1f}°  "
+                f"ALT={driver.alt_degrees():.1f}°"
+            )
+        else:
+            print(
+                f"Motors: {'Ready' if self.ctx.motor_controls else 'Not initialized'}"
+            )
+        if self.ctx.direct_driver is None:
+            print(
+                f"Microcontroller: {'Connected' if self.ctx.mctl else 'Not initialized'}"
+            )
 
         # Parameters summary
         if self.ctx.parameters:
-            batch = getattr(self.ctx.parameters, "BatchSize", 100)
+            batch = self.ctx.parameters.batch_size
             print(f"\nBatch size: {batch} frames")
 
         # Session status
@@ -1258,7 +1396,7 @@ class Application:
 
     def _set_batch_size(self) -> None:
         """Set the number of frames per observation batch."""
-        current = getattr(self.ctx.parameters, "BatchSize", 100) if self.ctx.parameters else 100
+        current = self.ctx.parameters.batch_size if self.ctx.parameters else 100
         print(f"\nCurrent batch size: {current} frames")
 
         try:
@@ -1611,7 +1749,15 @@ class Application:
         print("\nMotor Status")
         print("=" * 40)
 
-        if self.ctx.motor_controls:
+        if self.ctx.direct_driver is not None:
+            d = self.ctx.direct_driver
+            print(f"\nAzimuth:  {d.az_degrees():.2f}°  ({d.az_position_steps} steps)")
+            print(f"Altitude: {d.alt_degrees():.2f}°  ({d.alt_position_steps} steps)")
+            print(f"AZ rate:  {d.az_rate:.1f} steps/sec")
+            print(f"ALT rate: {d.alt_rate:.1f} steps/sec")
+            home_state = "TRIGGERED" if d.home_pin_active() else "clear"
+            print(f"Tilt switch (pin {d.home_pin}): {home_state}")
+        elif self.ctx.motor_controls:
             for mc in self.ctx.motor_controls:
                 name = getattr(mc, "MotorName", "Unknown")
                 current_angle = getattr(mc, "CurrentAngle", 0.0)
@@ -1628,11 +1774,31 @@ class Application:
 
     def _move_azimuth(self) -> None:
         """Move azimuth motor to a specific angle."""
+        if self.ctx.direct_driver is not None:
+            d = self.ctx.direct_driver
+            slew = self.ctx.direct_slew
+            print(f"\nCurrent azimuth: {d.az_degrees():.2f}°")
+            try:
+                value = input("Enter target angle (0-360, or 'x' to cancel): ").strip()
+                if value.lower() == "x":
+                    return
+                target = float(value)
+                if not 0 <= target <= 360:
+                    print("Angle must be between 0 and 360.")
+                    return
+                print(f"Slewing to {target}°...")
+                slew.slew_to_altaz(d.alt_degrees(), target, resume_tracking=False)
+                print(f"Done. AZ={d.az_degrees():.2f}°")
+            except ValueError:
+                print("Invalid angle.")
+            except Exception as e:
+                print(f"Error: {e}")
+            return
+
         if not self.ctx.motor_controls:
             print("\nMotors not initialized.")
             return
 
-        # Find azimuth motor
         az_motor = None
         for mc in self.ctx.motor_controls:
             name = getattr(mc, "MotorName", "").lower()
@@ -1651,19 +1817,16 @@ class Application:
             value = input("Enter target angle (0-360, or 'x' to cancel): ").strip()
             if value.lower() == "x":
                 return
-
             target = float(value)
             if not 0 <= target <= 360:
                 print("Angle must be between 0 and 360.")
                 return
-
             print(f"Moving to {target}°...")
             if hasattr(az_motor, "GoToAngle"):
                 az_motor.GoToAngle(target)
                 print("Move complete.")
             else:
                 print("GoToAngle method not available.")
-
         except ValueError:
             print("Invalid angle.")
         except Exception as e:
@@ -1671,11 +1834,36 @@ class Application:
 
     def _move_altitude(self) -> None:
         """Move altitude motor to a specific angle."""
+        if self.ctx.direct_driver is not None:
+            d = self.ctx.direct_driver
+            slew = self.ctx.direct_slew
+            min_alt = getattr(self.ctx.parameters, "min_altitude_angle", 0) or 0
+            max_alt = getattr(self.ctx.parameters, "max_altitude_angle", 90) or 90
+            print(f"\nCurrent altitude: {d.alt_degrees():.2f}°")
+            print(f"Range: {min_alt}° to {max_alt}°")
+            try:
+                value = input(
+                    f"Enter target angle ({min_alt}-{max_alt}, or 'x' to cancel): "
+                ).strip()
+                if value.lower() == "x":
+                    return
+                target = float(value)
+                if not min_alt <= target <= max_alt:
+                    print(f"Angle must be between {min_alt} and {max_alt}.")
+                    return
+                print(f"Slewing to {target}°...")
+                slew.slew_to_altaz(target, d.az_degrees(), resume_tracking=False)
+                print(f"Done. ALT={d.alt_degrees():.2f}°")
+            except ValueError:
+                print("Invalid angle.")
+            except Exception as e:
+                print(f"Error: {e}")
+            return
+
         if not self.ctx.motor_controls:
             print("\nMotors not initialized.")
             return
 
-        # Find altitude motor
         alt_motor = None
         for mc in self.ctx.motor_controls:
             name = getattr(mc, "MotorName", "").lower()
@@ -1700,19 +1888,16 @@ class Application:
             value = input(f"Enter target angle ({min_alt}-{max_alt}, or 'x' to cancel): ").strip()
             if value.lower() == "x":
                 return
-
             target = float(value)
             if not min_alt <= target <= max_alt:
                 print(f"Angle must be between {min_alt} and {max_alt}.")
                 return
-
             print(f"Moving to {target}°...")
             if hasattr(alt_motor, "GoToAngle"):
                 alt_motor.GoToAngle(target)
                 print("Move complete.")
             else:
                 print("GoToAngle method not available.")
-
         except ValueError:
             print("Invalid angle.")
         except Exception as e:
@@ -1720,6 +1905,27 @@ class Application:
 
     def _tune_azimuth(self) -> None:
         """Fine-tune azimuth position with small adjustments."""
+        if self.ctx.direct_driver is not None:
+            d = self.ctx.direct_driver
+            slew = self.ctx.direct_slew
+            print("\nAzimuth Tuning")
+            print("-" * 30)
+            print("Commands: +1, +0.1, -1, -0.1, or absolute angle, 'x' to exit")
+            while True:
+                print(f"Current: {d.az_degrees():.2f}°")
+                cmd = input("Adjust: ").strip()
+                if cmd.lower() == "x":
+                    break
+                try:
+                    if cmd.startswith("+") or cmd.startswith("-"):
+                        target = (d.az_degrees() + float(cmd)) % 360
+                    else:
+                        target = float(cmd) % 360
+                    slew.slew_to_altaz(d.alt_degrees(), target, resume_tracking=False)
+                except ValueError:
+                    print("Invalid input.")
+            return
+
         if not self.ctx.motor_controls:
             print("\nMotors not initialized.")
             return
@@ -1762,6 +1968,30 @@ class Application:
 
     def _tune_altitude(self) -> None:
         """Fine-tune altitude position with small adjustments."""
+        if self.ctx.direct_driver is not None:
+            d = self.ctx.direct_driver
+            slew = self.ctx.direct_slew
+            min_alt = getattr(self.ctx.parameters, "min_altitude_angle", 0) or 0
+            max_alt = getattr(self.ctx.parameters, "max_altitude_angle", 90) or 90
+            print("\nAltitude Tuning")
+            print("-" * 30)
+            print("Commands: +1, +0.1, -1, -0.1, or absolute angle, 'x' to exit")
+            while True:
+                print(f"Current: {d.alt_degrees():.2f}°")
+                cmd = input("Adjust: ").strip()
+                if cmd.lower() == "x":
+                    break
+                try:
+                    if cmd.startswith("+") or cmd.startswith("-"):
+                        target = d.alt_degrees() + float(cmd)
+                    else:
+                        target = float(cmd)
+                    target = max(min_alt, min(max_alt, target))
+                    slew.slew_to_altaz(target, d.az_degrees(), resume_tracking=False)
+                except ValueError:
+                    print("Invalid input.")
+            return
+
         if not self.ctx.motor_controls:
             print("\nMotors not initialized.")
             return
@@ -2153,29 +2383,36 @@ class Application:
         params = self.ctx.parameters
 
         print("\n--- Location ---")
-        print(f"HomeLat: {getattr(params, 'HomeLat', 'Not set')}")
-        print(f"HomeLon: {getattr(params, 'HomeLon', 'Not set')}")
-        print(f"LocalTZ: {getattr(params, 'LocalTZ', 'utc')}")
+        print(f"HomeLat: {params.home_lat or 'Not set'}")
+        print(f"HomeLon: {params.home_lon or 'Not set'}")
+        print(f"LocalTZ: {params.local_tz or 'utc'}")
 
         print("\n--- Camera ---")
-        print(f"CameraEnabled: {getattr(params, 'CameraEnabled', True)}")
-        print(f"ExposureSeconds: {getattr(params, 'ExposureSeconds', 'N/A')}")
-        print(f"BatchSize: {getattr(params, 'BatchSize', 100)}")
-        print(f"SaveJpg: {getattr(params, 'CameraSaveJpg', True)}")
-        print(f"SaveDng: {getattr(params, 'CameraSaveDng', True)}")
-        print(f"SaveFits: {getattr(params, 'CameraSaveFits', False)}")
+        print(f"CameraEnabled: {params.camera_enabled}")
+        print(f"BatchSize: {params.batch_size}")
+        print(f"SaveJpg: {params.camera_save_jpg}")
+        print(f"SaveDng: {params.camera_save_dng}")
+        print(f"SaveFits: {params.camera_save_fits}")
 
         print("\n--- Motors ---")
-        print(f"AzimuthGearRatio: {getattr(params, 'AzimuthGearRatio', 240)}")
-        print(f"AltitudeGearRatio: {getattr(params, 'AltitudeGearRatio', 240)}")
-        print(f"AzimuthRestAngle: {getattr(params, 'AzimuthRestAngle', 180.0)}")
-        print(f"AltitudeRestAngle: {getattr(params, 'AltitudeRestAngle', 0.0)}")
-        print(f"MinAltitude: {getattr(params, 'MinAltitudeAngle', 0)}")
-        print(f"MaxAltitude: {getattr(params, 'MaxAltitudeAngle', 90)}")
+        print(f"AzimuthGearRatio: {params.azimuth_gear_ratio}")
+        print(f"AltitudeGearRatio: {params.altitude_gear_ratio}")
+        print(f"AzimuthRestAngle: {params.azimuth_rest_angle}")
+        print(f"AltitudeRestAngle: {params.altitude_rest_angle}")
+        print(f"MinAltitude: {params.min_altitude_angle}")
+        print(f"MaxAltitude: {params.max_altitude_angle}")
+
+        print("\n--- Direct GPIO Motors ---")
+        print(f"DirectMotorEnabled: {params.direct_motor_enabled}")
+        if params.direct_motor_enabled:
+            print(f"AZ step={params.az_step_pin}/dir={params.az_dir_pin}")
+            print(
+                f"ALT step={params.alt_step_pin}/dir={params.alt_dir_pin}  home={params.alt_home_pin}"
+            )
 
         print("\n--- Display ---")
-        print(f"ColorScheme: {getattr(params, 'ColorScheme', 'green')}")
-        print(f"DebugMode: {getattr(params, 'DebugMode', False)}")
+        print(f"ColorScheme: {params.color_scheme}")
+        print(f"DebugMode: {params.debug_mode}")
 
         input("\nPress Enter to continue...")
 
@@ -2185,7 +2422,9 @@ class Application:
             print("\nParameters not loaded.")
             return
 
-        print(f"\nCurrent location: {self.ctx.parameters.HomeLat}, {self.ctx.parameters.HomeLon}")
+        print(
+            f"\nCurrent location: {self.ctx.parameters.home_lat}, {self.ctx.parameters.home_lon}"
+        )
 
         if input("Change location? [y/N] ").lower() == "y":
             self._prompt_for_location()
@@ -2618,6 +2857,21 @@ class Application:
         """Clean up GPIO state by releasing all pins."""
         self._log("Cleaning up GPIO...", terminal=False)
 
+        # Stop direct GPIO driver first (stops waveform thread and pigpio)
+        if self.ctx.direct_driver is not None:
+            try:
+                if self.ctx.direct_tracker is not None:
+                    self.ctx.direct_tracker.stop()
+                self.ctx.direct_driver.stop()
+                self.ctx.direct_driver.pi.stop()
+                self._log("Direct GPIO driver stopped", terminal=False)
+            except Exception as exc:  # pylint: disable=broad-except
+                self._log(
+                    f"Direct driver cleanup error: {exc}",
+                    level="warning",
+                    terminal=False,
+                )
+
         # Turn off microcontroller power if available
         if self.ctx.mctl and hasattr(self.ctx.mctl, "ResetPin"):
             reset_pin = self.ctx.mctl.ResetPin
@@ -2699,22 +2953,62 @@ def main(args: list[str] | None = None) -> int:
 
     # Parse any command line arguments
     project_root = find_project_root()
+    web_mode = False
+    web_port = 8080
 
-    for i, arg in enumerate(args):
+    i = 0
+    while i < len(args):
+        arg = args[i]
         if arg in ("--root", "-r") and i + 1 < len(args):
             project_root = args[i + 1]
+            i += 2
+        elif arg in ("--web", "web"):
+            web_mode = True
+            i += 1
+        elif arg.startswith("--port=") or arg.startswith("port="):
+            try:
+                web_port = int(arg.split("=")[1])
+            except ValueError:
+                pass
+            i += 1
         elif arg in ("--help", "-h"):
             print("Pilomar - Astronomical observation control")
             print()
-            print("Usage: pilomar [options]")
+            print("Usage: pilomar/app/main.py [options]")
             print()
             print("Options:")
             print("  -r, --root DIR    Set project root directory")
+            print("  --web             Start web UI (FastAPI + HTMX)")
+            print("  --port=PORT       Web UI port (default 8080)")
             print("  -h, --help        Show this help message")
             return 0
+        else:
+            i += 1
 
-    # Create and run application
     app = Application(project_root)
+
+    if web_mode:
+        try:
+            from pilomar.web.server import create_app, run as web_run
+        except ImportError as exc:
+            print(f"Web modules not available: {exc}")
+            print("Install with: pip install fastapi uvicorn jinja2")
+            return 1
+
+        if not app.initialize():
+            return 1
+
+        fastapi_app = create_app(app)
+        print(f"Starting web UI at http://0.0.0.0:{web_port}/")
+        print("Press Ctrl+C to stop.")
+        try:
+            web_run(fastapi_app, host="0.0.0.0", port=web_port)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            app.shutdown()
+        return 0
+
     return app.run()
 
 

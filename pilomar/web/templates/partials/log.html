@@ -1,0 +1,7 @@
+<div class="log-panel">
+{% for line in lines | reverse %}
+  <div class="log-line">{{ line }}</div>
+{% else %}
+  <div class="log-line" style="color:var(--muted);">(no log entries)</div>
+{% endfor %}
+</div>

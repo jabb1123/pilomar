@@ -199,43 +199,68 @@ class DualStepperDriver(AttributeMaster):
             return False
         return self.pi.read(self.home_pin) == 0  # active LOW
 
-    def home_altitude(self, approach_rate: float = 1000.0) -> None:
-        """Drive the altitude axis down until the home switch fires.
+    def home_altitude(
+        self, fast_rate: float = 1000.0, precision_rate: float = 80.0
+    ) -> None:
+        """Drive the altitude axis down until the tilt-switch fires, using a
+        two-phase approach.
 
-        After homing, ``alt_position_steps`` is reset to 0 (representing the
-        home / horizon position).
+        Phase 1 (fast find): drive down at *fast_rate* until the switch
+        triggers stably for 50 ms.
+        Phase 2 (precision): approach again at *precision_rate* for a
+        repeatable contact point.
+
+        After homing, ``alt_position_steps`` is reset to 0 (horizon / home
+        position).
 
         Args:
-            approach_rate: Speed in steps/sec for the final approach.
+            fast_rate: Speed in steps/sec for the initial fast approach.
+            precision_rate: Speed in steps/sec for the precision approach.
         """
         if self.home_pin is None:
             raise RuntimeError("No home_pin configured — cannot home altitude axis.")
 
         self.log("DualStepperDriver.home_altitude: starting", terminal=True)
 
-        # If already triggered, back off first
+        # If already triggered on entry, back off so we get a clean approach
         if self.home_pin_active():
             self.log(
                 "DualStepperDriver.home_altitude: already triggered, backing off",
                 terminal=True,
             )
-            self.set_rates(0.0, approach_rate)
+            self.set_rates(0.0, fast_rate)
             while self.home_pin_active():
                 time.sleep(0.01)
             self.set_rates(0.0, 0.0)
             time.sleep(0.3)
 
-        # Drive towards home
-        self.set_rates(0.0, -approach_rate)
-        self._wait_for_home_switch()
+        # Phase 1: fast approach
+        self.log("DualStepperDriver.home_altitude: fast approach", terminal=True)
+        self.set_rates(0.0, -fast_rate)
+        self._wait_for_home_switch(stable_ms=50)
+        self.set_rates(0.0, 0.0)
+        time.sleep(0.5)
 
+        # Phase 2: precision approach (low speed, first-touch trigger)
+        self.log("DualStepperDriver.home_altitude: precision approach", terminal=True)
+        self.set_rates(0.0, -precision_rate)
+        self._wait_for_home_switch(stable_ms=0)
         self.set_rates(0.0, 0.0)
         time.sleep(0.2)
+
         self.alt_position_steps = 0
         self.log("DualStepperDriver.home_altitude: complete, position zeroed", terminal=True)
 
     def _wait_for_home_switch(self, stable_ms: int = 50) -> None:
-        """Block until the home switch has been continuously active for *stable_ms*."""
+        """Block until the home switch has been continuously active for *stable_ms*.
+
+        If *stable_ms* is 0 the first trigger sample is accepted immediately
+        (no debounce), matching the precision-approach behaviour in pilomar2.
+        """
+        if stable_ms == 0:
+            while not self.home_pin_active():
+                time.sleep(0.005)
+            return
         start: float | None = None
         while True:
             if self.home_pin_active():

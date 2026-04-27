@@ -25,3 +25,5 @@ var/
 *.py[cod]
 *$py.class
 data/
+*.bsp
+*.jpg

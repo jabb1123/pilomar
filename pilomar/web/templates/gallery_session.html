@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pilomar — {{ session }}</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --accent: #238636; --text: #c9d1d9; --muted: #8b949e;
+      --good: #3fb950; --radius: 6px;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; color: var(--good); letter-spacing: 1px; }
+    nav { display: flex; gap: 4px; margin-left: 16px; }
+    nav a {
+      padding: 5px 12px; border-radius: var(--radius); background: #21262d;
+      color: var(--text); text-decoration: none; font-size: 13px;
+    }
+    nav a.active { background: var(--accent); color: #fff; }
+    .page { max-width: 1200px; margin: 24px auto; padding: 0 24px; }
+    .breadcrumb { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--text); }
+    h2 { font-size: 16px; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+    .empty { color: var(--muted); font-size: 13px; padding: 32px 0; text-align: center; }
+
+    /* Masonry-style grid */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    .photo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .photo-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .photo-card img {
+      width: 100%; display: block;
+      background: #0d1117;
+      min-height: 140px;
+      object-fit: cover;
+    }
+    .photo-card .meta {
+      padding: 6px 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .photo-card .meta .fname { font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Lightbox */
+    #lightbox {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img {
+      max-width: 92vw; max-height: 85vh;
+      border-radius: var(--radius);
+      object-fit: contain;
+    }
+    #lightbox .lb-meta {
+      color: var(--muted); font-size: 12px; margin-top: 10px; text-align: center;
+    }
+    #lightbox .lb-meta a {
+      color: var(--good); text-decoration: none; margin-left: 10px;
+    }
+    #lightbox .lb-meta a:hover { text-decoration: underline; }
+    #lb-close {
+      position: fixed; top: 16px; right: 20px;
+      color: var(--muted); font-size: 28px; cursor: pointer; line-height: 1;
+      background: none; border: none;
+    }
+    #lb-close:hover { color: var(--text); }
+    #lb-prev, #lb-next {
+      position: fixed; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,0.08); border: none; color: var(--text);
+      font-size: 28px; padding: 12px 16px; cursor: pointer; border-radius: var(--radius);
+    }
+    #lb-prev { left: 12px; }
+    #lb-next { right: 12px; }
+    #lb-prev:hover, #lb-next:hover { background: rgba(255,255,255,0.15); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>◎ PILOMAR</h1>
+    <nav>
+      <a href="/">Control</a>
+      <a href="/gallery" class="active">Gallery</a>
+    </nav>
+  </header>
+
+  <div class="page">
+    <div class="breadcrumb">
+      <a href="/gallery">Gallery</a> › {{ campaign }} › {{ session }}
+    </div>
+    <h2>{{ session }}</h2>
+    <div class="subtitle">{{ campaign }} &mdash; {{ images | length }} image{{ 's' if images | length != 1 else '' }}</div>
+
+    {% if images %}
+    <div class="photo-grid">
+      {% for img in images %}
+      <div class="photo-card"
+           onclick="openLightbox({{ loop.index0 }})"
+           data-full="/gallery/{{ img.campaign }}/{{ img.session }}/img/{{ img.name }}"
+           data-name="{{ img.name }}"
+           data-meta="{{ img.mtime }} &bull; {{ img.size_kb }} KB">
+        <img src="/gallery/{{ img.campaign }}/{{ img.session }}/thumb/{{ img.name }}"
+             alt="{{ img.name }}" loading="lazy" />
+        <div class="meta">
+          <div class="fname">{{ img.name }}</div>
+          <div>{{ img.mtime }} &bull; {{ img.size_kb }} KB</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">No JPG images found in this session's light folder.</div>
+    {% endif %}
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox">
+    <button id="lb-close" onclick="closeLightbox()">✕</button>
+    <button id="lb-prev" onclick="shiftLightbox(-1)">‹</button>
+    <img id="lb-img" src="" alt="" />
+    <div class="lb-meta">
+      <span id="lb-name"></span>
+      <span id="lb-info"></span>
+      <a id="lb-download" href="" download>⬇ Download</a>
+    </div>
+    <button id="lb-next" onclick="shiftLightbox(1)">›</button>
+  </div>
+
+  <script>
+    var cards = Array.from(document.querySelectorAll('.photo-card'));
+    var current = 0;
+
+    function openLightbox(idx) {
+      current = idx;
+      _show();
+      document.getElementById('lightbox').classList.add('open');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('open');
+    }
+
+    function shiftLightbox(delta) {
+      current = (current + delta + cards.length) % cards.length;
+      _show();
+    }
+
+    function _show() {
+      var c = cards[current];
+      var full = c.dataset.full;
+      document.getElementById('lb-img').src = full;
+      document.getElementById('lb-name').textContent = c.dataset.name;
+      document.getElementById('lb-info').innerHTML = ' &bull; ' + c.dataset.meta;
+      document.getElementById('lb-download').href = full;
+      document.getElementById('lb-download').download = c.dataset.name;
+    }
+
+    // Keyboard nav
+    document.addEventListener('keydown', function(e) {
+      var lb = document.getElementById('lightbox');
+      if (!lb.classList.contains('open')) return;
+      if (e.key === 'ArrowRight') shiftLightbox(1);
+      else if (e.key === 'ArrowLeft') shiftLightbox(-1);
+      else if (e.key === 'Escape') closeLightbox();
+    });
+
+    // Click backdrop to close
+    document.getElementById('lightbox').addEventListener('click', function(e) {
+      if (e.target === this) closeLightbox();
+    });
+  </script>
+</body>
+</html>

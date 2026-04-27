@@ -144,6 +144,18 @@ class Parameters(AttributeMaster):
         self._home_lat_val = 0.0
         self._home_lon_val = 0.0
 
+        # Direct GPIO motor parameters (DualStepperDriver — no external MCU)
+        self.direct_motor_enabled = None
+        self.az_step_pin = None
+        self.az_dir_pin = None
+        self.alt_step_pin = None
+        self.alt_dir_pin = None
+        self.alt_home_pin = None  # tilt-switch on altitude/pitch axis
+        self.az_steps_per_rev = None
+        self.alt_steps_per_rev = None
+        self.flip_az = None
+        self.flip_alt = None
+
         self.load_parameters()
 
     def load_parameters(self):
@@ -167,6 +179,7 @@ class Parameters(AttributeMaster):
         self._init_trajectory_parameters()
         self._init_filter_parameters()
         self._init_location_parameters()
+        self._init_direct_motor_parameters()
 
     def _init_stepper_driver_data(self):
         """Initialize stepper motor driver board data."""
@@ -182,66 +195,76 @@ class Parameters(AttributeMaster):
                 }
             }
         }
-        self.stepper_driver_data = self.get_param("StepperDriverData", sdd)
+        self.stepper_driver_data = self.get_param("stepper_driver_data", sdd)
 
     def _init_owner_and_privacy(self):
         """Initialize owner and privacy settings."""
-        self.owner = self.get_param("Owner", "telescope owner")
-        self.image_privacy = self.get_param("ImagePrivacy", "high")
+        self.owner = self.get_param("owner", "telescope owner")
+        self.image_privacy = self.get_param("image_privacy", "high")
 
     def _init_batch_sizes(self):
         """Initialize batch size parameters."""
-        self.batch_size = self.get_param("BatchSize", 100)
-        self.control_batch_size = self.get_param("ControlBatchSize", 20)
+        self.batch_size = self.get_param("batch_size", 100)
+        self.control_batch_size = self.get_param("control_batch_size", 20)
 
     def _init_hardware_features(self):
         """Initialize hardware feature parameters."""
-        self.board_type = self.get_param("BoardType", None)
-        self.uart_override = self.get_param("UARTOverride", None)
-        self.camera_enabled = self.get_param("CameraEnabled", True)
-        self.backlash_enabled = self.get_param("BacklashEnabled", False)
-        self.fault_sensitive = self.get_param("FaultSensitive", False)
-        self.mctl_led_status = self.get_param("MctlLedStatus", True)
-        self.observation_resets_mctl = self.get_param("ObservationResetsMctl", False)
-        self.observation_stop_pin = self.get_param("ObservationStopPin", 25, oldnames=["StopPin"])
-        self.ir_control_pin = self.get_param("IRControlPin", None)
-        self.ir_cutoff = self.get_param("IRCutoff", True)
-        self.tune_on_32_bit = self.get_param("TuneOn32Bit", True)
-        self.mctl_reset_pin = self.get_param("MctlResetPin", 4)
-        self.uart_rx_queue_limit = self.get_param("UartRxQueueLimit", 50)
+        self.board_type = self.get_param("board_type", None)
+        self.uart_override = self.get_param("uart_override", None)
+        self.camera_enabled = self.get_param("camera_enabled", True)
+        self.backlash_enabled = self.get_param("backlash_enabled", False)
+        self.fault_sensitive = self.get_param("fault_sensitive", False)
+        self.mctl_led_status = self.get_param("mctl_led_status", True)
+        self.observation_resets_mctl = self.get_param("observation_resets_mctl", False)
+        self.observation_stop_pin = self.get_param(
+            "observation_stop_pin", 25, oldnames=["StopPin"]
+        )
+        self.ir_control_pin = self.get_param("ir_control_pin", None)
+        self.ir_cutoff = self.get_param("ir_cutoff", True)
+        self.tune_on_32_bit = self.get_param("tune_on_32_bit", True)
+        self.mctl_reset_pin = self.get_param("mctl_reset_pin", 4)
+        self.uart_rx_queue_limit = self.get_param("uart_rx_queue_limit", 50)
 
     def _init_motor_parameters(self):
         """Initialize motor configuration parameters."""
         # Azimuth motor
-        self.min_azimuth_angle = self.get_param("MinAzimuthAngle", 0)
-        self.max_azimuth_angle = min(self.get_param("MaxAzimuthAngle", 360), 360)
-        self.azimuth_driver = self.get_param("AzimuthDriver", "drv8825")
-        self.azimuth_gear_ratio = self.get_param("AzimuthGearRatio", 240)
-        self.azimuth_motor_steps_per_rev = self.get_param("AzimuthMotorStepsPerRev", 400)
-        self.azimuth_slew_microstep_ratio = self.get_param("AzimuthSlewMicrostepRatio", 1)
-        self.azimuth_microstep_ratio = self.get_param("AzimuthMicrostepRatio", 1)
-        self.azimuth_rest_angle = self.get_param("AzimuthRestAngle", 180.0)
-        self.azimuth_backlash_angle = self.get_param("AzimuthBacklashAngle", 0.0)
-        self.azimuth_orientation = self.get_param("AzimuthOrientation", -1)
-        self.azimuth_limit_angle = self.get_param("AzimuthLimitAngle", None)
+        self.min_azimuth_angle = self.get_param("min_azimuth_angle", 0)
+        self.max_azimuth_angle = min(self.get_param("max_azimuth_angle", 360), 360)
+        self.azimuth_driver = self.get_param("azimuth_driver", "drv8825")
+        self.azimuth_gear_ratio = self.get_param("azimuth_gear_ratio", 240)
+        self.azimuth_motor_steps_per_rev = self.get_param(
+            "azimuth_motor_steps_per_rev", 400
+        )
+        self.azimuth_slew_microstep_ratio = self.get_param(
+            "azimuth_slew_microstep_ratio", 1
+        )
+        self.azimuth_microstep_ratio = self.get_param("azimuth_microstep_ratio", 1)
+        self.azimuth_rest_angle = self.get_param("azimuth_rest_angle", 180.0)
+        self.azimuth_backlash_angle = self.get_param("azimuth_backlash_angle", 0.0)
+        self.azimuth_orientation = self.get_param("azimuth_orientation", -1)
+        self.azimuth_limit_angle = self.get_param("azimuth_limit_angle", None)
 
         # Altitude motor
-        self.min_altitude_angle = self.get_param("MinAltitudeAngle", 0)
-        self.max_altitude_angle = min(self.get_param("MaxAltitudeAngle", 90), 90)
-        self.altitude_driver = self.get_param("AltitudeDriver", "drv8825")
-        self.altitude_gear_ratio = self.get_param("AltitudeGearRatio", 240)
-        self.altitude_motor_steps_per_rev = self.get_param("AltitudeMotorStepsPerRev", 400)
-        self.altitude_microstep_ratio = self.get_param("AltitudeMicrostepRatio", 1)
-        self.altitude_slew_microstep_ratio = self.get_param("AltitudeSlewMicrostepRatio", 1)
-        self.altitude_rest_angle = self.get_param("AltitudeRestAngle", 0.0)
-        self.altitude_backlash_angle = self.get_param("AltitudeBacklashAngle", 0.0)
-        self.altitude_orientation = self.get_param("AltitudeOrientation", -1)
-        self.altitude_limit_angle = self.get_param("AltitudeLimitAngle", None)
+        self.min_altitude_angle = self.get_param("min_altitude_angle", 0)
+        self.max_altitude_angle = min(self.get_param("max_altitude_angle", 90), 90)
+        self.altitude_driver = self.get_param("altitude_driver", "drv8825")
+        self.altitude_gear_ratio = self.get_param("altitude_gear_ratio", 240)
+        self.altitude_motor_steps_per_rev = self.get_param(
+            "altitude_motor_steps_per_rev", 400
+        )
+        self.altitude_microstep_ratio = self.get_param("altitude_microstep_ratio", 1)
+        self.altitude_slew_microstep_ratio = self.get_param(
+            "altitude_slew_microstep_ratio", 1
+        )
+        self.altitude_rest_angle = self.get_param("altitude_rest_angle", 0.0)
+        self.altitude_backlash_angle = self.get_param("altitude_backlash_angle", 0.0)
+        self.altitude_orientation = self.get_param("altitude_orientation", -1)
+        self.altitude_limit_angle = self.get_param("altitude_limit_angle", None)
 
         # Motor timing
-        self.fast_time = self.get_param("FastTime", 0.001)
-        self.slow_time = self.get_param("SlowTime", 0.05)
-        self.time_delta = self.get_param("TimeDelta", 0.003)
+        self.fast_time = self.get_param("fast_time", 0.001)
+        self.slow_time = self.get_param("slow_time", 0.05)
+        self.time_delta = self.get_param("time_delta", 0.003)
 
         speed_list = {
             "Slow": {
@@ -269,79 +292,81 @@ class Parameters(AttributeMaster):
                 "TimeDelta": 0.003,
             },
         }
-        self.speed_list = self.get_param("SpeedList", speed_list)
+        self.speed_list = self.get_param("speed_list", speed_list)
 
-        self.motor_status_delay = self.get_param("MotorStatusDelay", 10)
-        self.slew_enabled = self.get_param("SlewEnabled", False)
-        self.trace_move = self.get_param("TraceMove", False, oldnames=["TraceMotor"])
-        self.optimise_moves = self.get_param("OptimiseMoves", False)
-        self.mctl_comms_timeout = self.get_param("MctlCommsTimeout", 120)
+        self.motor_status_delay = self.get_param("motor_status_delay", 10)
+        self.slew_enabled = self.get_param("slew_enabled", False)
+        self.trace_move = self.get_param("trace_move", False, oldnames=["TraceMotor"])
+        self.optimise_moves = self.get_param("optimise_moves", False)
+        self.mctl_comms_timeout = self.get_param("mctl_comms_timeout", 120)
 
     def _init_image_parameters(self):
         """Initialize image storage parameters."""
-        self.use_usb_storage = self.get_param("UseUSBStorage", True)
-        self.sd_path = self.get_param("SDPath", "/")
-        self.usb_path = self.get_param("USBPath", "/media/pi")
-        self.fast_flush = self.get_param("FastFlush", False)
-        self.fast_image_capture = self.get_param("FastImageCapture", False)
-        self.horizon_altitude = self.get_param("HorizonAltitude", 0.0)
+        self.use_usb_storage = self.get_param("use_usb_storage", True)
+        self.sd_path = self.get_param("sd_path", "/")
+        self.usb_path = self.get_param("usb_path", "/media/pi")
+        self.fast_flush = self.get_param("fast_flush", False)
+        self.fast_image_capture = self.get_param("fast_image_capture", False)
+        self.horizon_altitude = self.get_param("horizon_altitude", 0.0)
         self._horizon = max(
             self.horizon_altitude if self.horizon_altitude is not None else 0.0,
             self.min_altitude_angle if self.min_altitude_angle is not None else 0.0,
         )
 
         # Image file types
-        self.camera_save_jpg = self.get_param("CameraSaveJpg", True)
-        self.camera_save_dng = self.get_param("CameraSaveDng", True)
-        self.camera_save_fits = self.get_param("CameraSaveFits", False)
+        self.camera_save_jpg = self.get_param("camera_save_jpg", True)
+        self.camera_save_dng = self.get_param("camera_save_dng", True)
+        self.camera_save_fits = self.get_param("camera_save_fits", False)
 
         if not (self.camera_save_jpg or self.camera_save_dng or self.camera_save_fits):
             self.log("No image types are saved according to the parameters.", level="warning")
 
     def _init_display_parameters(self):
         """Initialize display and color scheme parameters."""
-        self.color_scheme = self.get_param("ColorScheme", "green")
-        self.debug_mode = self.get_param("DebugMode", False)
+        self.color_scheme = self.get_param("color_scheme", "green")
+        self.debug_mode = self.get_param("debug_mode", False)
 
         # Default color scheme values (green)
-        self.menu_title_fg = self.get_param("MenuTitleFG", 46)  # LIME
-        self.menu_title_bg = self.get_param("MenuTitleBG", 22)  # DARKGREEN
-        self.menu_subtitle_fg = self.get_param("MenuSubtitleFG", 0)  # BLACK
-        self.menu_subtitle_bg = self.get_param("MenuSubtitleBG", 40)  # GREEN
-        self.title_fg = self.get_param("TitleFG", 46)  # LIME
-        self.title_bg = self.get_param("TitleBG", 22)  # DARKGREEN
-        self.text_fg = self.get_param("TextFG", 40)  # GREEN
-        self.text_bg = self.get_param("TextBG", 235)  # GREY15
-        self.text_good = self.get_param("TextGood", 119)  # LIGHTGREEN
-        self.text_poor = self.get_param("TextPoor", 226)  # YELLOW
-        self.text_bad = self.get_param("TextBad", 202)  # ORANGERED1
-        self.border_fg = self.get_param("BorderFG", 22)  # DARKGREEN
-        self.border_bg = self.get_param("BorderBG", 235)  # GREY15
+        self.menu_title_fg = self.get_param("menu_title_fg", 46)  # LIME
+        self.menu_title_bg = self.get_param("menu_title_bg", 22)  # DARKGREEN
+        self.menu_subtitle_fg = self.get_param("menu_subtitle_fg", 0)  # BLACK
+        self.menu_subtitle_bg = self.get_param("menu_subtitle_bg", 40)  # GREEN
+        self.title_fg = self.get_param("title_fg", 46)  # LIME
+        self.title_bg = self.get_param("title_bg", 22)  # DARKGREEN
+        self.text_fg = self.get_param("text_fg", 40)  # GREEN
+        self.text_bg = self.get_param("text_bg", 235)  # GREY15
+        self.text_good = self.get_param("text_good", 119)  # LIGHTGREEN
+        self.text_poor = self.get_param("text_poor", 226)  # YELLOW
+        self.text_bad = self.get_param("text_bad", 202)  # ORANGERED1
+        self.border_fg = self.get_param("border_fg", 22)  # DARKGREEN
+        self.border_bg = self.get_param("border_bg", 235)  # GREY15
 
         # Apply named color scheme if specified
         self.set_color_scheme(self.color_scheme)
 
     def _init_trajectory_parameters(self):
         """Initialize trajectory calculation parameters."""
-        self.trajectory_window = self.get_param("TrajectoryWindow", 1200)
-        self.use_dynamic_trajectory_periods = self.get_param("UseDynamicTrajectoryPeriods", True)
-        self.drift_tracking_enabled = self.get_param("DriftTrackingEnabled", True)
+        self.trajectory_window = self.get_param("trajectory_window", 1200)
+        self.use_dynamic_trajectory_periods = self.get_param(
+            "use_dynamic_trajectory_periods", True
+        )
+        self.drift_tracking_enabled = self.get_param("drift_tracking_enabled", True)
 
     def _init_filter_parameters(self):
         """Initialize image filter parameters."""
-        self.scan_for_meteors = self.get_param("ScanForMeteors", True)
-        self.min_satellite_altitude = self.get_param("MinSatelliteAltitude", 30)
-        self.aurora_camera_altitude = self.get_param("AuroraCameraAltitude", 5)
-        self.suggestion_magnitude = self.get_param("SuggestionMagnitude", 11)
-        self.suggestion_pixels = self.get_param("SuggestionPixels", 100)
-        self.saved_utc = self.get_param("SavedUTC", self._now_func())
+        self.scan_for_meteors = self.get_param("scan_for_meteors", True)
+        self.min_satellite_altitude = self.get_param("min_satellite_altitude", 30)
+        self.aurora_camera_altitude = self.get_param("aurora_camera_altitude", 5)
+        self.suggestion_magnitude = self.get_param("suggestion_magnitude", 11)
+        self.suggestion_pixels = self.get_param("suggestion_pixels", 100)
+        self.saved_utc = self.get_param("saved_utc", self._now_func())
 
     def _init_location_parameters(self):
         """Initialize observer location parameters."""
         # Location can be string like "51.477 N" or decimal degrees
-        self.home_lat = self.get_param("HomeLat", None)  # e.g., "51.477 N"
-        self.home_lon = self.get_param("HomeLon", None)  # e.g., "0.0 W"
-        self.local_tz = self.get_param("LocalTZ", "utc")
+        self.home_lat = self.get_param("home_lat", None)  # e.g., "51.477 N"
+        self.home_lon = self.get_param("home_lon", None)  # e.g., "0.0 W"
+        self.local_tz = self.get_param("local_tz", "utc")
 
         # Convert to decimal values for calculations
         self._home_lat_val = 0.0
@@ -372,6 +397,21 @@ class Parameters(AttributeMaster):
                     self._home_lon_val = float(self.home_lon)
                 except ValueError:
                     pass
+
+    def _init_direct_motor_parameters(self):
+        """Initialize direct GPIO stepper motor parameters."""
+        self.direct_motor_enabled = self.get_param("direct_motor_enabled", False)
+        self.az_step_pin = self.get_param("az_step_pin", 21)
+        self.az_dir_pin = self.get_param("az_dir_pin", 20)
+        self.alt_step_pin = self.get_param("alt_step_pin", 6)
+        self.alt_dir_pin = self.get_param("alt_dir_pin", 5)
+        self.alt_home_pin = self.get_param(
+            "alt_home_pin", 23
+        )  # tilt switch (active LOW)
+        self.az_steps_per_rev = self.get_param("az_steps_per_rev", 384000)
+        self.alt_steps_per_rev = self.get_param("alt_steps_per_rev", 384000)
+        self.flip_az = self.get_param("flip_az", True)
+        self.flip_alt = self.get_param("flip_alt", False)
 
     def get_param(self, name, default, oldnames=None):
         """Get a value from the parameter file.
@@ -428,64 +468,64 @@ class Parameters(AttributeMaster):
         # Color values are 256-color terminal codes
         schemes = {
             "white": {
-                "MenuTitleFG": 15,
-                "MenuTitleBG": 244,
-                "MenuSubtitleFG": 15,
-                "MenuSubtitleBG": 239,
-                "TitleFG": 15,
-                "TitleBG": 239,
-                "TextFG": 15,
-                "TextBG": 0,
-                "TextGood": 15,
-                "TextPoor": 226,
-                "TextBad": 196,
-                "BorderFG": 249,
-                "BorderBG": 0,
+                "menu_title_fg": 15,
+                "menu_title_bg": 244,
+                "menu_subtitle_fg": 15,
+                "menu_subtitle_bg": 239,
+                "title_fg": 15,
+                "title_bg": 239,
+                "text_fg": 15,
+                "text_bg": 0,
+                "text_good": 15,
+                "text_poor": 226,
+                "text_bad": 196,
+                "border_fg": 249,
+                "border_bg": 0,
             },
             "blue": {
-                "MenuTitleFG": 15,
-                "MenuTitleBG": 24,
-                "MenuSubtitleFG": 0,
-                "MenuSubtitleBG": 39,
-                "TitleFG": 15,
-                "TitleBG": 24,
-                "TextFG": 51,
-                "TextBG": 235,
-                "TextGood": 117,
-                "TextPoor": 226,
-                "TextBad": 202,
-                "BorderFG": 17,
-                "BorderBG": 235,
+                "menu_title_fg": 15,
+                "menu_title_bg": 24,
+                "menu_subtitle_fg": 0,
+                "menu_subtitle_bg": 39,
+                "title_fg": 15,
+                "title_bg": 24,
+                "text_fg": 51,
+                "text_bg": 235,
+                "text_good": 117,
+                "text_poor": 226,
+                "text_bad": 202,
+                "border_fg": 17,
+                "border_bg": 235,
             },
             "green": {
-                "MenuTitleFG": 46,
-                "MenuTitleBG": 22,
-                "MenuSubtitleFG": 0,
-                "MenuSubtitleBG": 40,
-                "TitleFG": 46,
-                "TitleBG": 22,
-                "TextFG": 40,
-                "TextBG": 235,
-                "TextGood": 119,
-                "TextPoor": 226,
-                "TextBad": 202,
-                "BorderFG": 22,
-                "BorderBG": 235,
+                "menu_title_fg": 46,
+                "menu_title_bg": 22,
+                "menu_subtitle_fg": 0,
+                "menu_subtitle_bg": 40,
+                "title_fg": 46,
+                "title_bg": 22,
+                "text_fg": 40,
+                "text_bg": 235,
+                "text_good": 119,
+                "text_poor": 226,
+                "text_bad": 202,
+                "border_fg": 22,
+                "border_bg": 235,
             },
             "red": {
-                "MenuTitleFG": 15,
-                "MenuTitleBG": 52,
-                "MenuSubtitleFG": 0,
-                "MenuSubtitleBG": 124,
-                "TitleFG": 15,
-                "TitleBG": 124,
-                "TextFG": 196,
-                "TextBG": 235,
-                "TextGood": 218,
-                "TextPoor": 226,
-                "TextBad": 202,
-                "BorderFG": 52,
-                "BorderBG": 235,
+                "menu_title_fg": 15,
+                "menu_title_bg": 52,
+                "menu_subtitle_fg": 0,
+                "menu_subtitle_bg": 124,
+                "title_fg": 15,
+                "title_bg": 124,
+                "text_fg": 196,
+                "text_bg": 235,
+                "text_good": 218,
+                "text_poor": 226,
+                "text_bad": 202,
+                "border_fg": 52,
+                "border_bg": 235,
             },
         }
 

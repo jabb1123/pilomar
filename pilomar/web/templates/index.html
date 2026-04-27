@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pilomar</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --accent: #238636;
+      --accent-hover: #2ea043;
+      --danger: #da3633;
+      --warn: #d29922;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --good: #3fb950;
+      --radius: 6px;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; min-height: 100vh; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; color: var(--good); letter-spacing: 1px; }
+    header span { color: var(--muted); font-size: 12px; }
+
+    .layout { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px 24px; max-width: 1400px; margin: 0 auto; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .card h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+
+    /* status panel */
+    .status-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #21262d; }
+    .status-row:last-child { border-bottom: none; }
+    .status-label { color: var(--muted); }
+    .status-val { font-weight: 500; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-good { background: #1a3a1a; color: var(--good); }
+    .badge-warn { background: #3a2a00; color: var(--warn); }
+    .badge-none { background: #21262d; color: var(--muted); }
+    .badge-busy { background: #1a2a3a; color: #58a6ff; }
+
+    /* operation banner */
+    .op-banner { margin-top: 12px; padding: 8px 12px; border-radius: var(--radius); font-size: 12px; }
+    .op-running { background: #0d2137; border: 1px solid #388bfd; color: #58a6ff; }
+    .op-done    { background: #0d2a0d; border: 1px solid var(--accent); color: var(--good); }
+    .op-error   { background: #2d0d0d; border: 1px solid var(--danger); color: #f85149; }
+
+    /* flash message */
+    .flash { margin-top: 10px; padding: 6px 10px; border-radius: var(--radius); font-size: 12px; }
+    .flash-ok  { background: #0d2a0d; border: 1px solid var(--accent); color: var(--good); }
+    .flash-err { background: #2d0d0d; border: 1px solid var(--danger); color: #f85149; }
+
+    /* forms */
+    .control-panel { display: flex; flex-direction: column; gap: 16px; }
+    select, input[type=text], input[type=number] {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 13px;
+      width: 100%;
+    }
+    select:focus, input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+    .field { margin-bottom: 10px; }
+
+    .btn {
+      display: inline-block;
+      padding: 7px 16px;
+      border-radius: var(--radius);
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      width: 100%;
+      text-align: center;
+    }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: #21262d; color: var(--text); }
+    .btn-secondary:hover { background: #30363d; }
+    .btn-danger    { background: #21262d; color: #f85149; border: 1px solid #6e1a1a; }
+    .btn-danger:hover  { background: #2d0d0d; }
+    .btn-warn      { background: #21262d; color: var(--warn); border: 1px solid #5a3e00; }
+    .btn-warn:hover    { background: #3a2a00; }
+
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* log panel */
+    .log-panel {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 11px;
+      color: #8b949e;
+      padding: 10px;
+      height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+    .log-line { padding: 1px 0; }
+
+    /* motor position display */
+    .motor-pos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .motor-axis { background: #0d1117; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; text-align: center; }
+    .motor-axis .deg { font-size: 22px; font-weight: 600; color: var(--text); }
+    .motor-axis .axis-label { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+
+    /* htmx indicator */
+    .htmx-indicator { opacity: 0; transition: opacity 200ms; }
+    .htmx-request .htmx-indicator { opacity: 1; }
+    .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin-left: 4px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>◎ PILOMAR</h1>
+    <nav style="display:flex;gap:4px;margin-left:16px;">
+      <a href="/" style="padding:5px 12px;border-radius:var(--radius);background:#21262d;color:var(--text);text-decoration:none;font-size:13px;">Control</a>
+      <a href="/gallery" style="padding:5px 12px;border-radius:var(--radius);background:#21262d;color:var(--text);text-decoration:none;font-size:13px;">Gallery</a>
+    </nav4px;margin-left:16px;">
+      <a href="/" style="padding:5px 12px;border-radius:var(--radius);background:#21262d;color:var(--text);text-decoration:none;font-size:13px;">Control</a>
+      <a href="/gallery" style="padding:5px 12px;border-radius:var(--radius);background:#21262d;color:var(--text);text-decoration:none;font-size:13px;">Gallery</a>
+    </nav>
+    <span style="margin-left:auto;font-size:11px;" id="clock"></span>
+  </header>
+
+  <div class="layout">
+
+    <!-- LEFT COLUMN: status + controls -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Status (auto-refreshed every 3 s) -->
+      <div id="status-panel"
+           hx-get="/partials/status"
+           hx-trigger="every 3s"
+           hx-swap="outerHTML">
+        {% include "partials/status.html" %}
+      </div>
+
+      <!-- Target selection -->
+      <div class="card">
+        <h2>Select Target</h2>
+        <form hx-post="/api/target"
+              hx-target="#status-panel"
+              hx-swap="outerHTML">
+          <div class="field">
+            <label for="sg">Type</label>
+            <select id="sg" name="searchgroup">
+              <option value="solar">Solar system</option>
+              <option value="messier">Messier (M1–M110)</option>
+              <option value="ngc">NGC object</option>
+              <option value="hipparcos">Star (Hipparcos)</option>
+              <option value="radec">Custom RA/Dec (h,°)</option>
+              <option value="altaz">Custom Alt/Az (°,°)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="st">Target</label>
+            <input type="text" id="st" name="searchterm"
+                   placeholder="e.g. moon, M42, 18.615,38.784" />
+          </div>
+          <button class="btn btn-primary" type="submit">Set Target</button>
+        </form>
+      </div>
+
+      <!-- Actions -->
+      <div class="card">
+        <h2>Actions</h2>
+        <div class="control-panel">
+          <button class="btn btn-primary"
+                  hx-post="/api/goto"
+                  hx-target="#status-panel"
+                  hx-swap="outerHTML">
+            ▶ GOTO Target
+          </button>
+          <div class="btn-row">
+            <button class="btn btn-secondary"
+                    hx-post="/api/tracking/start"
+                    hx-target="#status-panel"
+                    hx-swap="outerHTML">
+              Track (resume)
+            </button>
+            <button class="btn btn-secondary"
+                    hx-post="/api/tracking/stop"
+                    hx-target="#status-panel"
+                    hx-swap="outerHTML">
+              Track (stop)
+            </button>
+          </div>
+          <button class="btn btn-primary"
+                  hx-post="/api/observation/start"
+                  hx-target="#status-panel"
+                  hx-swap="outerHTML">
+            ▶ Begin Observation
+          </button>
+          <button class="btn btn-danger"
+                  hx-post="/api/observation/stop"
+                  hx-target="#status-panel"
+                  hx-swap="outerHTML">
+            ■ Stop Observation / Tracking
+          </button>
+          <button class="btn btn-warn"
+                  hx-post="/api/home"
+                  hx-target="#status-panel"
+                  hx-swap="outerHTML"
+                  onclick="return confirm('Home altitude axis now?')">
+            ⌂ Home Motors
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: log -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card" style="flex:1;">
+        <h2>Live Log
+          <span class="htmx-indicator"><span class="spinner"></span></span>
+        </h2>
+        <div id="log-panel"
+             hx-get="/partials/log"
+             hx-trigger="every 4s"
+             hx-swap="innerHTML">
+          <div class="log-panel"><span class="log-line" style="color:#3fb950;">Pilomar web UI ready.</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Update clock
+    function tick() {
+      var d = new Date();
+      document.getElementById('clock').textContent =
+        d.toUTCString().replace('GMT','UTC');
+    }
+    tick(); setInterval(tick, 1000);
+  </script>
+</body>
+</html>

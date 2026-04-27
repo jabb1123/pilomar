@@ -1,13 +1,17 @@
 astroalign==2.6.2
 astropy==6.1.7
+fastapi>=0.111.0
 gpiod==2.4.0
+jinja2>=3.1.0
 numpy==2.2.6
 pandas==2.3.3
 picamera2==0.3.34
 pidng==4.0.9
 Pillow==12.1.1
 pyserial==3.5
+python-multipart>=0.0.9
 pytz==2025.2
 Requests==2.32.5
 RpiMotorLib==3.3
 skyfield==1.54
+uvicorn>=0.29.0

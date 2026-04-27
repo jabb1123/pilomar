@@ -1,0 +1,95 @@
+<div id="status-panel" class="card"
+     hx-get="/partials/status"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML">
+  <h2>Status</h2>
+
+  <div class="status-row">
+    <span class="status-label">Target</span>
+    <span class="status-val">{{ status.target }}</span>
+  </div>
+  <div class="status-row">
+    <span class="status-label">Location</span>
+    <span class="status-val">{{ status.location }}</span>
+  </div>
+  <div class="status-row">
+    <span class="status-label">UTC</span>
+    <span class="status-val">{{ status.utc }}</span>
+  </div>
+  <div class="status-row">
+    <span class="status-label">Camera</span>
+    <span class="status-val">
+      {% if status.camera == 'connected' %}
+        <span class="badge badge-good">connected</span>
+      {% else %}
+        <span class="badge badge-none">{{ status.camera }}</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="status-row">
+    <span class="status-label">Session</span>
+    <span class="status-val">
+      {% if status.session == 'active' %}
+        <span class="badge badge-good">active</span>
+      {% else %}
+        <span class="badge badge-none">none</span>
+      {% endif %}
+    </span>
+  </div>
+
+  <!-- Motor position -->
+  {% if status.motor.mode == 'direct GPIO' %}
+  <div style="margin-top:10px;">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">
+      Motors
+      {% if status.motor.tracking %}
+        <span class="badge badge-good" style="margin-left:6px;">tracking</span>
+      {% else %}
+        <span class="badge badge-none" style="margin-left:6px;">idle</span>
+      {% endif %}
+    </div>
+    <div class="motor-pos">
+      <div class="motor-axis">
+        <div class="deg">{{ status.motor.az_deg }}°</div>
+        <div class="axis-label">Azimuth</div>
+      </div>
+      <div class="motor-axis">
+        <div class="deg">{{ status.motor.alt_deg }}°</div>
+        <div class="axis-label">Altitude</div>
+      </div>
+    </div>
+  </div>
+  {% elif status.motor.mode == 'microcontroller' %}
+  <div class="status-row">
+    <span class="status-label">Motors</span>
+    <span class="badge badge-good">MCU ready</span>
+  </div>
+  {% else %}
+  <div class="status-row">
+    <span class="status-label">Motors</span>
+    <span class="badge badge-none">not initialized</span>
+  </div>
+  {% endif %}
+
+  <!-- Active operation -->
+  {% if status.op.running %}
+  <div class="op-banner op-running">
+    ⟳ {{ status.op.description }}…
+  </div>
+  {% elif status.op.error %}
+  <div class="op-banner op-error">
+    ✗ {{ status.op.error }}
+  </div>
+  {% elif status.op.result %}
+  <div class="op-banner op-done">
+    ✓ {{ status.op.result }}
+  </div>
+  {% endif %}
+
+  <!-- Flash message from user action -->
+  {% if status.flash is defined %}
+  <div class="flash {% if status.flash_ok %}flash-ok{% else %}flash-err{% endif %}">
+    {{ status.flash }}
+  </div>
+  {% endif %}
+</div>

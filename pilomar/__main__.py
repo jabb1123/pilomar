@@ -74,6 +74,8 @@ def parse_args():
         "reload": False,
         "resume": False,
         "clock": None,
+        "web": False,
+        "port": 8080,
     }
 
     for arg in sys.argv[1:]:
@@ -87,6 +89,14 @@ def parse_args():
             args["clock"] = arg.split("=")[1]
             print(f"  WARNING: Startup clock set to {args['clock']}")
             print("  This is a development feature. Use with caution.")
+        elif arg == "--web" or arg == "web":
+            args["web"] = True
+            print("  Web UI mode enabled (FastAPI + HTMX).")
+        elif arg.startswith("--port=") or arg.startswith("port="):
+            try:
+                args["port"] = int(arg.split("=")[1])
+            except ValueError:
+                print(f"  Invalid port value in '{arg}', using 8080.")
         else:
             print(f"  Ignored unknown argument: {arg}")
 
@@ -98,12 +108,9 @@ def main():
     print_banner()
 
     # Parse arguments
+    args = parse_args()
     if len(sys.argv) > 1:
-        print("Runtime arguments:")
-        parse_args()
         print()
-    else:
-        pass
 
     # Check environment
     print("Checking environment...")
@@ -118,6 +125,39 @@ def main():
 
     print("  Environment OK")
     print()
+
+    # ------------------------------------------------------------------
+    # Web mode: initialize Application then hand off to uvicorn
+    # ------------------------------------------------------------------
+    if args.get("web"):
+        try:
+            from pilomar.app.main import Application
+            from pilomar.web.server import create_app, run as web_run
+        except ImportError as exc:
+            print(f"Failed to load web modules: {exc}")
+            sys.exit(1)
+
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        pilomar_app = Application(project_root)
+        if not pilomar_app.initialize():
+            print("Application initialization failed.")
+            sys.exit(1)
+
+        fastapi_app = create_app(pilomar_app)
+        port = args.get("port", 8080)
+        print(f"Starting web UI at http://0.0.0.0:{port}/")
+        print("Press Ctrl+C to stop.")
+        try:
+            web_run(fastapi_app, host="0.0.0.0", port=port)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            pilomar_app.shutdown()
+        return 0
+
+    # ------------------------------------------------------------------
+    # Console mode (original path)
+    # ------------------------------------------------------------------
 
     # Import pilomar modules
     print("Loading Pilomar modules...")

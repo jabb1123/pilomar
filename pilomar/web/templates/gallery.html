@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pilomar — Gallery</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --accent: #238636; --text: #c9d1d9; --muted: #8b949e;
+      --good: #3fb950; --radius: 6px;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; color: var(--good); letter-spacing: 1px; }
+    nav { display: flex; gap: 4px; margin-left: 16px; }
+    nav a {
+      padding: 5px 12px; border-radius: var(--radius); background: #21262d;
+      color: var(--text); text-decoration: none; font-size: 13px;
+    }
+    nav a.active { background: var(--accent); color: #fff; }
+    .page { max-width: 900px; margin: 24px auto; padding: 0 24px; }
+    h2 { font-size: 16px; margin-bottom: 16px; color: var(--text); }
+    .empty { color: var(--muted); font-size: 13px; padding: 32px 0; text-align: center; }
+    .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .session-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px; text-decoration: none;
+      color: var(--text); display: block; transition: border-color 0.15s;
+    }
+    .session-card:hover { border-color: var(--accent); }
+    .session-card .name { font-weight: 600; margin-bottom: 4px; }
+    .session-card .meta { font-size: 12px; color: var(--muted); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px;
+             font-size: 11px; font-weight: 600; background: #1a3a1a; color: var(--good); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>◎ PILOMAR</h1>
+    <nav>
+      <a href="/">Control</a>
+      <a href="/gallery" class="active">Gallery</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h2>Observation Sessions</h2>
+    {% if sessions %}
+    <div class="session-grid">
+      {% for s in sessions %}
+      <a class="session-card" href="/gallery/{{ s.campaign }}/{{ s.session }}">
+        <div class="name">{{ s.session }}</div>
+        <div class="meta">{{ s.campaign }}</div>
+        <div style="margin-top:8px;">
+          <span class="badge">{{ s.count }} image{{ 's' if s.count != 1 else '' }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">No observation sessions found.<br>Images will appear here once a session has been run.</div>
+    {% endif %}
+  </div>
+</body>
+</html>
